@@ -811,66 +811,15 @@ const STORAGE_KEY = 'yct_current_player';
 
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => Array.from(document.querySelectorAll(selector));
-  const LOGIN_FIELD_IDS = ['loginName', 'loginPassword'];
-
   document.addEventListener('DOMContentLoaded', initApp);
 
   function initApp() {
-    initializeLoginFieldProtection_();
     applySavedTheme();
     bindEvents();
     initRegisterAvatar();
     hydrateExistingImages_();
     initializeAppLifecycleRefresh_();
     restoreSession();
-  }
-
-  function getLoginFields_() {
-    return LOGIN_FIELD_IDS
-      .map((id) => document.getElementById(id))
-      .filter(Boolean);
-  }
-
-  function clearLockedLoginFields_() {
-    getLoginFields_().forEach((field) => {
-      if (field.hasAttribute('readonly')) {
-        field.value = '';
-      }
-    });
-  }
-
-  function unlockLoginField_(event) {
-    const field = event.currentTarget;
-
-    if (!field.hasAttribute('readonly')) {
-      return;
-    }
-
-    field.removeAttribute('readonly');
-    field.value = '';
-  }
-
-  function lockAndClearLoginFields_() {
-    getLoginFields_().forEach((field) => {
-      field.value = '';
-      field.setAttribute('readonly', '');
-    });
-  }
-
-  function scheduleLockedLoginFieldClear_() {
-    [100, 500, 1000].forEach((delay) => {
-      window.setTimeout(clearLockedLoginFields_, delay);
-    });
-  }
-
-  function initializeLoginFieldProtection_() {
-    getLoginFields_().forEach((field) => {
-      field.addEventListener('focus', unlockLoginField_);
-      field.addEventListener('pointerdown', unlockLoginField_);
-    });
-
-    lockAndClearLoginFields_();
-    scheduleLockedLoginFieldClear_();
   }
 
   function getTaipeiBusinessDate_() {
@@ -1128,9 +1077,6 @@ const STORAGE_KEY = 'yct_current_player';
   }
 
   function handleAppResume_() {
-    clearLockedLoginFields_();
-    scheduleLockedLoginFieldClear_();
-
     const crossedDate = handleBusinessDateBoundary_();
 
     if (!crossedDate) {
@@ -1809,8 +1755,6 @@ const STORAGE_KEY = 'yct_current_player';
   }
 
   function showAuth() {
-    lockAndClearLoginFields_();
-    scheduleLockedLoginFieldClear_();
     closeAllModals();
     hideAllViews();
     $('#authView').classList.remove('hidden');

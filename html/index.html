@@ -32,17 +32,16 @@
         <section class="auth-card">
           <h2>登入旅程</h2>
 
-          <form id="loginForm" class="form-stack" autocomplete="off">
+          <form id="loginForm" class="form-stack" autocomplete="on">
             <label class="field-label">
               登入帳號
               <input
                 id="loginName"
-                name="login-account-input"
+                name="username"
                 type="text"
-                autocomplete="off"
+                autocomplete="username"
                 autocapitalize="none"
                 spellcheck="false"
-                readonly
                 placeholder="請輸入登入帳號"
               >
             </label>
@@ -51,10 +50,9 @@
               登入密碼
               <input
                 id="loginPassword"
-                name="login-password-input"
+                name="password"
                 type="password"
-                autocomplete="new-password"
-                readonly
+                autocomplete="current-password"
                 placeholder="請輸入登入密碼"
               >
             </label>
@@ -795,6 +793,6 @@
 
   <script src="runtime-settings.js?v=20260911-gas-bridge1"></script>
   <script src="server-client.js?v=20260911-gas-bridge2"></script>
-  <script src="script.js?v=20260911-gas-bridge1"></script>
+  <script src="script.js?v=20260922-login-autofill1"></script>
 </body>
 </html>
