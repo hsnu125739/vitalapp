@@ -1,14 +1,21 @@
 'use strict';
 
 /**
- * GitHub Pages 前端連接 GAS JSON API。
- * 前端不得放置試算表 ID、Drive 資料夾 ID 或管理密碼。
+ * 高雄青職「活力同行」運行時全域常數配置
+ * 支援三微服務架構 (Core, Chat, Progression)
+ * 前端透過 Iframe Bridge + google.script.run 直連，免除跨域跳轉
  */
 window.APP_RUNTIME_CONFIG = Object.freeze({
-  gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbyB94evsEwPD6X-oT31qIidOWOhpgI_eZUUw-XsyMgxqY8KARsFB5rAcwRt18JvH2Rq/exec',
-  // 留空時管理後台沿用 gasWebAppUrl；有獨立管理部署時再填入其 /exec。
+  // 三大微服務 GAS Web App /exec 網址
+  coreGasWebAppUrl: 'https://script.google.com/macros/s/AKfycbwYA1qPfQLIubRVS0UwyWXufcsRQh_KxoLNUiaYbyM9kQ6DniLBDw5W1a1FakIRPExuuw/exec',
+  chatGasWebAppUrl: 'https://script.google.com/macros/s/AKfycbx9w5Tv1m1fIC6e3NdyLzbZDQCMA_Lq8F53hdvHG6j2f3Elp2xQ9Sk0xF8UCNqhBYdJDw/exec',
+  progressionGasWebAppUrl: 'https://script.google.com/macros/s/AKfycbyMlpjE_A1uQHrPrBsGQcBa1sLmK9Hlu5cfDqNhiyN13wQJe94MbquBC-_0m-8FNT0Mrw/exec',
+
+  // 相容舊版單一部署
+  gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbwYA1qPfQLIubRVS0UwyWXufcsRQh_KxoLNUiaYbyM9kQ6DniLBDw5W1a1FakIRPExuuw/exec',
   adminGasWebAppUrl: '',
-  releaseVersion: 'v0.14.6-prelaunch',
+
+  releaseVersion: 'v2.0.0-iframe-bridge',
   expectedApiContractVersion: '1.2.0',
   assetVersion: '20260813-stableasset1'
 });
