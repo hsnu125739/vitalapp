@@ -159,6 +159,21 @@
     action_ = String(functionName || '').trim();
     if (!action_) throw new Error('缺少後端函式名稱');
 
+    // 照顧區與大區靜態選項（秒開免查詢）
+    if (action_ === 'getRegistrationAreaOptions') {
+      return {
+        success: true,
+        data: {
+          districts: [
+            { name: '西照顧區', areas: ['西一區', '西二區', '鼓山大區'] },
+            { name: '東照顧區', areas: ['東一區', '東二區', '鳳山大區'] },
+            { name: '北照顧區', areas: ['北一區', '北二區', '三民大區'] },
+            { name: '南照顧區', areas: ['南一區', '南二區', '前鎮大區'] }
+          ]
+        }
+      };
+    }
+
     const serviceName = getTargetService_(action_);
     const channel = channels[serviceName];
 
