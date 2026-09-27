@@ -1,113 +1,105 @@
 'use strict';
 
+/**
+ * ======================================================================
+ * 高雄青職「活力同行」前端 GAS RPC 通訊調度客戶端 (Iframe Bridge Client)
+ * 依據 gas_speed_test/GAS_COMM_BEST_PRACTICE.md 規範實作
+ * 特性：
+ * 1. 支援 Core / Chat / Progression 三微服務獨立 Iframe 橋接，請求全面平行化
+ * 2. 採用 google.script.run 內部長連線 RPC，徹底免除 doPost 之 302 跨域跳轉與延遲
+ * 3. 100% 相容舊專案 window.GasBackend.invoke(action, args) 呼叫契約
+ * ======================================================================
+ */
 (function(global) {
-  const DEFAULT_REQUEST_TIMEOUT_MS = 90 * 1000;
-  const LONG_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
+  const DEFAULT_REQUEST_TIMEOUT_MS = 45 * 1000;
+  const LONG_REQUEST_TIMEOUT_MS = 3 * 60 * 1000;
   const LONG_RUNNING_ACTIONS = new Set([
     'adminRunDailyHotDataReconciliation',
     'adminRunWeeklyArchive',
     'adminRunArchiveCleanup',
     'adminPreviewFix12DataRepairs',
     'adminRunFix12DataRepairBatch',
-    'adminEnsureDataMaintenanceTriggers',
-    'adminRunV0131Migration',
-    'adminResumeV0131Migration',
-    'adminPauseV0131Migration',
-    'adminStartV0131Finalization',
-    'adminVerifyV0131Migration',
-    'adminResetV0132Migration',
-    'adminVerifyArchiveBatch',
-    'adminGetArchiveManifest',
-    'adminResumeArchiveBatch',
-    'adminPreviewSpecialTaskCsv',
-    'adminConfirmSpecialTaskResults',
-    'adminSendSpecialTaskRewards'
+    'adminEnsureDataMaintenanceTriggers'
   ]);
-  const BRIDGE_READY_TIMEOUT_MS = 4 * 1000;
-  const BRIDGE_RETRY_COOLDOWN_MS = 60 * 1000;
-  const BRIDGE_RELOAD_MS = 20 * 1000;
-  const BRIDGE_MESSAGE_READY = 'vitalapp-gas-ready';
-  const BRIDGE_MESSAGE_REQUEST = 'vitalapp-gas-request';
-  const BRIDGE_MESSAGE_RESPONSE = 'vitalapp-gas-response';
-  const BRIDGE_CHANNEL = [
-    'vitalapp',
-    Date.now().toString(36),
-    Math.random().toString(36).slice(2),
-    Math.random().toString(36).slice(2)
-  ].join('-');
-  let bridgeFrame = null;
-  let bridgeOrigin = '';
-  let bridgeMessageWindow = null;
-  let bridgeReady = false;
-  let bridgeUnavailableUntil = 0;
-  let bridgeReadyPromise = null;
-  let bridgeReadyResolve = null;
-  let bridgeReloadTimer = 0;
-  let bridgeRequestSequence = 0;
-  const bridgePendingRequests = new Map();
 
-  function isAdminAction_(action) {
-    return String(action || '').indexOf('admin') === 0;
+  const CHAT_ACTIONS = new Set([
+    'getGroupPosts',
+    'getGroupMessages',
+    'getGroupMessageMatrix',
+    'postGroupMessage',
+    'createGroupPost',
+    'deleteGroupPost',
+    'setPinnedPost'
+  ]);
+
+  const PROGRESSION_ACTIONS = new Set([
+    'getPlayerChestCollection',
+    'claimPlayerChestReward',
+    'claimChest',
+    'getMyGroupContributionSummary',
+    'getMilestonesConfig',
+    'getPointsConfig'
+  ]);
+
+  // 各微服務連接實體池
+  const channels = {
+    CORE: { name: 'CORE', url: '', frame: null, source: null, readyPromise: null, readyResolve: null },
+    CHAT: { name: 'CHAT', url: '', frame: null, source: null, readyPromise: null, readyResolve: null },
+    PROGRESSION: { name: 'PROGRESSION', url: '', frame: null, source: null, readyPromise: null, readyResolve: null }
+  };
+
+  const pendingRequests = new Map();
+  let requestSeq = 0;
+
+  function getTargetService_(action) {
+    if (CHAT_ACTIONS.has(action)) return 'CHAT';
+    if (PROGRESSION_ACTIONS.has(action)) return 'PROGRESSION';
+    return 'CORE';
   }
 
-  function getApiUrl_(action) {
+  function getServiceUrl_(serviceName) {
     const config = global.APP_RUNTIME_CONFIG || {};
-    const publicUrl = String(config.gasWebAppUrl || '').trim();
-    const adminUrl = String(config.adminGasWebAppUrl || '').trim();
-    return isAdminAction_(action) ? (adminUrl || publicUrl) : publicUrl;
-  }
-
-  function getBridgeUrl_() {
-    const url = new URL(getApiUrl_('ping'));
-    const config = global.APP_RUNTIME_CONFIG || {};
-    url.searchParams.set('bridge', '1');
-    url.searchParams.set('channel', BRIDGE_CHANNEL);
-    url.searchParams.set('v', String(config.releaseVersion || Date.now()));
-    return url.toString();
-  }
-
-  function isTrustedBridgeOrigin_(origin) {
-    try {
-      const parsed = new URL(String(origin || ''));
-      return parsed.protocol === 'https:' && (
-        parsed.hostname === 'script.google.com' ||
-        parsed.hostname === 'script.googleusercontent.com' ||
-        parsed.hostname.endsWith('.script.googleusercontent.com') ||
-        parsed.hostname.endsWith('-script.googleusercontent.com')
-      );
-    } catch (error) {
-      return false;
+    const fallbackUrl = String(config.gasWebAppUrl || '').trim();
+    if (serviceName === 'CHAT') {
+      return String(config.chatGasWebAppUrl || fallbackUrl).trim();
     }
+    if (serviceName === 'PROGRESSION') {
+      return String(config.progressionGasWebAppUrl || fallbackUrl).trim();
+    }
+    // CORE
+    const adminUrl = String(config.adminGasWebAppUrl || '').trim();
+    return String(config.coreGasWebAppUrl || (String(action_ || '').indexOf('admin') === 0 && adminUrl ? adminUrl : fallbackUrl)).trim();
   }
 
-  function reloadBridgeUntilReady_() {
-    if (bridgeReady || !bridgeFrame) return;
-    bridgeFrame.src = getBridgeUrl_() + '&attempt=' + Date.now();
-    bridgeReloadTimer = global.setTimeout(
-      reloadBridgeUntilReady_,
-      BRIDGE_RELOAD_MS
-    );
-  }
+  let action_ = '';
 
-  function ensureBridge_() {
-    if (bridgeReadyPromise) return bridgeReadyPromise;
+  function ensureChannel_(serviceName) {
+    const channel = channels[serviceName];
+    if (!channel) return Promise.reject(new Error('Unknown service: ' + serviceName));
+    if (channel.readyPromise) return channel.readyPromise;
 
-    bridgeReadyPromise = new Promise((resolve) => {
-      bridgeReadyResolve = resolve;
+    const url = getServiceUrl_(serviceName);
+    channel.url = url;
+
+    channel.readyPromise = new Promise((resolve) => {
+      channel.readyResolve = resolve;
+
+      if (!url) {
+        console.warn(`[GasRpc] 尚未配置 ${serviceName} 的 Web App URL，呼叫將會暫緩或失敗。`);
+        // 不卡死，等待動態設定
+        return;
+      }
 
       const mount = () => {
-        if (bridgeFrame || !global.document.body) return;
-        bridgeFrame = global.document.createElement('iframe');
-        bridgeFrame.setAttribute('aria-hidden', 'true');
-        bridgeFrame.setAttribute('tabindex', '-1');
-        bridgeFrame.style.cssText =
-          'position:absolute;width:1px;height:1px;border:0;opacity:0;pointer-events:none;';
-        bridgeFrame.src = getBridgeUrl_();
-        global.document.body.appendChild(bridgeFrame);
-        bridgeReloadTimer = global.setTimeout(
-          reloadBridgeUntilReady_,
-          BRIDGE_RELOAD_MS
-        );
+        if (channel.frame || !global.document.body) return;
+        const iframe = global.document.createElement('iframe');
+        iframe.id = 'gas_bridge_' + serviceName.toLowerCase();
+        iframe.setAttribute('aria-hidden', 'true');
+        iframe.setAttribute('tabindex', '-1');
+        iframe.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none;';
+        iframe.src = url;
+        channel.frame = iframe;
+        global.document.body.appendChild(iframe);
       };
 
       if (global.document.body) {
@@ -117,372 +109,111 @@
       }
     });
 
-    return bridgeReadyPromise;
+    return channel.readyPromise;
   }
 
-  function waitForBridgeReady_() {
-    if (bridgeReady) return Promise.resolve(true);
-    if (Date.now() < bridgeUnavailableUntil) return Promise.resolve(false);
+  // 監聽來自所有 Bridge iframe 的 postMessage
+  global.addEventListener('message', function(event) {
+    const msg = event.data;
+    if (!msg || typeof msg !== 'object') return;
 
-    return Promise.race([
-      ensureBridge_().then(() => true),
-      new Promise((resolve) => {
-        global.setTimeout(() => {
-          bridgeUnavailableUntil = Date.now() + BRIDGE_RETRY_COOLDOWN_MS;
-          resolve(false);
-        }, BRIDGE_READY_TIMEOUT_MS);
-      })
-    ]);
-  }
+    // 1. 收到 Bridge 就緒廣播
+    if (msg.type === 'GAS_BRIDGE_READY') {
+      const sName = (msg.service || '').toUpperCase();
+      if (channels[sName]) {
+        channels[sName].source = event.source;
+        if (channels[sName].readyResolve) channels[sName].readyResolve(event.source);
+        console.log(`[GasRpc] 微服務 ${sName} Bridge 就緒！`);
+      } else {
+        // 若 Bridge 未標註 service，預設綁定到全部未就緒通道
+        Object.keys(channels).forEach(k => {
+          if (!channels[k].source) {
+            channels[k].source = event.source;
+            if (channels[k].readyResolve) channels[k].readyResolve(event.source);
+          }
+        });
+      }
+      return;
+    }
 
-  function createBridgeRpcError_(message) {
-    const error = new Error(message || 'GAS RPC 失敗');
-    error.code = 'BRIDGE_RPC_ERROR';
-    return error;
-  }
+    // 2. 收到 RPC 回應 (相容 GAS_COMM_BEST_PRACTICE 之 { id, success, data, error })
+    if (msg.id && pendingRequests.has(String(msg.id))) {
+      const { resolve, reject, timer } = pendingRequests.get(String(msg.id));
+      clearTimeout(timer);
+      pendingRequests.delete(String(msg.id));
 
-  function invokeViaBridge_(functionName, args) {
-    const requestId = [
-      Date.now().toString(36),
-      (++bridgeRequestSequence).toString(36),
-      Math.random().toString(36).slice(2)
-    ].join('-');
-    const timeoutMs = getRequestTimeoutMs_(functionName);
+      if (msg.success) {
+        resolve(msg.data);
+      } else {
+        const err = new Error(msg.error || 'GAS RPC 執行失敗');
+        err.code = msg.code || 'GAS_RPC_ERROR';
+        reject(err);
+      }
+    }
+  });
+
+  /**
+   * 執行 GAS 呼叫 (統一透過 Iframe RPC)
+   */
+  async function invoke(functionName, args) {
+    action_ = String(functionName || '').trim();
+    if (!action_) throw new Error('缺少後端函式名稱');
+
+    const serviceName = getTargetService_(action_);
+    const channel = channels[serviceName];
+
+    // 確保 Iframe 已掛載
+    await ensureChannel_(serviceName);
+
+    // 等待 Bridge 就緒 (最多等待 15 秒)
+    if (!channel.source) {
+      await Promise.race([
+        channel.readyPromise,
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error(`微服務 [${serviceName}] 連線逾時，請確認 Web App 已發布且允許嵌入`)), 15000);
+        })
+      ]);
+    }
+
+    const reqId = 'req_' + serviceName.toLowerCase() + '_' + Date.now().toString(36) + '_' + (++requestSeq);
+    const timeoutMs = LONG_RUNNING_ACTIONS.has(action_) ? LONG_REQUEST_TIMEOUT_MS : DEFAULT_REQUEST_TIMEOUT_MS;
 
     return new Promise((resolve, reject) => {
-      const timeoutId = global.setTimeout(() => {
-        bridgePendingRequests.delete(requestId);
-        reject(createTimeoutError_());
+      const timer = setTimeout(() => {
+        pendingRequests.delete(reqId);
+        reject(new Error(`呼叫 [${action_}] 回應逾時 (${Math.round(timeoutMs / 1000)}s)，請確認網路或重新整理。`));
       }, timeoutMs);
 
-      bridgePendingRequests.set(requestId, {
-        resolve: resolve,
-        reject: reject,
-        timeoutId: timeoutId
-      });
+      pendingRequests.set(reqId, { resolve, reject, timer });
 
-      if (!bridgeMessageWindow) {
-        bridgePendingRequests.delete(requestId);
-        global.clearTimeout(timeoutId);
-        reject(createBridgeRpcError_('GAS Bridge 尚未就緒'));
-        return;
+      // 直連 iframe WindowProxy 發送
+      try {
+        channel.source.postMessage({
+          type: 'GAS_CALL',
+          id: reqId,
+          targetService: serviceName,
+          action: action_,
+          args: Array.isArray(args) ? args : [args],
+          payload: (args && typeof args[0] === 'object') ? args[0] : {}
+        }, '*');
+      } catch (postErr) {
+        clearTimeout(timer);
+        pendingRequests.delete(reqId);
+        reject(postErr);
       }
-
-      bridgeMessageWindow.postMessage({
-        type: BRIDGE_MESSAGE_REQUEST,
-        id: requestId,
-        channel: BRIDGE_CHANNEL,
-        action: functionName,
-        args: Array.isArray(args) ? args : []
-      }, bridgeOrigin);
     });
   }
 
-  global.addEventListener('message', (event) => {
-    if (!bridgeFrame || !isTrustedBridgeOrigin_(event.origin)) {
-      return;
-    }
+  // 自動在頁面初始化時預熱三個微服務 Bridge
+  ensureChannel_('CORE');
+  ensureChannel_('CHAT');
+  ensureChannel_('PROGRESSION');
 
-    const message = event.data || {};
-    if (message.channel !== BRIDGE_CHANNEL) return;
-    if (message.type === BRIDGE_MESSAGE_READY) {
-      bridgeOrigin = event.origin;
-      bridgeMessageWindow = event.source;
-      bridgeReady = true;
-      bridgeUnavailableUntil = 0;
-      if (bridgeReloadTimer) global.clearTimeout(bridgeReloadTimer);
-      if (bridgeReadyResolve) bridgeReadyResolve(true);
-      return;
-    }
-
-    if (
-      message.type !== BRIDGE_MESSAGE_RESPONSE ||
-      !message.id ||
-      !bridgeMessageWindow ||
-      event.source !== bridgeMessageWindow
-    ) return;
-    const pending = bridgePendingRequests.get(String(message.id));
-    if (!pending) return;
-
-    bridgePendingRequests.delete(String(message.id));
-    global.clearTimeout(pending.timeoutId);
-
-    if (message.error) {
-      pending.reject(createBridgeRpcError_(String(message.error)));
-      return;
-    }
-
-    try {
-      validateApiCompatibilityFromResponse_(message.result);
-      pending.resolve(message.result);
-    } catch (error) {
-      pending.reject(error);
-    }
-  });
-
-  function validateApiUrl_(url) {
-    if (!url) {
-      throw new Error('尚未設定對應的 GAS Web App /exec 網址');
-    }
-
-    if (!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)) {
-      throw new Error('GAS Web App 網址格式錯誤，必須使用完整的 /exec 網址');
-    }
-  }
-
-  function getRequestTimeoutMs_(action) {
-    return LONG_RUNNING_ACTIONS.has(action)
-      ? LONG_REQUEST_TIMEOUT_MS
-      : DEFAULT_REQUEST_TIMEOUT_MS;
-  }
-
-  function getExpectedApiContractVersion_() {
-    const config = global.APP_RUNTIME_CONFIG || {};
-    return String(config.expectedApiContractVersion || '').trim();
-  }
-
-  function getSemverMajor_(value) {
-    const match = String(value || '').trim().match(/^(?:v)?(\d+)(?:\.|$)/);
-    return match ? Number(match[1]) : -1;
-  }
-
-  function parseSemverParts_(value) {
-    const match = String(value || '').trim().match(
-      /^(?:v)?(\d+)(?:\.(\d+|x|\*))?(?:\.(\d+|x|\*))?$/
-    );
-    if (!match) return null;
-    return [
-      Number(match[1]),
-      /^(?:x|\*)$/i.test(match[2] || '0') ? null : Number(match[2] || 0),
-      /^(?:x|\*)$/i.test(match[3] || '0') ? null : Number(match[3] || 0)
-    ];
-  }
-
-  function compareSemverParts_(left, right) {
-    for (let index = 0; index < 3; index += 1) {
-      const difference = Number(left[index] || 0) - Number(right[index] || 0);
-      if (difference) return difference;
-    }
-    return 0;
-  }
-
-  function isVersionWithinBound_(version, bound, isMaximum) {
-    if (!bound) return true;
-    const parsedVersion = parseSemverParts_(version);
-    const parsedBound = parseSemverParts_(bound);
-    if (!parsedVersion || !parsedBound) return false;
-    if (parsedVersion[0] !== parsedBound[0]) {
-      return isMaximum
-        ? parsedVersion[0] < parsedBound[0]
-        : parsedVersion[0] > parsedBound[0];
-    }
-    if (parsedBound[1] == null) return true;
-    if (parsedVersion[1] !== parsedBound[1]) {
-      return isMaximum
-        ? parsedVersion[1] < parsedBound[1]
-        : parsedVersion[1] > parsedBound[1];
-    }
-    if (parsedBound[2] == null) return true;
-    const comparison = compareSemverParts_(parsedVersion, parsedBound);
-    return isMaximum ? comparison <= 0 : comparison >= 0;
-  }
-
-  function isApiContractCompatible_(actualVersion, expectedVersion, supportedRange) {
-    const actualMajor = getSemverMajor_(actualVersion);
-    const expectedMajor = getSemverMajor_(expectedVersion);
-
-    if (actualMajor < 0 || expectedMajor < 0 || actualMajor !== expectedMajor) {
-      return false;
-    }
-
-    const minVersion = String(supportedRange && supportedRange.MIN || '').trim();
-    const maxVersion = String(supportedRange && supportedRange.MAX || '').trim();
-    if (!isVersionWithinBound_(expectedVersion, minVersion, false)) {
-      return false;
-    }
-    if (!isVersionWithinBound_(expectedVersion, maxVersion, true)) {
-      return false;
-    }
-
-    return true;
-  }
-
-  function createCompatibilityError_(actualVersion, expectedVersion) {
-    const error = new Error(
-      'API 契約不相容：目前後端契約是 ' +
-      (actualVersion || '未知版本') +
-      '，前端需要相容於 ' +
-      expectedVersion +
-      '。請先部署配對的 GAS 後端，再重新載入頁面。'
-    );
-    error.code = 'API_CONTRACT_MISMATCH';
-    return error;
-  }
-
-  function validateApiCompatibilityFromResponse_(responseBody) {
-    const expectedVersion = getExpectedApiContractVersion_();
-
-    if (!expectedVersion || !responseBody || typeof responseBody !== 'object') {
-      return;
-    }
-
-    /*
-     * 契約資訊由實際 API 回應的 meta 提供，不再額外先送一次 GET 健康檢查。
-     * 舊後端沒有 meta 時暫時允許回應，避免前後端分階段部署期間中斷。
-     */
-    const meta = responseBody.meta || {};
-    const actualVersion = String(meta.apiContractVersion || '').trim();
-
-    if (!actualVersion) {
-      return;
-    }
-
-    if (!isApiContractCompatible_(
-      actualVersion,
-      expectedVersion,
-      meta.supportedFrontendApiContract || {}
-    )) {
-      throw createCompatibilityError_(actualVersion, expectedVersion);
-    }
-  }
-
-  function createTimeoutError_() {
-    const error = new Error(
-      '伺服器回應逾時。後端操作可能已完成，請重新讀取資料確認後再決定是否重試。'
-    );
-    error.code = 'REQUEST_TIMEOUT';
-    error.isTimeout = true;
-    return error;
-  }
-
-  function createNetworkError_() {
-    const error = new Error(
-      '目前無法連接 GAS 後端。請確認網路與 Web App /exec 部署後重新載入；也可先返回登入畫面。'
-    );
-    error.code = 'NETWORK_ERROR';
-    error.isNetworkError = true;
-    return error;
-  }
-
-  function normalizeTransportError_(error) {
-    const message = String(error && error.message || '').trim();
-
-    if (
-      error instanceof TypeError ||
-      /failed to fetch|networkerror|load failed|network request failed/i.test(message)
-    ) {
-      return createNetworkError_();
-    }
-
-    return error;
-  }
-
-  async function invokeViaHttp_(functionName, args) {
-    const action = String(functionName || '').trim();
-    const url = getApiUrl_(action);
-
-    if (!action) {
-      throw new Error('缺少後端函式名稱');
-    }
-
-    validateApiUrl_(url);
-
-    const timeoutMs = getRequestTimeoutMs_(action);
-    const controller = typeof global.AbortController === 'function'
-      ? new global.AbortController()
-      : null;
-    let timedOut = false;
-    let timeoutId = 0;
-
-    const requestOptions = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=UTF-8'
-      },
-      body: JSON.stringify({
-        action: action,
-        args: Array.isArray(args) ? args : []
-      }),
-      redirect: 'follow',
-      cache: 'no-store',
-      credentials: 'omit'
-    };
-
-    if (controller) {
-      requestOptions.signal = controller.signal;
-    }
-
-    const requestPromise = fetch(url, requestOptions)
-      .then(async function(response) {
-        return {
-          response: response,
-          text: await response.text()
-        };
-      });
-    const timeoutPromise = new Promise((resolve, reject) => {
-      timeoutId = global.setTimeout(() => {
-        timedOut = true;
-
-        if (controller) {
-          controller.abort();
-        }
-
-        reject(createTimeoutError_());
-      }, timeoutMs);
-    });
-
-    let result;
-
-    try {
-      result = await Promise.race([requestPromise, timeoutPromise]);
-    } catch (error) {
-      if (timedOut || (error && error.name === 'AbortError')) {
-        throw createTimeoutError_();
-      }
-
-      throw normalizeTransportError_(error);
-    } finally {
-      if (timeoutId) {
-        global.clearTimeout(timeoutId);
-      }
-    }
-
-    if (!result.response.ok) {
-      throw new Error('後端連線失敗（HTTP ' + result.response.status + '）');
-    }
-
-    let responseBody;
-
-    try {
-      responseBody = JSON.parse(result.text);
-    } catch (error) {
-      throw new Error(isAdminAction_(action)
-        ? '管理後端回傳格式錯誤。請確認管理 GAS Web App 已重新部署，且使用完整 /exec 網址。'
-        : '使用者後端回傳格式錯誤。請確認公開 GAS Web App 已重新部署，且使用完整 /exec 網址。');
-    }
-
-    validateApiCompatibilityFromResponse_(responseBody);
-    return responseBody;
-  }
-
-  async function invoke(functionName, args) {
-    const action = String(functionName || '').trim();
-    if (!action) throw new Error('缺少後端函式名稱');
-
-    validateApiUrl_(getApiUrl_(action));
-    if (await waitForBridgeReady_()) {
-      return invokeViaBridge_(action, args);
-    }
-
-    return invokeViaHttp_(action, args);
-  }
-
-  ensureBridge_();
-
+  // 對外導出標準介面
   global.GasBackend = Object.freeze({
-    get url() {
-      return getApiUrl_();
-    },
-    invoke: invoke
+    invoke: invoke,
+    getServiceUrl: getServiceUrl_,
+    channels: channels
   });
+
 })(window);
