@@ -1,11 +1,10 @@
 const STORAGE_KEY = 'yct_current_player';
-  const MESSAGE_SUPPRESSION_RETRY_KEY = 'yct_message_suppression_retry';
   const APP_SYNC_SIGNAL_KEY = 'yct_app_sync_signal';
   const APP_SYNC_CHANNEL_NAME = 'yct_app_sync_v1';
   const ASSET_BASE_URL = '..';
   const LOCAL_AVATAR_BASE_URL = ASSET_BASE_URL;
   const REMOTE_AVATAR_BASE_URL =
-    'https://khya31.github.io/vitalapp';
+    'https://hsnu125739.github.io/vitalapp';
   const IMAGE_ASSET_VERSION = String(
     (window.APP_RUNTIME_CONFIG && window.APP_RUNTIME_CONFIG.assetVersion) || 'current'
   ).trim() || 'current';
@@ -57,7 +56,6 @@ const STORAGE_KEY = 'yct_current_player';
   const SESSION_TOKEN_ARG_APIS = [
     'getHomeDashboard',
     'getHomeSyncState',
-    'getPlayerMessageCenter',
     'getMyVitalGroups',
     'getMyFootprintDashboard',
     'getPlayerProfile',
@@ -68,14 +66,9 @@ const STORAGE_KEY = 'yct_current_player';
   ];
   const SESSION_PAYLOAD_APIS = [
     'updatePlayerAvatar',
-    'markPlayerMessageRead',
-    'suppressPlayerMessageToday',
-    'updateMyAccount',
     'updateMyPassword',
     'createVitalGroup',
     'joinVitalGroupByInviteCode',
-    'switchPrimaryVitalGroup',
-    'transferVitalGroupOwnership',
     'leaveVitalGroup',
     'createGroupPost',
     'updateGroupPost',
@@ -583,12 +576,10 @@ const STORAGE_KEY = 'yct_current_player';
 
   const STALE_REQUEST_ERROR_CODE = 'STALE_REQUEST';
   const SERVER_MUTATION_APIS = new Set([
-    'loginPlayer', 'registerPlayer', 'logoutPlayer', 'updatePlayerAvatar', 'markPlayerMessageRead',
-    'suppressPlayerMessageToday', 'updateMyAccount', 'updateMyPassword',
-    'createVitalGroup', 'joinVitalGroupByInviteCode', 'switchPrimaryVitalGroup',
-    'transferVitalGroupOwnership', 'leaveVitalGroup', 'createGroupPost', 'updateGroupPost', 'deleteGroupPost',
-    'submitDailyPractice', 'submitMeetingPractice', 'processTaskWriteEvent', 
-      
+    'loginPlayer', 'registerPlayer', 'updatePlayerAvatar', 'updateMyPassword',
+    'createVitalGroup', 'joinVitalGroupByInviteCode', 'leaveVitalGroup',
+    'createGroupPost', 'updateGroupPost', 'deleteGroupPost',
+    'submitDailyPractice', 'submitMeetingPractice', 'processTaskWriteEvent',
     'claimPlayerChestReward'
   ]);
   const PENDING_MUTATION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -763,15 +754,6 @@ const STORAGE_KEY = 'yct_current_player';
     homeGroupEnabled: true,
     homeGroupStatusMessage: '',
     chestSummary: null,
-    messageCenter: createEmptyMessageCenterState_(),
-    messageCenterFilter: 'ANNOUNCEMENT',
-    selectedMessageKey: '',
-    messageCenterAutoOpenedKey: '',
-    messageReadInFlight: new Set(),
-    pendingMessageCenterSuppressions: new Map(),
-    messageCenterSuppressionFlushInFlight: new Set(),
-    messageCenterSuppressionRetryAttempts: new Map(),
-    messageCenterSuppressionRetryTimer: null,
     vitalGroups: [],
     selectedPracticeType: '',
     selectedWeeklyTaskType: '',
@@ -1457,18 +1439,7 @@ const STORAGE_KEY = 'yct_current_player';
     $('#registerRandomAvatarBtn').addEventListener('click', randomizeRegisterAvatar);
     $('#registerNextAvatarBtn').addEventListener('click', () => stepRegisterAvatar(1));
 
-    $('#homeAvatarBtn').addEventListener('click', () => openMessageCenter_({ refresh: true }));
-    $('#refreshMessageCenterBtn').addEventListener('click', refreshMessageCenter_);
-    $('#messageCenterSelector').addEventListener('change', handleMessageCenterSelectorChange_);
-    $('#messageCenterSuppressToday').addEventListener('change', handleMessageCenterSuppressChange_);
-    $$('.message-center-tab').forEach((button) => {
-      button.addEventListener('click', () => {
-        state.messageCenterFilter = button.dataset.messageCenterTab || 'ANNOUNCEMENT';
-        state.selectedMessageKey = '';
-        renderMessageCenter_();
-        markCurrentMessageRead_(false);
-      });
-    });
+    $('#homeAvatarBtn').addEventListener('click', openAvatarModal);
     $('#refreshHomeBtn').addEventListener('click', () => {
       invalidateCache_('dashboard');
       refreshDashboard(true);
@@ -1575,7 +1546,6 @@ const STORAGE_KEY = 'yct_current_player';
     $('#createVitalGroupForm').addEventListener('submit', handleCreateVitalGroup);
     $('#joinVitalGroupForm').addEventListener('submit', handleJoinVitalGroup);
     $('#vitalGroupsList').addEventListener('click', handleVitalGroupListClick);
-    $('#accountProfileForm').addEventListener('submit', handleAccountProfile);
     $('#changePasswordForm').addEventListener('submit', handleChangePassword);
 
     $('#confirmModalSubmitBtn').addEventListener('click', executePendingConfirm);
@@ -1667,7 +1637,6 @@ const STORAGE_KEY = 'yct_current_player';
     });
     renderDashboardData_(data);
     setLoading(false);
-    window.setTimeout(retryPendingMessageCenterSuppression_, 0);
     window.setTimeout(promptPasswordChangeIfRequired_, 0);
   }
 
@@ -1832,14 +1801,6 @@ const STORAGE_KEY = 'yct_current_player';
       return;
     }
 
-    if (id === 'messageCenterModal') {
-      // 先同步保存本機重試資料，並立即啟動非同步後端寫入。
-      // GAS JSON API 呼叫本身不阻塞 UI，因此視窗仍會立即關閉；
-      // 同時避免 setTimeout 尚未執行就重新整理而漏送請求。
-      stagePendingMessageCenterSuppressionForRetry_();
-      flushPendingMessageCenterSuppression_();
-    }
-
     $('#' + id).classList.add('hidden');
 
     if (id === 'confirmModal') {
@@ -1848,15 +1809,6 @@ const STORAGE_KEY = 'yct_current_player';
   }
 
   function closeAllModals() {
-    const messageCenterModal = $('#messageCenterModal');
-    const shouldFlushMessageCenterSuppression =
-      !!messageCenterModal && !messageCenterModal.classList.contains('hidden');
-
-    if (shouldFlushMessageCenterSuppression) {
-      stagePendingMessageCenterSuppressionForRetry_();
-      flushPendingMessageCenterSuppression_();
-    }
-
     $$('.modal-layer').forEach((modal) => {
       modal.classList.add('hidden');
     });
@@ -2272,800 +2224,6 @@ const STORAGE_KEY = 'yct_current_player';
     }
   }
 
-  function createEmptyMessageCenterState_() {
-    return {
-      announcements: [],
-      specialTasks: [],
-      rewardNotifications: [],
-      hasBadge: false,
-      shouldAutoOpen: false,
-      suppressAutoOpenToday: false,
-      defaultMessageType: '',
-      defaultMessageId: '',
-      currentDate: ''
-    };
-  }
-
-  function normalizeMessageCenterData_(data) {
-    const center = Object.assign(createEmptyMessageCenterState_(), data || {});
-
-    center.announcements = Array.isArray(center.announcements)
-      ? center.announcements
-      : [];
-    center.specialTasks = Array.isArray(center.specialTasks)
-      ? center.specialTasks
-      : [];
-    center.rewardNotifications = Array.isArray(center.rewardNotifications)
-      ? center.rewardNotifications
-      : [];
-
-    return center;
-  }
-
-  function applyMessageCenterData_(data, allowAutoOpen) {
-    const previousSelectedKey = String(state.selectedMessageKey || '');
-    const wasOpen = isModalOpen_('messageCenterModal');
-
-    state.messageCenter = normalizeMessageCenterData_(data);
-
-    // 後端背景寫入尚未完成時，先套用本機已確認的「今日不再顯示」。
-    // 這可避免使用者關閉訊息後立即重新整理，訊息因後端狀態尚未落盤而再次跳出。
-    applyQueuedMessageCenterSuppressionLocally_();
-    renderHomeMessageBadge_();
-
-    if (wasOpen) {
-      state.selectedMessageKey = previousSelectedKey;
-
-      if (!getSelectedMessageCenterItem_()) {
-        selectDefaultMessageCenterItem_();
-      }
-
-      renderMessageCenter_();
-    }
-
-    if (allowAutoOpen) {
-      maybeAutoOpenMessageCenter_();
-    }
-  }
-
-  function renderHomeMessageBadge_() {
-    const badge = $('#homeMessageBadge');
-
-    if (!badge) {
-      return;
-    }
-
-    badge.classList.toggle(
-      'hidden',
-      !(state.messageCenter && state.messageCenter.hasBadge)
-    );
-  }
-
-  function maybeAutoOpenMessageCenter_() {
-    const center = state.messageCenter || createEmptyMessageCenterState_();
-
-    if (!center.shouldAutoOpen || !center.defaultMessageId) {
-      return;
-    }
-
-    const defaultMessage = findMessageCenterItem_(
-      center.defaultMessageType,
-      center.defaultMessageId
-    );
-
-    if (!defaultMessage) {
-      return;
-    }
-
-    const key = buildMessageCenterItemKey_(defaultMessage);
-
-    if (!key || state.messageCenterAutoOpenedKey === key) {
-      return;
-    }
-
-    state.messageCenterAutoOpenedKey = key;
-    state.selectedMessageKey = key;
-    state.messageCenterFilter = defaultMessage.messageType || 'ANNOUNCEMENT';
-    renderMessageCenter_();
-    openModal('messageCenterModal');
-    markSelectedMessageRead_(defaultMessage, true);
-  }
-
-  function openMessageCenter_(options) {
-    options = options || {};
-
-    if (!state.currentPlayer) {
-      return;
-    }
-
-    setResultMessage('#messageCenterStatusMessage', '');
-
-    if (!options.refresh) {
-      selectDefaultMessageCenterItem_();
-      renderMessageCenter_();
-      openModal('messageCenterModal');
-      markCurrentMessageRead_(false);
-      return;
-    }
-
-    setLoading(true, '更新訊息中心...');
-
-    callServer('getPlayerMessageCenter')
-      .then((res) => {
-        if (!isSuccess(res)) {
-          window.alert(getResponseError(res, '訊息中心讀取失敗'));
-          openModal('messageCenterModal');
-          return;
-        }
-
-        applyMessageCenterData_(res.data, false);
-        selectDefaultMessageCenterItem_();
-        renderMessageCenter_();
-        openModal('messageCenterModal');
-        markCurrentMessageRead_(false);
-      })
-      .catch((error) => {
-        window.alert(getErrorMessage(error));
-        openModal('messageCenterModal');
-      })
-      .finally(() => setLoading(false));
-  }
-
-  function refreshMessageCenter_() {
-    openMessageCenter_({ refresh: true });
-  }
-
-  function selectDefaultMessageCenterItem_() {
-    const center = state.messageCenter || createEmptyMessageCenterState_();
-    const firstAnnouncement = (center.announcements || [])[0] || null;
-    const preferred = findMessageCenterItem_(
-      center.defaultMessageType,
-      center.defaultMessageId
-    );
-    const fallback = preferred ||
-      (center.rewardNotifications || []).find((item) =>
-        String(item.rewardStatus || '').trim() === 'NOTIFIED'
-      ) ||
-      (center.rewardNotifications || []).find((item) => !item.isRead) ||
-      (center.specialTasks || []).find((item) => !item.isRead) ||
-      (center.announcements || []).find((item) => !item.isRead) ||
-      firstAnnouncement ||
-      (center.specialTasks || [])[0] ||
-      (center.rewardNotifications || [])[0] ||
-      null;
-
-    state.selectedMessageKey = fallback
-      ? buildMessageCenterItemKey_(fallback)
-      : '';
-    state.messageCenterFilter = fallback
-      ? fallback.messageType
-      : 'ANNOUNCEMENT';
-  }
-
-  function getAllMessageCenterItems_() {
-    const center = state.messageCenter || createEmptyMessageCenterState_();
-    const items = []
-      .concat(center.rewardNotifications || [])
-      .concat(center.specialTasks || [])
-      .concat(center.announcements || []);
-
-    return items.sort((a, b) => {
-      const aTime = String(a.updatedAt || a.publishedAt || '');
-      const bTime = String(b.updatedAt || b.publishedAt || '');
-      return bTime.localeCompare(aTime);
-    });
-  }
-
-  function getFilteredMessageCenterItems_() {
-    const filter = state.messageCenterFilter || 'ANNOUNCEMENT';
-    return getAllMessageCenterItems_().filter((item) => {
-      return item.messageType === filter;
-    });
-  }
-
-  function buildMessageCenterItemKey_(message) {
-    if (!message) {
-      return '';
-    }
-
-    return [
-      String(message.messageType || ''),
-      String(message.messageId || ''),
-      String(Number(message.messageVersion || 1))
-    ].join('::');
-  }
-
-  function findMessageCenterItem_(messageType, messageId) {
-    return getAllMessageCenterItems_().find((item) => {
-      return String(item.messageType || '') === String(messageType || '') &&
-        String(item.messageId || '') === String(messageId || '');
-    }) || null;
-  }
-
-  function getSelectedMessageCenterItem_() {
-    const key = String(state.selectedMessageKey || '');
-
-    if (!key) {
-      return null;
-    }
-
-    return getAllMessageCenterItems_().find((item) => {
-      return buildMessageCenterItemKey_(item) === key;
-    }) || null;
-  }
-
-  function hasMessageCenterTabAlert_(messageType) {
-    const center = state.messageCenter || createEmptyMessageCenterState_();
-    const collections = {
-      ANNOUNCEMENT: center.announcements || [],
-      SPECIAL_TASK: center.specialTasks || [],
-      REWARD_NOTIFICATION: center.rewardNotifications || []
-    };
-
-    return (collections[messageType] || []).some((message) => {
-      if (!message.isRead) {
-        return true;
-      }
-
-      if (messageType !== 'REWARD_NOTIFICATION') {
-        return false;
-      }
-
-      return String(message.rewardStatus || '').trim() === 'NOTIFIED';
-    });
-  }
-
-  function renderMessageCenter_() {
-    $$('.message-center-tab').forEach((button) => {
-      const messageType = button.dataset.messageCenterTab || 'ANNOUNCEMENT';
-      button.classList.toggle(
-        'active',
-        messageType === state.messageCenterFilter
-      );
-      button.classList.toggle(
-        'has-alert',
-        hasMessageCenterTabAlert_(messageType)
-      );
-    });
-
-    const items = getFilteredMessageCenterItems_();
-    const empty = $('#messageCenterEmpty');
-    const layout = $('#messageCenterLayout');
-    const selectorRow = $('#messageCenterSelectorRow');
-    const selector = $('#messageCenterSelector');
-
-    if (!items.length) {
-      state.selectedMessageKey = '';
-      selector.innerHTML = '';
-      selectorRow.classList.add('hidden');
-      empty.classList.remove('hidden');
-      layout.classList.add('hidden');
-      clearMessageCenterDetail_();
-      return;
-    }
-
-    empty.classList.add('hidden');
-    layout.classList.remove('hidden');
-
-    const selected = getSelectedMessageCenterItem_();
-    const selectedVisible = selected && items.some((item) => {
-      return buildMessageCenterItemKey_(item) === buildMessageCenterItemKey_(selected);
-    });
-
-    if (!selectedVisible) {
-      state.selectedMessageKey = buildMessageCenterItemKey_(items[0]);
-    }
-
-    selector.innerHTML = items.map((item) => {
-      const key = buildMessageCenterItemKey_(item);
-      const readText = item.isRead ? '已讀' : '未讀';
-      const label = [item.title || '未命名訊息', readText]
-        .filter(Boolean)
-        .join('｜');
-
-      return '<option value="' + escapeHtml(key) + '">' +
-        escapeHtml(label) +
-        '</option>';
-    }).join('');
-    selector.value = state.selectedMessageKey;
-    selectorRow.classList.toggle('hidden', items.length <= 1);
-
-    renderMessageCenterDetail_(getSelectedMessageCenterItem_());
-  }
-
-  function handleMessageCenterSelectorChange_(event) {
-    state.selectedMessageKey = event.target.value || '';
-    renderMessageCenter_();
-    markCurrentMessageRead_(false);
-  }
-
-  function renderMessageCenterDetail_(message) {
-    if (!message) {
-      clearMessageCenterDetail_();
-      return;
-    }
-
-    renderMessageCenterIcon_($('#messageCenterDetailIcon'), message);
-
-    $('#messageCenterDetailType').textContent = getMessageCenterTypeLabel_(message.messageType);
-    $('#messageCenterDetailTitle').textContent = message.title || '未命名訊息';
-    $('#messageCenterDetailContent').textContent = message.content || '';
-
-    const rewardBox = $('#messageCenterRewardBox');
-    const hasReward = !!String(message.rewardText || '').trim();
-    rewardBox.classList.toggle('hidden', !hasReward);
-    $('#messageCenterRewardText').textContent = message.rewardText || '';
-
-    const suppressRow = $('#messageCenterSuppressRow');
-    const canSuppress = message.messageType === 'ANNOUNCEMENT' ||
-      message.messageType === 'SPECIAL_TASK';
-    suppressRow.classList.toggle('hidden', !canSuppress);
-
-    const checkbox = $('#messageCenterSuppressToday');
-    const suppressionRecord = buildCurrentMessageCenterSuppressionRecord_();
-    const suppressionKey = buildMessageCenterSuppressionStorageKey_(suppressionRecord);
-    const pendingSuppression =
-      state.pendingMessageCenterSuppressions.has(suppressionKey);
-    const suppressionInFlight =
-      state.messageCenterSuppressionFlushInFlight.has(suppressionKey);
-    checkbox.checked = !!state.messageCenter.suppressAutoOpenToday || pendingSuppression;
-    checkbox.disabled = !!state.messageCenter.suppressAutoOpenToday || suppressionInFlight;
-  }
-
-  function clearMessageCenterDetail_() {
-    const icon = $('#messageCenterDetailIcon');
-    icon.className = 'message-center-detail-icon';
-    icon.innerHTML = '';
-    $('#messageCenterDetailType').textContent = '';
-    $('#messageCenterDetailTitle').textContent = '';
-    $('#messageCenterDetailContent').textContent = '';
-    $('#messageCenterRewardBox').classList.add('hidden');
-    $('#messageCenterSuppressRow').classList.add('hidden');
-  }
-
-  function getMessageCenterTypeLabel_(messageType) {
-    const labels = {
-      ANNOUNCEMENT: '系統公告',
-      SPECIAL_TASK: '特殊任務',
-      REWARD_NOTIFICATION: '任務獎勵'
-    };
-
-    return labels[messageType] || '訊息';
-  }
-
-  function getMessageCenterIconClass_(message) {
-    if (!message) {
-      return '';
-    }
-
-    if (message.iconType === 'completed') {
-      return 'is-completed';
-    }
-
-    if (message.iconType === 'reward') {
-      return 'is-reward';
-    }
-
-    return '';
-  }
-
-  function getMessageCenterIconAssetKey_(message) {
-    if (!message) {
-      return '';
-    }
-
-    if (message.messageType === 'ANNOUNCEMENT') {
-      return 'systemAnnouncement';
-    }
-
-    if (message.messageType !== 'SPECIAL_TASK') {
-      return '';
-    }
-
-    return message.iconType === 'completed'
-      ? 'specialTaskCompleted'
-      : 'specialTaskInProgress';
-  }
-
-  function renderMessageCenterIcon_(container, message) {
-    if (!container) {
-      return;
-    }
-
-    const assetKey = getMessageCenterIconAssetKey_(message);
-    container.className = 'message-center-detail-icon ' + getMessageCenterIconClass_(message);
-    container.innerHTML = '';
-
-    if (assetKey) {
-      container.classList.add('has-image');
-      const image = document.createElement('img');
-      image.alt = '';
-      image.setAttribute('aria-hidden', 'true');
-      container.appendChild(image);
-      setManagedImageSource_(image, IMAGE_ASSETS[assetKey], assetKey, {
-        fallbackUrl: '',
-        onFallback: () => {
-          container.classList.remove('has-image');
-          container.innerHTML = getMessageCenterIconSvg_(message);
-        }
-      });
-      return;
-    }
-
-    container.innerHTML = getMessageCenterIconSvg_(message);
-  }
-
-  function getMessageCenterIconSvg_(message) {
-    const type = message && message.iconType ? message.iconType : 'announcement';
-
-    if (type === 'completed') {
-      return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 2.5 2.5L16.5 8.5"></path></svg>';
-    }
-
-    if (type === 'reward') {
-      return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h16v10H4z"></path><path d="M12 10v10M3 7h18v3H3zM12 7c-3 0-5-1.2-5-3 0-1.2.9-2 2.1-2 1.8 0 2.9 2.2 2.9 5ZM12 7c3 0 5-1.2 5-3 0-1.2-.9-2-2.1-2C13.1 2 12 4.2 12 7Z"></path></svg>';
-    }
-
-    return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6"></path><circle cx="12" cy="16.5" r="1"></circle></svg>';
-  }
-
-  function markCurrentMessageRead_(autoShown) {
-    const message = getSelectedMessageCenterItem_();
-
-    if (message) {
-      markSelectedMessageRead_(message, autoShown);
-    }
-  }
-
-  function markSelectedMessageRead_(message, autoShown) {
-    if (!message || (message.isRead && !autoShown)) {
-      return;
-    }
-
-    const messageKey = buildMessageCenterItemKey_(message);
-
-    if (!messageKey || state.messageReadInFlight.has(messageKey)) {
-      return;
-    }
-
-    state.messageReadInFlight.add(messageKey);
-    setResultMessage('#messageCenterStatusMessage', '');
-
-    callServer('markPlayerMessageRead', {
-      messageType: message.messageType,
-      messageId: message.messageId,
-      messageVersion: Number(message.messageVersion || 1),
-      autoShown: !!autoShown
-    })
-      .then((res) => {
-        if (!isSuccess(res)) {
-          throw new Error(getResponseError(res, '標記訊息已讀失敗'));
-        }
-
-        const savedStatus = (res.data && res.data.status) || {};
-        message.isRead = true;
-        message.readAt = savedStatus.readAt || message.readAt || new Date().toISOString();
-
-        if (autoShown) {
-          message.autoShownAt = savedStatus.autoShownAt ||
-            message.autoShownAt ||
-            new Date().toISOString();
-        }
-
-        state.selectedMessageKey = messageKey;
-        state.messageCenter.hasBadge = getAllMessageCenterItems_().some((item) =>
-          !item.isRead ||
-          (item.messageType === 'REWARD_NOTIFICATION' &&
-            String(item.rewardStatus || '').trim() === 'NOTIFIED')
-        );
-        renderHomeMessageBadge_();
-        renderMessageCenter_();
-        notifyOtherAppInstances_('messageRead');
-      })
-      .catch((error) => {
-        setResultMessage(
-          '#messageCenterStatusMessage',
-          '訊息尚未標記為已讀：' + getErrorMessage(error)
-        );
-      })
-      .finally(() => {
-        state.messageReadInFlight.delete(messageKey);
-      });
-  }
-
-  function handleMessageCenterSuppressChange_(event) {
-    const checkbox = event.currentTarget;
-    const message = getSelectedMessageCenterItem_();
-
-    if (!message) {
-      checkbox.checked = false;
-      return;
-    }
-
-    if (
-      message.messageType !== 'ANNOUNCEMENT' &&
-      message.messageType !== 'SPECIAL_TASK'
-    ) {
-      checkbox.checked = false;
-      return;
-    }
-
-    if (state.messageCenter && state.messageCenter.suppressAutoOpenToday) {
-      checkbox.checked = true;
-      checkbox.disabled = true;
-      return;
-    }
-
-    const record = buildCurrentMessageCenterSuppressionRecord_();
-    const key = buildMessageCenterSuppressionStorageKey_(record);
-
-    if (!record.playerId || !record.suppressDate) {
-      checkbox.checked = false;
-      return;
-    }
-
-    if (state.messageCenterSuppressionFlushInFlight.has(key)) {
-      checkbox.checked = true;
-      checkbox.disabled = true;
-      return;
-    }
-
-    if (checkbox.checked) {
-      state.pendingMessageCenterSuppressions.set(key, record);
-      return;
-    }
-
-    state.pendingMessageCenterSuppressions.delete(key);
-    state.messageCenterSuppressionRetryAttempts.delete(key);
-    removeMessageCenterSuppressionRetry_(record);
-  }
-
-  function getMessageSuppressionDateKey_() {
-    const centerDate = String(
-      state.messageCenter && state.messageCenter.currentDate || ''
-    ).trim();
-
-    if (centerDate) {
-      return centerDate;
-    }
-
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return [year, month, day].join('-');
-  }
-
-  function buildCurrentMessageCenterSuppressionRecord_() {
-    return {
-      scope: 'MESSAGE_CENTER',
-      playerId: String(state.currentPlayer && state.currentPlayer.playerId || ''),
-      suppressDate: getMessageSuppressionDateKey_()
-    };
-  }
-
-  function buildMessageCenterSuppressionStorageKey_(record) {
-    record = record || {};
-
-    return [
-      String(record.playerId || ''),
-      'MESSAGE_CENTER',
-      String(record.suppressDate || '')
-    ].join('::');
-  }
-
-  function readMessageCenterSuppressionRetryQueue_() {
-    try {
-      const raw = localStorage.getItem(MESSAGE_SUPPRESSION_RETRY_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-
-      return (Array.isArray(parsed) ? parsed : []).filter((record) => {
-        return record && String(record.scope || '') === 'MESSAGE_CENTER';
-      });
-    } catch (error) {
-      return [];
-    }
-  }
-
-  function writeMessageCenterSuppressionRetryQueue_(records) {
-    const unique = new Map();
-
-    (Array.isArray(records) ? records : []).forEach((record) => {
-      if (!record || String(record.scope || '') !== 'MESSAGE_CENTER') {
-        return;
-      }
-
-      const key = buildMessageCenterSuppressionStorageKey_(record);
-      if (key) {
-        unique.set(key, record);
-      }
-    });
-
-    try {
-      if (!unique.size) {
-        localStorage.removeItem(MESSAGE_SUPPRESSION_RETRY_KEY);
-        return;
-      }
-
-      localStorage.setItem(
-        MESSAGE_SUPPRESSION_RETRY_KEY,
-        JSON.stringify(Array.from(unique.values()))
-      );
-    } catch (error) {
-      console.error('暫存訊息中心今日不再顯示重試資料失敗', getErrorMessage(error));
-    }
-  }
-
-  function persistMessageCenterSuppressionRetry_(record) {
-    const queue = readMessageCenterSuppressionRetryQueue_();
-    queue.push(record);
-    writeMessageCenterSuppressionRetryQueue_(queue);
-  }
-
-  function stagePendingMessageCenterSuppressionForRetry_() {
-    const playerId = String(state.currentPlayer && state.currentPlayer.playerId || '');
-    const currentDate = getMessageSuppressionDateKey_();
-
-    if (!playerId || !state.pendingMessageCenterSuppressions.size) {
-      return;
-    }
-
-    state.pendingMessageCenterSuppressions.forEach((record) => {
-      if (
-        String(record.playerId || '') === playerId &&
-        String(record.suppressDate || '') === currentDate
-      ) {
-        persistMessageCenterSuppressionRetry_(record);
-      }
-    });
-  }
-
-  function applyQueuedMessageCenterSuppressionLocally_() {
-    const playerId = String(state.currentPlayer && state.currentPlayer.playerId || '');
-    const center = state.messageCenter || createEmptyMessageCenterState_();
-    const currentDate = String(center.currentDate || getMessageSuppressionDateKey_());
-
-    if (!playerId || !currentDate) {
-      return;
-    }
-
-    const activeQueue = readMessageCenterSuppressionRetryQueue_().filter((record) => {
-      return String(record.suppressDate || '') === currentDate;
-    });
-
-    // 清除過期日期與舊版「單一訊息 suppression」資料。
-    writeMessageCenterSuppressionRetryQueue_(activeQueue);
-
-    const localRecord = activeQueue.find((record) => {
-      return String(record.playerId || '') === playerId;
-    });
-
-    if (!localRecord) {
-      return;
-    }
-
-    const key = buildMessageCenterSuppressionStorageKey_(localRecord);
-
-    if (!state.pendingMessageCenterSuppressions.has(key)) {
-      state.pendingMessageCenterSuppressions.set(key, localRecord);
-    }
-
-    // 「今日不再自動顯示」是整個訊息中心層級，不改動任何訊息的未讀狀態。
-    center.suppressAutoOpenToday = true;
-    center.shouldAutoOpen = false;
-  }
-
-  function removeMessageCenterSuppressionRetry_(record) {
-    const targetKey = buildMessageCenterSuppressionStorageKey_(record);
-    const queue = readMessageCenterSuppressionRetryQueue_().filter((item) => {
-      return buildMessageCenterSuppressionStorageKey_(item) !== targetKey;
-    });
-    writeMessageCenterSuppressionRetryQueue_(queue);
-  }
-
-  function scheduleMessageCenterSuppressionRetry_() {
-    if (state.messageCenterSuppressionRetryTimer || !state.sessionToken) {
-      return;
-    }
-
-    state.messageCenterSuppressionRetryTimer = window.setTimeout(() => {
-      state.messageCenterSuppressionRetryTimer = null;
-      flushPendingMessageCenterSuppression_();
-    }, 5000);
-  }
-
-  function retryPendingMessageCenterSuppression_() {
-    const playerId = String(state.currentPlayer && state.currentPlayer.playerId || '');
-    const currentDate = getMessageSuppressionDateKey_();
-
-    if (!playerId || !state.sessionToken) {
-      return;
-    }
-
-    const activeQueue = readMessageCenterSuppressionRetryQueue_().filter((record) => {
-      return String(record.suppressDate || '') === currentDate;
-    });
-    writeMessageCenterSuppressionRetryQueue_(activeQueue);
-
-    activeQueue
-      .filter((record) => String(record.playerId || '') === playerId)
-      .forEach((record) => {
-        const key = buildMessageCenterSuppressionStorageKey_(record);
-
-        if (!state.pendingMessageCenterSuppressions.has(key)) {
-          state.pendingMessageCenterSuppressions.set(key, record);
-        }
-      });
-
-    applyQueuedMessageCenterSuppressionLocally_();
-    flushPendingMessageCenterSuppression_();
-  }
-
-  function markMessageCenterSuppressedLocally_(record) {
-    const center = state.messageCenter || createEmptyMessageCenterState_();
-    center.suppressAutoOpenToday = true;
-    center.shouldAutoOpen = false;
-    renderMessageCenter_();
-  }
-
-  function flushPendingMessageCenterSuppression_() {
-    const playerId = String(state.currentPlayer && state.currentPlayer.playerId || '');
-    const currentDate = getMessageSuppressionDateKey_();
-
-    if (!playerId || !state.sessionToken || !state.pendingMessageCenterSuppressions.size) {
-      return;
-    }
-
-    Array.from(state.pendingMessageCenterSuppressions.entries()).forEach(([key, record]) => {
-      if (String(record.suppressDate || '') !== currentDate) {
-        state.pendingMessageCenterSuppressions.delete(key);
-        removeMessageCenterSuppressionRetry_(record);
-        return;
-      }
-
-      if (
-        String(record.playerId || '') !== playerId ||
-        state.messageCenterSuppressionFlushInFlight.has(key)
-      ) {
-        return;
-      }
-
-      const attempts = Number(state.messageCenterSuppressionRetryAttempts.get(key) || 0);
-
-      if (attempts >= 3) {
-        return;
-      }
-
-      persistMessageCenterSuppressionRetry_(record);
-      state.messageCenterSuppressionFlushInFlight.add(key);
-
-      callServer('suppressPlayerMessageToday', {})
-        .then((res) => {
-          if (!isSuccess(res)) {
-            throw new Error(getResponseError(res, '更新訊息中心今日顯示設定失敗'));
-          }
-
-          state.pendingMessageCenterSuppressions.delete(key);
-          state.messageCenterSuppressionRetryAttempts.delete(key);
-          removeMessageCenterSuppressionRetry_(record);
-          markMessageCenterSuppressedLocally_(record);
-          notifyOtherAppInstances_('messageSuppressed');
-        })
-        .catch((error) => {
-          const nextAttempts = attempts + 1;
-          state.messageCenterSuppressionRetryAttempts.set(key, nextAttempts);
-          console.error('背景儲存訊息中心今日不再顯示失敗', getErrorMessage(error));
-
-          if (nextAttempts < 3) {
-            scheduleMessageCenterSuppressionRetry_();
-          }
-        })
-        .finally(() => {
-          state.messageCenterSuppressionFlushInFlight.delete(key);
-        });
-    });
-  }
-
   function openAvatarModal() {
     const player = state.currentPlayer || {};
 
@@ -3159,58 +2317,11 @@ const STORAGE_KEY = 'yct_current_player';
   }
 
   function openAccountSettingsModal() {
-    const player = state.currentPlayer || {};
-
-    $('#accountDisplayName').value =
-      player.displayName || player.playerName || '';
     $('#currentPasswordCode').value = '';
     $('#newPasswordCode').value = '';
     $('#confirmNewPasswordCode').value = '';
     setResultMessage('#accountSettingsMessage', '', false);
     openModal('accountSettingsModal');
-  }
-
-  function handleAccountProfile(event) {
-    event.preventDefault();
-
-    if (!state.currentPlayer) {
-      return;
-    }
-
-    const displayName = $('#accountDisplayName').value.trim();
-
-    if (!displayName) {
-      setResultMessage('#accountSettingsMessage', '請輸入顯示名稱');
-      return;
-    }
-
-    setLoading(true, '儲存帳號資料...');
-
-    callServer('updateMyAccount', {
-      playerId: state.currentPlayer.playerId,
-      displayName: displayName
-    })
-      .then((res) => {
-        if (!isSuccess(res)) {
-          setResultMessage(
-            '#accountSettingsMessage',
-            getResponseError(res, '更新帳號資料失敗')
-          );
-          return;
-        }
-
-        state.currentPlayer = res.data.player;
-        invalidateByRule_('accountChanged');
-        persistCurrentPlayer();
-        renderPlayer(state.currentPlayer);
-        setResultMessage('#accountSettingsMessage', res.data.message || '帳號資料已更新', true);
-      })
-      .catch((error) => {
-        setResultMessage('#accountSettingsMessage', getErrorMessage(error));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
   }
 
   function handleChangePassword(event) {
@@ -3403,18 +2514,7 @@ const STORAGE_KEY = 'yct_current_player';
         return escapeHtml(member.playerName || '成員') +
           (member.role === 'owner' ? '（負責人）' : '');
       }).join('、');
-      const ownershipActions = group.role === 'owner' && groupEnabled
-        ? groupMembers.filter((member) => {
-            return member.role !== 'owner' && String(member.playerId || '').trim();
-          }).map((member) => {
-            return '<button class="mini-outline-btn" type="button" ' +
-              'data-action="transfer-owner" data-group-id="' +
-              escapeHtml(group.groupId) + '" data-player-id="' +
-              escapeHtml(member.playerId) + '" data-player-name="' +
-              escapeHtml(member.playerName || '成員') + '">移交給 ' +
-              escapeHtml(member.playerName || '成員') + '</button>';
-          }).join('')
-        : '';
+
 
       return [
         '<article class="vital-group-card">',
@@ -3440,7 +2540,6 @@ const STORAGE_KEY = 'yct_current_player';
             escapeHtml(group.inviteCode) +
             '">複製邀請碼</button>'
           : '',
-        ownershipActions,
         '<button class="mini-outline-btn danger-outline-btn" type="button" data-action="leave-group" data-group-id="' +
           escapeHtml(group.groupId) +
           '">離開</button>',
@@ -3640,26 +2739,6 @@ const STORAGE_KEY = 'yct_current_player';
       return;
     }
 
-    if (action === 'transfer-owner') {
-      const newOwnerPlayerId = String(button.dataset.playerId || '').trim();
-      const newOwnerName = String(button.dataset.playerName || '該成員').trim();
-
-      if (!newOwnerPlayerId) return;
-
-      openConfirmModal({
-        title: '移交活力組負責人',
-        heading: '確定將負責人移交給 ' + newOwnerName + ' 嗎？',
-        description: '移交完成後，你會保留為一般成員；若要離組，可再執行離開。',
-        confirmText: '確認移交',
-        handler: () => transferVitalGroupOwnership(
-          groupId,
-          newOwnerPlayerId,
-          newOwnerName
-        )
-      });
-      return;
-    }
-
     if (action === 'leave-group') {
       openConfirmModal({
         title: '離開活力組',
@@ -3670,40 +2749,6 @@ const STORAGE_KEY = 'yct_current_player';
       });
       return;
     }
-
-    if (action !== 'switch-group') {
-      return;
-    }
-
-    setLoading(true, '更新活力組...');
-
-    callServer('switchPrimaryVitalGroup', {
-      playerId: state.currentPlayer.playerId,
-      groupId: groupId
-    })
-      .then((res) => {
-        if (!isSuccess(res)) {
-          setResultMessage(
-            '#vitalGroupsMessage',
-            getResponseError(res, '切換活力組失敗')
-          );
-          return;
-        }
-
-        state.currentPlayer = res.data.player;
-        persistCurrentPlayer();
-        renderPlayer(state.currentPlayer);
-        invalidateByRule_('groupChanged');
-        setResultMessage('#vitalGroupsMessage', res.data.message || '活力組已更新', true);
-        loadVitalGroups();
-        refreshDashboard(false);
-      })
-      .catch((error) => {
-        setResultMessage('#vitalGroupsMessage', getErrorMessage(error));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
   }
 
   function copyInviteCode(code) {
@@ -3723,40 +2768,6 @@ const STORAGE_KEY = 'yct_current_player';
     }
 
     setResultMessage('#vitalGroupsMessage', '邀請碼：' + code, true);
-  }
-
-  function transferVitalGroupOwnership(groupId, newOwnerPlayerId, newOwnerName) {
-    setLoading(true, '移交活力組負責人...');
-
-    callServer('transferVitalGroupOwnership', {
-      groupId: groupId,
-      newOwnerPlayerId: newOwnerPlayerId
-    })
-      .then((res) => {
-        if (!isSuccess(res)) {
-          setResultMessage(
-            '#vitalGroupsMessage',
-            getResponseError(res, '移交活力組負責人失敗')
-          );
-          return;
-        }
-
-        invalidateByRule_('groupChanged');
-        notifyOtherAppInstances_('dataChanged');
-        setResultMessage(
-          '#vitalGroupsMessage',
-          res.data.message || ('已將負責人移交給 ' + newOwnerName),
-          true
-        );
-        loadVitalGroups();
-        refreshDashboard(false);
-      })
-      .catch((error) => {
-        setResultMessage('#vitalGroupsMessage', getErrorMessage(error));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
   }
 
   function leaveVitalGroup(groupId) {
@@ -3866,7 +2877,6 @@ const STORAGE_KEY = 'yct_current_player';
         setCache_('journey', state.groupJourney);
         state.chestSummary = data.chestSummary || createEmptyChestSummary();
         setCache_('chestSummary', state.chestSummary);
-        applyMessageCenterData_(data.messageCenter, true);
 
         renderPlayer(state.currentPlayer);
         renderHomeChestSummary(state.chestSummary);
@@ -3936,7 +2946,6 @@ const STORAGE_KEY = 'yct_current_player';
     setCache_('journey', state.groupJourney);
     state.chestSummary = data.chestSummary || createEmptyChestSummary();
     setCache_('chestSummary', state.chestSummary);
-    applyMessageCenterData_(data.messageCenter, true);
 
     renderPlayer(state.currentPlayer);
     renderHomeChestSummary(state.chestSummary);
@@ -6246,18 +5255,6 @@ const STORAGE_KEY = 'yct_current_player';
     $('#loginPassword').value = '';
     showAuth();
     setLoading(false);
-
-    revokeSessionInBackground_(token);
-  }
-
-  function revokeSessionInBackground_(token) {
-    token = String(token || '').trim();
-
-    if (!token || !window.GasBackend || typeof window.GasBackend.invoke !== 'function') {
-      return;
-    }
-
-    window.GasBackend.invoke('logoutPlayer', [token]).catch(() => null);
   }
 
   function establishCurrentSession_(sessionToken, player, keepLogin) {
@@ -6274,7 +5271,6 @@ const STORAGE_KEY = 'yct_current_player';
 
     if (previousPlayerId && previousPlayerId !== nextPlayerId) {
       clearPendingMutationRequestsForPlayer_(previousPlayerId);
-      clearMessageSuppressionRetryForPlayer_(previousPlayerId);
       clearPendingTaskScorePreviews_();
     }
 
@@ -6305,20 +5301,6 @@ const STORAGE_KEY = 'yct_current_player';
         }
       }
     } catch (error) {}
-  }
-
-  function clearMessageSuppressionRetryForPlayer_(playerId) {
-    playerId = String(playerId || '').trim();
-
-    if (!playerId) {
-      return;
-    }
-
-    const retained = readMessageCenterSuppressionRetryQueue_().filter(
-      (record) => String(record && record.playerId || '').trim() !== playerId
-    );
-
-    writeMessageCenterSuppressionRetryQueue_(retained);
   }
 
   function clearCurrentSession(options) {
@@ -6356,22 +5338,8 @@ const STORAGE_KEY = 'yct_current_player';
     state.homeGroupMemberCount = 0;
     state.homeGroupEnabled = true;
     state.homeGroupStatusMessage = '';
-    state.messageCenter = createEmptyMessageCenterState_();
-    state.messageCenterFilter = 'ANNOUNCEMENT';
-    state.selectedMessageKey = '';
-    state.messageCenterAutoOpenedKey = '';
-    state.messageReadInFlight.clear();
-    state.pendingMessageCenterSuppressions.clear();
-    state.messageCenterSuppressionFlushInFlight.clear();
-    state.messageCenterSuppressionRetryAttempts.clear();
-    if (state.messageCenterSuppressionRetryTimer) {
-      window.clearTimeout(state.messageCenterSuppressionRetryTimer);
-      state.messageCenterSuppressionRetryTimer = null;
-    }
-    renderHomeMessageBadge_();
     clearAllAppCache_();
     clearPendingMutationRequestsForPlayer_(previousPlayerId);
-    clearMessageSuppressionRetryForPlayer_(previousPlayerId);
 
     try {
       sessionStorage.removeItem(STORAGE_KEY);
