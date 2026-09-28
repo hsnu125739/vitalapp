@@ -47,7 +47,6 @@
         <button class="tab-btn" data-tab="chests" type="button">寶箱</button>
         <button class="tab-btn" data-tab="systemAnnouncements" type="button">系統公告</button>
         <button class="tab-btn" data-tab="specialTasks" type="button">特殊任務</button>
-        <button class="tab-btn" data-tab="migration" type="button">資料升級</button>
         <button class="tab-btn" data-tab="settings" type="button">設定</button>
         <details class="audit-navigation"><summary>查錯紀錄</summary>
         <button class="tab-btn" data-tab="activityLogs" type="button">活動紀錄</button>
@@ -279,97 +278,6 @@
           </section>
 
           <div id="specialTasksMessage" class="message"></div>
-        </section>
-
-        <section id="migrationTab" class="panel section hidden">
-          <div class="section-head">
-            <div>
-              <h2>資料升級</h2>
-              <p>背景準備期間玩家可正常使用；只有按下「開始最後切換」後，才會短暫暫停登入與資料寫入。背景自動處理最多 60 分鐘，最後切換最多 10 分鐘。</p>
-            </div>
-            <button class="btn primary" data-refresh="migration" type="button">更新狀態</button>
-          </div>
-          <div class="module-subsection">
-            <div class="section-head">
-              <div>
-                <h3>本版安全資料整理</h3>
-                <p>先預覽影響範圍；正式執行前自動備份，並以分批方式處理。一般使用者不會觸發此流程。</p>
-              </div>
-              <div class="toolbar">
-                <button id="previewFix12DataRepairsBtn" class="btn" type="button">預覽影響範圍</button>
-                <button id="runFix12DataRepairBatchBtn" class="btn amber" type="button">執行下一批</button>
-              </div>
-            </div>
-            <div class="migration-status-grid">
-              <article class="mini-item"><small>整理狀態</small><strong id="fix12OverallRepairStatus">讀取中</strong></article>
-              <article class="mini-item"><small>小組公告整理</small><strong id="fix12GroupPostsRepairStatus">讀取中</strong></article>
-              <article class="mini-item"><small>共同任務足跡回填</small><strong id="fix12GroupTasksRepairStatus">讀取中</strong></article>
-              <article class="mini-item"><small>備份與進度</small><strong id="fix12BackupProgressStatus">讀取中</strong></article>
-            </div>
-            <div id="fix12DataRepairsMessage" class="message"></div>
-          </div>
-          <div id="v0131MaintenanceStatusGrid" class="migration-status-grid">
-            <article class="mini-item"><small>玩家使用狀態</small><strong id="migrationPlayerAccess">讀取中</strong></article>
-            <article class="mini-item"><small>資料升級狀態</small><strong id="v0131MigrationStatus">讀取中</strong></article>
-            <article class="mini-item"><small>目前處理階段</small><strong id="migrationPhaseChinese">讀取中</strong></article>
-            <article class="mini-item"><small>背景自動處理</small><strong id="migrationAutoRun">讀取中</strong></article>
-            <article class="mini-item"><small>背景處理次數</small><strong id="migrationRunWindow">0／0</strong></article>
-            <article class="mini-item"><small>最後切換</small><strong id="migrationFinalizationWindow">尚未開始</strong></article>
-            <article class="mini-item"><small>資料讀取方式</small><strong id="archiveRoutingMode">讀取中</strong></article>
-            <article class="mini-item"><small>封存資料庫</small><strong id="archiveSetStatus">讀取中</strong></article>
-            <article class="mini-item"><small>背景處理程序</small><strong id="maintenanceWorkerStatus">讀取中</strong></article>
-            <article class="mini-item"><small>目前背景工作</small><strong id="maintenanceWorkerSubtask">讀取中</strong></article>
-          </div>
-          <article id="v0131MigrationErrorCard" class="mini-item migration-error hidden">
-            <strong>資料升級錯誤</strong>
-            <small id="v0131MigrationLastError"></small>
-          </article>
-          <div class="toolbar">
-            <button id="runV0131MigrationBtn" class="btn amber" type="button">開始背景資料準備</button>
-            <button id="resumeV0131MigrationBtn" class="btn" type="button" disabled>繼續背景資料準備</button>
-            <button id="pauseV0131MigrationBtn" class="btn red" type="button" disabled>暫停並恢復玩家使用</button>
-            <button id="finalizeV0131MigrationBtn" class="btn green" type="button" disabled>開始最後切換</button>
-            <button id="verifyV0131MigrationBtn" class="btn primary" type="button" disabled>完成後再核對</button>
-            <button id="resetV0132MigrationBtn" class="btn danger" type="button" disabled>重設未寫入的預檢</button>
-          </div>
-          <small class="inline-note">「開始背景資料準備」不會封鎖玩家。背景準備完成後，系統會停止並等待管理員確認；不會自行進入最後切換。</small>
-          <pre id="v0131MigrationDetails" class="csv-raw-preview"></pre>
-          <div id="v0131MigrationMessage" class="message"></div>
-          <hr>
-          <div class="section-head">
-            <div>
-              <h2>日常資料整理與歷史封存</h2>
-              <p>近期常用資料保留在主要資料庫；較舊明細完成封存與核對後，才依設定時間清理。</p>
-            </div>
-          </div>
-          <div class="migration-status-grid">
-            <article class="mini-item"><small>封存資料庫狀態</small><strong id="archiveSpreadsheetStatus">讀取中</strong></article>
-            <article class="mini-item"><small>目前階段</small><strong id="archiveStage">尚無批次</strong></article>
-            <article class="mini-item"><small>待封存／待清理</small><strong id="archivePendingCounts">0／0</strong></article>
-            <article class="mini-item"><small>已完成／失敗</small><strong id="archiveCompletedCounts">0／0</strong></article>
-            <article class="mini-item"><small>已封存／已清理筆數</small><strong id="archiveRecordCounts">0／0</strong></article>
-            <article class="mini-item"><small>待清理筆數</small><strong id="archivePendingCleanupRecords">0</strong></article>
-            <article class="mini-item"><small>處理進度</small><strong id="archiveCheckpoint">—</strong></article>
-            <article class="mini-item"><small>最早清理時間</small><strong id="archiveCleanupNotBefore">—</strong></article>
-            <article class="mini-item"><small>即時彙整最後成功</small><strong id="hotAggregationLastSuccess">尚無紀錄</strong></article>
-            <article class="mini-item"><small>每週封存最後執行</small><strong id="weeklyArchiveLastRun">尚無紀錄</strong></article>
-            <article class="mini-item"><small>延後清理最後執行</small><strong id="archiveCleanupLastRun">尚無紀錄</strong></article>
-            <article class="mini-item"><small>下一次預定執行</small><strong id="maintenanceNextSchedule">—</strong></article>
-            <article class="mini-item"><small>每日核對</small><strong id="dailyReconciliationStatus">尚未執行</strong></article>
-            <article class="mini-item"><small>最後錯誤</small><strong id="archiveLastError">—</strong></article>
-          </div>
-          <div class="toolbar">
-            <input id="archiveBatchIdInput" class="search-input" type="search" placeholder="輸入封存批次編號；留空使用最新批次">
-            <button id="runDailyReconciliationBtn" class="btn green" type="button">重新執行每日核對</button>
-            <button id="runWeeklyArchiveBtn" class="btn amber" type="button">重新執行每週封存</button>
-            <button id="runArchiveCleanupBtn" class="btn primary" type="button">重新執行延後清理</button>
-            <button id="verifyLatestArchiveBtn" class="btn" type="button">核對指定封存批次</button>
-            <button id="viewArchiveManifestBtn" class="btn" type="button">查看指定封存批次</button>
-            <button id="resumeFailedArchiveBtn" class="btn amber" type="button">繼續失敗的封存工作</button>
-            <button id="ensureMaintenanceTriggersBtn" class="btn" type="button">建立／修復排程</button>
-          </div>
-          <pre id="archiveManifestDetail" class="csv-raw-preview hidden"></pre>
-          <div id="archiveMaintenanceMessage" class="message"></div>
         </section>
 
         <section id="settingsTab" class="panel section hidden">
