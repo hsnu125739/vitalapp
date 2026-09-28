@@ -152,29 +152,56 @@
     }
   });
 
+  const DEFAULT_DISTRICTS = [
+    {
+      careDistrict: '西照顧區',
+      districtSortOrder: 1,
+      careAreas: [{ careArea: '西一區' }, { careArea: '西二區' }, { careArea: '鼓山大區' }]
+    },
+    {
+      careDistrict: '東照顧區',
+      districtSortOrder: 2,
+      careAreas: [{ careArea: '東一區' }, { careArea: '東二區' }, { careArea: '鳳山大區' }]
+    },
+    {
+      careDistrict: '北照顧區',
+      districtSortOrder: 3,
+      careAreas: [{ careArea: '北一區' }, { careArea: '北二區' }, { careArea: '三民大區' }]
+    },
+    {
+      careDistrict: '南照顧區',
+      districtSortOrder: 4,
+      careAreas: [{ careArea: '南一區' }, { careArea: '南二區' }, { careArea: '前鎮大區' }]
+    }
+  ];
+
   /**
    * 執行 GAS 呼叫 (統一透過 Iframe RPC)
    */
   async function invoke(functionName, args) {
-    action_ = String(functionName || '').trim();
-    if (!action_) throw new Error('缺少後端函式名稱');
+    const act = String(functionName || '').trim();
+    if (!act) throw new Error('缺少後端函式名稱');
 
-    // 照顧區與大區靜態選項（秒開免查詢）
-    if (action_ === 'getRegistrationAreaOptions') {
-      return {
-        success: true,
-        data: {
-          districts: [
-            { name: '西照顧區', areas: ['西一區', '西二區', '鼓山大區'] },
-            { name: '東照顧區', areas: ['東一區', '東二區', '鳳山大區'] },
-            { name: '北照顧區', areas: ['北一區', '北二區', '三民大區'] },
-            { name: '南照顧區', areas: ['南一區', '南二區', '前鎮大區'] }
-          ]
+    // 照顧區與大區：優先向 CORE 讀取試算表，若逾時或失敗則以完整標準格式兜底
+    if (act === 'getRegistrationAreaOptions') {
+      try {
+        const res = await invokeRemote_(act, args);
+        if (res && (res.districts || (res.data && res.data.districts))) {
+          const dList = res.districts || res.data.districts;
+          return { success: true, districts: dList, data: { districts: dList } };
         }
-      };
+      } catch (err) {
+        console.warn('[GasRpc] 取得後端 AreaMappings 失敗，啟用預設兜底清單', err);
+      }
+      return { success: true, districts: DEFAULT_DISTRICTS, data: { districts: DEFAULT_DISTRICTS } };
     }
 
-    const serviceName = getTargetService_(action_);
+    return invokeRemote_(act, args);
+  }
+
+  async function invokeRemote_(actionName, args) {
+    action_ = actionName;
+    const serviceName = getTargetService_(actionName);
     const channel = channels[serviceName];
 
     // 確保 Iframe 已掛載
