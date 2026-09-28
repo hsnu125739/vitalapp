@@ -42,7 +42,8 @@
     'getGroupJourney',
     'getGroupJourneyList',
     'settleMemberDeparture',
-    'archiveAnnualGroupProgress'
+    'archiveAnnualGroupProgress',
+    'grantTargetedReward'
   ]);
 
   // 各微服務連接實體池
