@@ -3457,8 +3457,8 @@ const STORAGE_KEY = 'yct_current_player';
       return;
     }
 
-    if ((state.vitalGroups || []).length) {
-      setResultMessage('#vitalGroupsMessage', '已加入活力組，不能再建立其他活力組。');
+    if ((state.vitalGroups || []).length || (state.currentPlayer && state.currentPlayer.groupId)) {
+      setResultMessage('#vitalGroupsMessage', '您目前已在活力組內，無法重複建立小組；若欲新建小組請先退出當前小組。');
       return;
     }
 
@@ -3565,9 +3565,13 @@ const STORAGE_KEY = 'yct_current_player';
       return;
     }
 
-    if ((state.vitalGroups || []).length) {
-      setResultMessage('#vitalGroupsMessage', '已加入活力組，不能再加入其他活力組。');
-      return;
+    const existingGroup = (state.vitalGroups || [])[0];
+    if (existingGroup || (state.currentPlayer && state.currentPlayer.groupId)) {
+      const gName = (existingGroup && existingGroup.groupName) || '當前活力組';
+      const confirmed = window.confirm(`您目前已在「${gName}」，加入新組將會退出原組並結算在原組的貢獻分數。確定要更換小組嗎？`);
+      if (!confirmed) {
+        return;
+      }
     }
 
     const inviteCode = $('#joinVitalGroupCode').value.trim();
