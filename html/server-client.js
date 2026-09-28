@@ -12,15 +12,6 @@
  */
 (function(global) {
   const DEFAULT_REQUEST_TIMEOUT_MS = 45 * 1000;
-  const LONG_REQUEST_TIMEOUT_MS = 3 * 60 * 1000;
-  const LONG_RUNNING_ACTIONS = new Set([
-    'adminRunDailyHotDataReconciliation',
-    'adminRunWeeklyArchive',
-    'adminRunArchiveCleanup',
-    'adminPreviewFix12DataRepairs',
-    'adminRunFix12DataRepairBatch',
-    'adminEnsureDataMaintenanceTriggers'
-  ]);
 
   const CHAT_ACTIONS = new Set([
     'getGroupPosts',
@@ -64,16 +55,13 @@
 
   function getServiceUrl_(serviceName) {
     const config = global.APP_RUNTIME_CONFIG || {};
-    const fallbackUrl = String(config.gasWebAppUrl || '').trim();
     if (serviceName === 'CHAT') {
-      return String(config.chatGasWebAppUrl || fallbackUrl).trim();
+      return String(config.chatGasWebAppUrl || '').trim();
     }
     if (serviceName === 'PROGRESSION') {
-      return String(config.progressionGasWebAppUrl || fallbackUrl).trim();
+      return String(config.progressionGasWebAppUrl || '').trim();
     }
-    // CORE
-    const adminUrl = String(config.adminGasWebAppUrl || '').trim();
-    return String(config.coreGasWebAppUrl || (String(action_ || '').indexOf('admin') === 0 && adminUrl ? adminUrl : fallbackUrl)).trim();
+    return String(config.coreGasWebAppUrl || '').trim();
   }
 
   let action_ = '';
@@ -243,7 +231,7 @@
     }
 
     const reqId = 'req_' + serviceName.toLowerCase() + '_' + Date.now().toString(36) + '_' + (++requestSeq);
-    const timeoutMs = LONG_RUNNING_ACTIONS.has(action_) ? LONG_REQUEST_TIMEOUT_MS : DEFAULT_REQUEST_TIMEOUT_MS;
+    const timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS;
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
