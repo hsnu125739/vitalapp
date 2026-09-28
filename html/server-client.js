@@ -40,7 +40,9 @@
     'getMilestonesConfig',
     'getPointsConfig',
     'getGroupJourney',
-    'getGroupJourneyList'
+    'getGroupJourneyList',
+    'settleMemberDeparture',
+    'archiveAnnualGroupProgress'
   ]);
 
   // 各微服務連接實體池
