@@ -38,7 +38,9 @@
     'claimChest',
     'getMyGroupContributionSummary',
     'getMilestonesConfig',
-    'getPointsConfig'
+    'getPointsConfig',
+    'getGroupJourney',
+    'getGroupJourneyList'
   ]);
 
   // 各微服務連接實體池
