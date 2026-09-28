@@ -175,6 +175,12 @@
     }
   ];
 
+  let cachedAreaOptions = null;
+  try {
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('vital_area_options_cache') : null;
+    if (stored) cachedAreaOptions = JSON.parse(stored);
+  } catch (e) {}
+
   /**
    * 執行 GAS 呼叫 (統一透過 Iframe RPC)
    */
@@ -182,18 +188,32 @@
     const act = String(functionName || '').trim();
     if (!act) throw new Error('缺少後端函式名稱');
 
-    // 照顧區與大區：優先向 CORE 讀取試算表，若逾時或失敗則以完整標準格式兜底
+    // 照顧區與大區：Stale-While-Revalidate，0ms 秒開絕不空白，背景自動向後端刷新
     if (act === 'getRegistrationAreaOptions') {
-      try {
-        const res = await invokeRemote_(act, args);
-        if (res && (res.districts || (res.data && res.data.districts))) {
-          const dList = res.districts || res.data.districts;
-          return { success: true, districts: dList, data: { districts: dList } };
+      // 背景非同步向 CORE 請求最新 AreaMappings
+      invokeRemote_(act, args).then((res) => {
+        const dList = (res && (res.districts || (res.data && res.data.districts)));
+        if (dList && Array.isArray(dList) && dList.length > 0) {
+          cachedAreaOptions = dList;
+          try {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('vital_area_options_cache', JSON.stringify(dList));
+            }
+          } catch (e) {}
         }
-      } catch (err) {
-        console.warn('[GasRpc] 取得後端 AreaMappings 失敗，啟用預設兜底清單', err);
-      }
-      return { success: true, districts: DEFAULT_DISTRICTS, data: { districts: DEFAULT_DISTRICTS } };
+      }).catch((e) => {
+        console.warn('[GasRpc] 背景同步 AreaMappings 失敗（繼續使用可用資料）', e);
+      });
+
+      // 立即回傳可用資料 (快取優先，其次為預設四大照顧區)
+      const activeOptions = (cachedAreaOptions && cachedAreaOptions.length) ? cachedAreaOptions : DEFAULT_DISTRICTS;
+      return {
+        success: true,
+        districts: activeOptions,
+        data: {
+          districts: activeOptions
+        }
+      };
     }
 
     return invokeRemote_(act, args);
