@@ -11,11 +11,5 @@ window.APP_RUNTIME_CONFIG = Object.freeze({
   chatGasWebAppUrl: 'https://script.google.com/macros/s/AKfycbx9w5Tv1m1fIC6e3NdyLzbZDQCMA_Lq8F53hdvHG6j2f3Elp2xQ9Sk0xF8UCNqhBYdJDw/exec',
   progressionGasWebAppUrl: 'https://script.google.com/macros/s/AKfycbyMlpjE_A1uQHrPrBsGQcBa1sLmK9Hlu5cfDqNhiyN13wQJe94MbquBC-_0m-8FNT0Mrw/exec',
 
-  // 相容舊版單一部署
-  gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbwYA1qPfQLIubRVS0UwyWXufcsRQh_KxoLNUiaYbyM9kQ6DniLBDw5W1a1FakIRPExuuw/exec',
-  adminGasWebAppUrl: '',
-
-  releaseVersion: 'v2.0.0-iframe-bridge',
-  expectedApiContractVersion: '1.2.0',
-  assetVersion: '20260813-stableasset1'
+  releaseVersion: 'v2.0.0-iframe-bridge'
 });
