@@ -77,16 +77,9 @@
       <!-- 首頁 -->
       <section id="homeView" class="view-screen hidden">
         <header class="app-topbar">
-          <button id="homeAvatarBtn" class="top-avatar-btn" type="button" aria-label="開啟訊息中心">
+          <button id="homeAvatarBtn" class="top-avatar-btn" type="button" aria-label="更換頭像">
             <img id="homeAvatarImg" class="top-avatar-img hidden" alt="活力人頭像">
             <span id="homeAvatarPlaceholder">?</span>
-            <span id="homeMessageBadge" class="home-message-badge" aria-label="開啟訊息中心">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M12 6.5v7"></path>
-                <circle cx="12" cy="17.5" r="1"></circle>
-              </svg>
-            </span>
           </button>
 
           <div class="topbar-player">
@@ -478,56 +471,6 @@
     </div>
   </div>
 
-  <!-- 訊息中心 -->
-  <div id="messageCenterModal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="messageCenterTitle">
-    <div class="modal-card wide-modal-card message-center-card">
-      <div class="modal-header">
-        <button id="refreshMessageCenterBtn" class="mini-outline-btn" type="button">更新</button>
-        <h2 id="messageCenterTitle">訊息中心</h2>
-        <button class="modal-close-btn" data-close-modal="messageCenterModal" type="button" aria-label="關閉訊息中心">×</button>
-      </div>
-
-      <div class="message-center-tabs" role="tablist" aria-label="訊息類型">
-        <button class="message-center-tab active" data-message-center-tab="ANNOUNCEMENT" type="button">系統公告</button>
-        <button class="message-center-tab" data-message-center-tab="SPECIAL_TASK" type="button">特殊任務</button>
-        <button class="message-center-tab" data-message-center-tab="REWARD_NOTIFICATION" type="button">任務獎勵</button>
-      </div>
-
-      <div id="messageCenterStatusMessage" class="result-box hidden"></div>
-      <div id="messageCenterEmpty" class="empty-card hidden">目前沒有訊息</div>
-
-      <div id="messageCenterLayout" class="message-center-layout">
-        <label id="messageCenterSelectorRow" class="message-center-selector hidden">
-          <span>選擇訊息</span>
-          <select id="messageCenterSelector"></select>
-        </label>
-
-        <article id="messageCenterDetail" class="message-center-detail">
-          <header class="message-center-detail-heading">
-            <div class="message-center-detail-identity">
-              <div id="messageCenterDetailIcon" class="message-center-detail-icon" aria-hidden="true"></div>
-              <h3 id="messageCenterDetailTitle"></h3>
-            </div>
-            <span id="messageCenterDetailType" class="message-center-type-label"></span>
-          </header>
-
-          <div class="message-center-detail-copy">
-            <section id="messageCenterRewardBox" class="message-center-reward-box hidden">
-              <strong>獎勵內容</strong>
-              <span id="messageCenterRewardText"></span>
-            </section>
-            <p id="messageCenterDetailContent" class="message-center-content"></p>
-            <label id="messageCenterSuppressRow" class="message-center-suppress hidden">
-              <input id="messageCenterSuppressToday" type="checkbox">
-              <span>今日不再自動顯示</span>
-            </label>
-          </div>
-        </article>
-      </div>
-
-    </div>
-  </div>
-
   <div id="avatarModal" class="modal-layer hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
       <div class="modal-header">
@@ -599,15 +542,7 @@
         <span></span>
       </div>
 
-      <form id="accountProfileForm" class="form-stack">
-        <label class="field-label">
-          顯示名稱
-          <input id="accountDisplayName" type="text" maxlength="20" placeholder="請輸入顯示名稱">
-        </label>
-        <button class="primary-btn" type="submit">儲存顯示名稱</button>
-      </form>
-
-      <form id="changePasswordForm" class="form-stack management-section">
+      <form id="changePasswordForm" class="form-stack">
         <h4>修改登入密碼</h4>
         <label class="field-label">
           目前登入密碼
