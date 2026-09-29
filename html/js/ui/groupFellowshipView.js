@@ -31,6 +31,25 @@
           if (this.modalContainer) this.modalContainer.classList.add('hidden');
         });
       });
+
+      // 攔截原生小組公告表單，杜絕瀏覽器原生 Submit 導致的整頁 Reload
+      const legacyForm = document.getElementById('homeGroupPostForm');
+      if (legacyForm) {
+        legacyForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const legacyInput = document.getElementById('homeGroupPostInput');
+          const text = legacyInput ? legacyInput.value.trim() : '';
+          if (!text) {
+            alert('請輸入公告內容');
+            return;
+          }
+          if (this.chatStore) {
+            this.chatStore.sendMessage(this.currentUserId, text, true);
+          }
+          if (legacyInput) legacyInput.value = '';
+          alert('小組公告已發布！');
+        });
+      }
     }
 
     openModal() {
@@ -40,6 +59,9 @@
         if (mount) {
           this.container = mount;
           this.render();
+        }
+        if (this.chatStore) {
+          this.chatStore.enterChat();
         }
       }
     }

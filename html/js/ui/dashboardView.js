@@ -181,6 +181,12 @@
 
       // 4. 公告呈現
       this.renderAnnouncements_(announcements);
+
+      // 5. 本週任務週次與日期標籤
+      const weekDateEl = document.getElementById('homeWeeklyDateText');
+      if (weekDateEl) {
+        weekDateEl.textContent = `週次：${this.currentWeekKey}`;
+      }
     }
 
     renderJourneyNodes_(journeyData) {
@@ -225,8 +231,7 @@
 
       container.innerHTML = announcements.map(a => `
         <div class="hero-announcement-item">
-          ${a.isPinned ? '<span style="color:#f59e0b;font-weight:700;">[置頂] </span>' : ''}
-          <strong>${this.escapeHtml_(a.title || '系統公告')}</strong>
+          <strong>${a.isPinned ? '<span style="color:#d97706;font-weight:700;margin-right:4px;">[置頂]</span>' : ''}${this.escapeHtml_(a.title || '系統公告')}</strong>
           <span style="opacity:0.85; margin-left:6px;">${this.escapeHtml_(a.content || '')}</span>
         </div>
       `).join('');

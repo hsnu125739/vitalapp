@@ -58,7 +58,8 @@
       if (this.claimBtn) {
         this.claimBtn.addEventListener('click', async () => {
           if (!this.activeChest) return;
-          const tierId = this.activeChest.tierId;
+          const tierId = this.activeChest.tierId || this.activeChest.tier;
+          const chestName = this.activeChest.name || this.activeChest.title || '寶箱';
 
           this.claimBtn.disabled = true;
           this.claimBtn.textContent = '領取中...';
@@ -66,7 +67,7 @@
           try {
             const res = await this.apiClient.claimChest(tierId);
             if (res && res.success) {
-              alert(`恭喜！成功領取【${this.activeChest.name}】！`);
+              alert(`恭喜！成功領取【${chestName}】！`);
               this.activeChest.isClaimed = true;
               this.applyDetailModal_(this.activeChest);
               if (this.detailModal) this.detailModal.classList.add('hidden');
@@ -97,18 +98,50 @@
 
       try {
         const res = await this.apiClient.getPlayerChestCollection();
-        let chests = (res && res.data && res.data.chests) || (res && res.chests) || [];
+        let rawChests = (res && res.data && res.data.chests) || (res && res.chests) || [];
+        let chests = [];
 
-        if (!Array.isArray(chests) || chests.length === 0) {
+        if (Array.isArray(rawChests) && rawChests.length > 0) {
+          chests = rawChests.map((c, index) => {
+            const tierId = c.tierId || c.tier || `tier_${index + 1}`;
+            const name = c.name || c.title || `成就寶箱 ${index + 1}`;
+            const minPoints = c.minPoints !== undefined ? c.minPoints : (c.pointsThreshold !== undefined ? c.pointsThreshold : (c.points || 0));
+            const desc = c.desc || c.description || `個人累積達到 ${minPoints.toLocaleString()} 點操練分`;
+            const img = c.img || (c.icon ? `../Chest_Assets/${c.icon}` : `../Chest_Assets/Chest_0${(index % 8) + 1}.png`);
+            const isClaimed = Boolean(c.isClaimed !== undefined ? c.isClaimed : c.claimed);
+            const isUnlocked = Boolean(c.isUnlocked !== undefined ? c.isUnlocked : (c.unlocked !== undefined ? c.unlocked : (userPoints >= minPoints)));
+            return {
+              tierId,
+              tier: tierId,
+              name,
+              title: name,
+              minPoints,
+              pointsThreshold: minPoints,
+              desc,
+              description: desc,
+              img,
+              icon: img,
+              isClaimed,
+              claimed: isClaimed,
+              isUnlocked,
+              unlocked: isUnlocked,
+              statusText: isClaimed ? '已領取' : (isUnlocked ? '可領取' : '未達成')
+            };
+          });
+        } else {
           // 本地計算預設階梯
           const claimedSet = new Set(claimedList || []);
           chests = DEFAULT_CHESTS.map(c => {
-            const isClaimed = claimedSet.has(c.tierId);
+            const isClaimed = claimedSet.has(c.tierId) || claimedSet.has(c.tier);
             const isUnlocked = userPoints >= c.minPoints;
             return {
               ...c,
+              tier: c.tierId,
+              title: c.name,
               isClaimed,
+              claimed: isClaimed,
               isUnlocked,
+              unlocked: isUnlocked,
               statusText: isClaimed ? '已領取' : (isUnlocked ? '可領取' : '未達成')
             };
           });
