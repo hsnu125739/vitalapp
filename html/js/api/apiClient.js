@@ -115,6 +115,29 @@
       return this.token;
     }
 
+    getPlayerIdFromToken() {
+      if (this.token && typeof this.token === 'string') {
+        try {
+          const parts = this.token.split('::');
+          if (parts.length >= 1 && parts[0]) {
+            if (typeof atob === 'function') {
+              return atob(parts[0]);
+            } else if (typeof Buffer !== 'undefined') {
+              return Buffer.from(parts[0], 'base64').toString('utf8');
+            }
+          }
+        } catch (e) {}
+      }
+      try {
+        const userStr = this.storage.getItem('vital_current_player') || this.storage.getItem('yct_current_player');
+        if (userStr) {
+          const u = JSON.parse(userStr);
+          return u.playerId || u.id || u.username || '';
+        }
+      } catch (e) {}
+      return '';
+    }
+
     clearSessionToken() {
       this.token = null;
       this.storage.removeItem('vital_session_token');
@@ -424,7 +447,32 @@
     }
 
     updateProfile(updates) { return this.request('updateProfile', { updates }); }
-    updatePassword(currentPassword, newPassword) { return this.request('updateMyPassword', { currentPassword, newPassword }); }
+    async updatePassword(currentPassword, newPassword) {
+      const pId = this.getPlayerIdFromToken();
+      const payload = {
+        currentPassword: currentPassword,
+        currentPasswordCode: currentPassword,
+        newPassword: newPassword,
+        newPasswordCode: newPassword,
+        playerId: pId,
+        token: this.token,
+        sessionToken: this.token
+      };
+      try {
+        const res = await this.request('updateMyPassword', payload);
+        return res;
+      } catch (err) {
+        const msg = String(err.message || '');
+        if (msg.includes('UNKNOWN_ACTION') || msg.includes('未知的 Action') || msg.includes('updateMyPassword')) {
+          try {
+            return await this.request('updatePassword', payload);
+          } catch (err2) {
+            throw new Error('核心微服務尚未部署更新版本（未支援 updateMyPassword）。請管理者至 Google Apps Script 貼上最新 dist/core/Code.gs 並重新部署！');
+          }
+        }
+        throw err;
+      }
+    }
     updateAvatar(avatarUrl) { return this.request('updatePlayerAvatar', { avatarUrl }); }
 
     getRegistrationAreaOptions() { return this.request('getRegistrationAreaOptions'); }
@@ -467,7 +515,15 @@
     deleteGroupPost(postId) { return this.request('deleteGroupPost', { postId }); }
 
     // 成就與寶箱
-    claimChest(tierId) { return this.request('claimChest', { tierId }); }
+    claimChest(tierId, playerId = null) {
+      const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
+      return this.request('claimChest', {
+        tierId: tierId,
+        chestTier: tierId,
+        playerId: resolvedPlayerId,
+        targetId: resolvedPlayerId
+      });
+    }
     getPlayerChestCollection() { return this.request('getPlayerChestCollection'); }
 
     // 系統公告
