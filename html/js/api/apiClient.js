@@ -21,7 +21,9 @@
     'getGroupPosts',
     'createGroupPost',
     'pinGroupPost',
-    'deleteGroupPost'
+    'deleteGroupPost',
+    'setGroupAnnouncement',
+    'clearGroupAnnouncement'
   ]);
 
   const PROGRESSION_ACTIONS = new Set([
@@ -522,6 +524,8 @@
     // 小組交流板
     createGroupPost(data) { return this.request('createGroupPost', data); }
     pinGroupPost(data) { return this.request('pinGroupPost', data); }
+    setGroupAnnouncement(data) { return this.request('setGroupAnnouncement', data); }
+    clearGroupAnnouncement(groupId) { return this.request('clearGroupAnnouncement', { groupId }); }
     getGroupPosts(groupId, limit = 30) { return this.request('getGroupPosts', { groupId, limit }); }
     deleteGroupPost(postId) { return this.request('deleteGroupPost', { postId }); }
 
