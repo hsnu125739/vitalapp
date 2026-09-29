@@ -13,6 +13,9 @@
  *    - 當網路恢復 (online 事件)、使用者下次操作或重開 App 時自動補送。
  */
 
+(function(global) {
+  'use strict';
+
 function normalizeDailyKey(k) {
   if (k === 'morningRevival' || k === 'morning') return 'morning';
   if (k === 'bibleReading' || k === 'bible') return 'bible';
@@ -461,6 +464,9 @@ class OptimisticPracticeStore {
   }
 }
 
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { OptimisticPracticeStore };
-}
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { OptimisticPracticeStore };
+  }
+  global.OptimisticPracticeStore = OptimisticPracticeStore;
+
+})(typeof window !== 'undefined' ? window : global);
