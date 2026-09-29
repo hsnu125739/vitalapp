@@ -9,8 +9,8 @@
 
   class GroupFellowshipView {
     constructor({ container = null, chatStore, currentUserId, isLeader = false }) {
-      this.container = container || document.getElementById('chatSectionMount') || document.getElementById('homeGroupPosts');
-      this.modalContainer = document.getElementById('groupPostModal');
+      this.container = container || (typeof document !== 'undefined' ? (document.getElementById('chatSectionMount') || document.getElementById('homeGroupPosts')) : null);
+      this.modalContainer = typeof document !== 'undefined' ? document.getElementById('groupPostModal') : null;
       this.chatStore = chatStore;
       this.currentUserId = currentUserId;
       this.isLeader = isLeader;
@@ -27,6 +27,7 @@
     }
 
     initModalEvents_() {
+      if (typeof document === 'undefined') return;
       document.querySelectorAll('[data-close-modal="groupPostModal"]').forEach(btn => {
         btn.addEventListener('click', () => {
           if (this.modalContainer) this.modalContainer.classList.add('hidden');
@@ -133,7 +134,7 @@
           e.preventDefault();
           const text = input.value.trim();
           if (!text) return;
-          this.chatStore.sendMessage(this.currentUserId, text);
+          this.chatStore.sendMessage(this.currentUserId, text, this.currentUserName);
           input.value = '';
         });
       }
@@ -170,8 +171,15 @@
       const showPinBtn = Boolean(this.isLeader && this.isSelectingPin);
 
       msgContainer.innerHTML = messages.map(msg => {
-        const isOwn = msg.authorPlayerId === this.currentUserId;
-        const authorText = isOwn ? '我' : (msg.authorName || msg.authorPlayerId);
+        const authorId = msg.authorPlayerId || msg.authorId || '';
+        const currentId = this.currentUserId || (window.activeApiClient && window.activeApiClient.getPlayerIdFromToken()) || '';
+        const authorName = (msg.authorName || '').trim();
+        const currentName = (this.currentUserName || '').trim();
+
+        const isOwn = (Boolean(authorId) && Boolean(currentId) && String(authorId).trim() === String(currentId).trim()) ||
+                      (Boolean(authorName) && Boolean(currentName) && authorName === currentName);
+
+        const authorText = isOwn ? '我' : (authorName || authorId || '聖徒');
         const bg = isOwn ? '#e0f2fe' : '#ffffff';
         const align = isOwn ? 'flex-end' : 'flex-start';
 
