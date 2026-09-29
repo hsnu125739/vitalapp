@@ -19,13 +19,9 @@
 
   const CHAT_ACTIONS = new Set([
     'getGroupPosts',
-    'getGroupMessages',
-    'getGroupMessageMatrix',
-    'postGroupMessage',
     'createGroupPost',
     'pinGroupPost',
-    'deleteGroupPost',
-    'setPinnedPost'
+    'deleteGroupPost'
   ]);
 
   const PROGRESSION_ACTIONS = new Set([
@@ -542,20 +538,8 @@
     getPlayerChestCollection() { return this.request('getPlayerChestCollection'); }
 
     // 系統公告
-    async getActiveAnnouncements(currentDate = null) {
-      try {
-        const res = await this.request('getActiveAnnouncements', { currentDate });
-        if (res && res.success) return res;
-        if (res && (res.code === 'UNKNOWN_ACTION' || String(res.error).includes('UNKNOWN_ACTION') || String(res.error).includes('未支援'))) {
-          return await this.request('getAnnouncements', { currentDate });
-        }
-        return res;
-      } catch (err) {
-        if (String(err.message).includes('UNKNOWN_ACTION') || String(err.message).includes('未支援')) {
-          try { return await this.request('getAnnouncements', { currentDate }); } catch (e2) {}
-        }
-        return { success: false, error: err.message, announcements: [] };
-      }
+    getAnnouncements(currentDate = null) {
+      return this.request('getAnnouncements', { currentDate });
     }
   }
 
