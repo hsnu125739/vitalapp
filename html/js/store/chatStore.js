@@ -123,7 +123,7 @@ class ChatStore {
   /**
    * 本地樂觀追加新留言 (Optimistic Append)
    */
-  async sendMessage(authorPlayerId, content, isPinned = false) {
+  async sendMessage(authorPlayerId, content) {
     if (!content || !content.trim()) return;
 
     const tempId = `TEMP_${Date.now()}`;
@@ -132,14 +132,10 @@ class ChatStore {
       groupId: this.groupId,
       authorPlayerId,
       content: content.trim(),
-      isPinned: Boolean(isPinned),
+      isPinned: false, // 留言發布與置頂解耦，所有留言皆發布為常態留言
       timestamp: new Date().toISOString(),
       isPending: true
     };
-
-    if (optimisticPost.isPinned) {
-      this.pinnedPost = optimisticPost;
-    }
 
     // 立即追加新氣泡（零等待）
     this.messages.unshift(optimisticPost);
@@ -149,8 +145,7 @@ class ChatStore {
       const res = await this.apiClient.createGroupPost({
         groupId: this.groupId,
         authorPlayerId,
-        content: optimisticPost.content,
-        isPinned: optimisticPost.isPinned
+        content: optimisticPost.content
       });
 
       if (res && res.success && res.data) {
@@ -159,9 +154,6 @@ class ChatStore {
         const idx = this.messages.findIndex(m => m.id === tempId);
         if (idx !== -1) {
           this.messages[idx] = { ...confirmedPost, isPending: false };
-        }
-        if (confirmedPost.isPinned) {
-          this.pinnedPost = confirmedPost;
         }
         this.saveToCache();
         this.notify();
