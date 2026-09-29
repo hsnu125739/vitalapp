@@ -129,7 +129,7 @@
         } catch (e) {}
       }
       try {
-        const userStr = this.storage.getItem('vital_current_player') || this.storage.getItem('yct_current_player');
+        const userStr = this.storage.getItem('vital_current_player');
         if (userStr) {
           const u = JSON.parse(userStr);
           return u.playerId || u.id || u.username || '';
@@ -142,7 +142,6 @@
       this.token = null;
       this.storage.removeItem('vital_session_token');
       this.storage.removeItem('vital_current_player');
-      this.storage.removeItem('yct_current_player');
     }
 
     handleSessionExpired_() {
