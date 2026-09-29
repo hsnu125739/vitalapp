@@ -13,6 +13,7 @@
       this.modalContainer = typeof document !== 'undefined' ? document.getElementById('groupPostModal') : null;
       this.chatStore = chatStore;
       this.currentUserId = currentUserId;
+      this.postsColIndex = null;
       this.isLeader = isLeader;
       this.isSelectingPin = false;
 
@@ -134,7 +135,7 @@
           e.preventDefault();
           const text = input.value.trim();
           if (!text) return;
-          this.chatStore.sendMessage(this.currentUserId, text, this.currentUserName);
+          this.chatStore.sendMessage(this.currentUserId, text, this.currentUserName, this.postsColIndex);
           input.value = '';
         });
       }
@@ -229,7 +230,7 @@
 
             // 呼叫 chatStore 設定公告
             if (this.chatStore) {
-              this.chatStore.setAnnouncement(content, authorName, authorPlayerId, postId);
+              this.chatStore.setAnnouncement(content, authorName, authorPlayerId, postId, this.postsColIndex);
             }
 
             // 自動退出選擇模式
