@@ -99,18 +99,12 @@
       // 1. 取得使用者檔案
       const profileRes = await apiClient.getProfile();
       if (!profileRes || !profileRes.success) {
-        const isAuthError = profileRes && (
-          profileRes.code === 401 ||
-          profileRes.code === 'UNAUTHORIZED' ||
-          String(profileRes.error || '').toUpperCase().includes('UNAUTHORIZED') ||
-          String(profileRes.error || '').toUpperCase().includes('SESSION')
-        );
-
-        if (isAuthError || !currentUserProfile) {
+        console.warn('[App] 取得遠端使用者檔案失敗，使用登入快照呈現', profileRes);
+        // 只有在完全無登入快照且無有效 Token 時，才跳轉登入
+        if (!currentUserProfile && !apiClient.getSessionToken()) {
           handleLogout();
           return;
         }
-        console.warn('[App] 取得遠端使用者檔案失敗，使用登入快照呈現', profileRes);
       } else {
         const fetchedPlayer = profileRes.player || profileRes.data?.player || profileRes.data || {};
         currentUserProfile = { ...currentUserProfile, ...fetchedPlayer };
