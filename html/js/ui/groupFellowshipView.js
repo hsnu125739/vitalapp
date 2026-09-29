@@ -14,6 +14,7 @@
       this.chatStore = chatStore;
       this.currentUserId = currentUserId;
       this.isLeader = isLeader;
+      this.isSelectingPin = false;
 
       // 訂閱聊天狀態庫
       if (this.chatStore) {
@@ -29,32 +30,51 @@
       document.querySelectorAll('[data-close-modal="groupPostModal"]').forEach(btn => {
         btn.addEventListener('click', () => {
           if (this.modalContainer) this.modalContainer.classList.add('hidden');
+          this.isSelectingPin = false;
+          this.updatePinButtonState_();
         });
       });
 
-      // 攔截小組公告表單，杜絕瀏覽器原生 Submit 導致的整頁 Reload
-      const groupPostForm = document.getElementById('homeGroupPostForm');
-      if (groupPostForm) {
-        groupPostForm.addEventListener('submit', (e) => {
-          e.preventDefault();
-          const groupPostInput = document.getElementById('homeGroupPostInput');
-          const text = groupPostInput ? groupPostInput.value.trim() : '';
-          if (!text) {
-            alert('請輸入公告內容');
-            return;
-          }
+      const btnTogglePin = document.getElementById('btnToggleSelectPinnedPost');
+      if (btnTogglePin) {
+        btnTogglePin.addEventListener('click', () => {
+          this.isSelectingPin = !this.isSelectingPin;
+          this.updatePinButtonState_();
           if (this.chatStore) {
-            this.chatStore.sendMessage(this.currentUserId, text);
+            this.renderMessages(this.chatStore.messages, this.chatStore.pinnedPost);
           }
-          if (groupPostInput) groupPostInput.value = '';
-          alert('小組公告已發布！');
         });
+      }
+    }
+
+    updatePinButtonState_() {
+      const btnTogglePin = document.getElementById('btnToggleSelectPinnedPost');
+      if (!btnTogglePin) return;
+      if (this.isSelectingPin) {
+        btnTogglePin.textContent = '取消選擇';
+        btnTogglePin.style.background = '#64748b';
+      } else {
+        btnTogglePin.textContent = '選擇置頂貼文';
+        btnTogglePin.style.background = '#e11d48';
       }
     }
 
     openModal() {
       if (this.modalContainer) {
         this.modalContainer.classList.remove('hidden');
+        this.isSelectingPin = false;
+        this.updatePinButtonState_();
+
+        // 隊長專屬控制列
+        const leaderControls = document.getElementById('groupLeaderAnnouncementControls');
+        if (leaderControls) {
+          if (this.isLeader) {
+            leaderControls.classList.remove('hidden');
+          } else {
+            leaderControls.classList.add('hidden');
+          }
+        }
+
         const mount = document.getElementById('myGroupPostList');
         if (mount) {
           this.container = mount;
@@ -147,24 +167,86 @@
         return;
       }
 
+      const showPinBtn = Boolean(this.isLeader && this.isSelectingPin);
+
       msgContainer.innerHTML = messages.map(msg => {
         const isOwn = msg.authorPlayerId === this.currentUserId;
         const authorText = isOwn ? '我' : (msg.authorName || msg.authorPlayerId);
         const bg = isOwn ? '#e0f2fe' : '#ffffff';
         const align = isOwn ? 'flex-end' : 'flex-start';
 
-        return `
-          <div style="align-self: ${align}; max-width: 80%; background: ${bg}; border: 1px solid #cbd5e1; border-radius: 12px; padding: 8px 12px;">
+        const pinBtnHtml = showPinBtn ? `
+          <button type="button" class="btn-pin-post"
+            data-post-id="${this.escapeAttr(msg.id || msg.postId || '')}"
+            data-post-content="${this.escapeAttr(msg.content || '')}"
+            data-author-name="${this.escapeAttr(msg.authorName || msg.authorPlayerId || '')}"
+            data-author-id="${this.escapeAttr(msg.authorPlayerId || '')}"
+            style="background:#fef3c7; border:1px solid #fde68a; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:transform 0.1s;"
+            title="設為小組公告">📌</button>
+        ` : '';
+
+        const bubbleHtml = `
+          <div style="max-width: 80%; background: ${bg}; border: 1px solid #cbd5e1; border-radius: 12px; padding: 8px 12px;">
             <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 2px;">${authorText}</div>
             <div style="font-size: 13px; color: #1e293b; line-height: 1.4;">${this.escapeHtml(msg.content)}</div>
           </div>
         `;
+
+        // 若對話靠右（自己發的），釘選圖示放在左側：[ 📌 ] [ 氣泡 ]
+        // 若對話靠左（別人發的），釘選圖示放在右側：[ 氣泡 ] [ 📌 ]
+        const contentHtml = isOwn
+          ? `${pinBtnHtml}${bubbleHtml}`
+          : `${bubbleHtml}${pinBtnHtml}`;
+
+        return `
+          <div style="display: flex; align-items: center; justify-content: ${align}; gap: 8px; width: 100%;">
+            ${contentHtml}
+          </div>
+        `;
       }).join('');
+
+      // 綁定釘選按鈕確認與設置事件
+      if (showPinBtn) {
+        msgContainer.querySelectorAll('.btn-pin-post').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const postId = btn.getAttribute('data-post-id');
+            const content = btn.getAttribute('data-post-content');
+            const authorName = btn.getAttribute('data-author-name');
+            const authorPlayerId = btn.getAttribute('data-author-id');
+            if (!content) return;
+
+            const ok = confirm(`確定要將此訊息設為小組公告嗎？\n\n「${content}」`);
+            if (!ok) return;
+
+            // 呼叫 chatStore 設定公告
+            if (this.chatStore) {
+              this.chatStore.setAnnouncement(content, authorName, authorPlayerId, postId);
+            }
+
+            // 自動退出選擇模式
+            this.isSelectingPin = false;
+            this.updatePinButtonState_();
+            if (this.chatStore) {
+              this.renderMessages(this.chatStore.messages, this.chatStore.pinnedPost);
+            }
+          });
+        });
+      }
     }
 
     escapeHtml(str) {
       return String(str || '')
         .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    escapeAttr(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
     }
