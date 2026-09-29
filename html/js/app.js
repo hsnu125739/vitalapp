@@ -75,7 +75,13 @@
       onAvatarUpdated: (url) => handleAvatarUpdated(url),
       onLogout: () => handleLogout(),
       onFootprintClick: () => footprintsView.openFootprintsModal(),
-      onFellowshipClick: () => fellowshipView.openModal()
+      onFellowshipClick: () => {
+        if (!currentUserProfile || !currentUserProfile.groupId) {
+          alert('您尚未加入任何活力組！請先於首頁或個人手冊中加入或建立活力組，才能使用小組公告與交通功能。');
+          return;
+        }
+        fellowshipView.openModal();
+      }
     });
 
     // 4. 驗證現有 Session
@@ -147,6 +153,41 @@
       // 4. 渲染視圖
       dashboardView.render(currentUserProfile, currentJourneyData, announcements);
       profileView.render(currentUserProfile);
+
+      // 4.5 水合當日操練與當週聚會狀態
+      try {
+        const homeDashRes = await apiClient.request('getHomeDashboard', { playerId: currentUserProfile.playerId });
+        const dashData = (homeDashRes && homeDashRes.data) || homeDashRes || {};
+        if (dashData.dailyRecord) {
+          const today = dashboardView.currentDate || dashboardView.getTodayDateString();
+          practiceStore.dailyState[today] = {
+            morning: Boolean(dashData.dailyRecord.morningRevival || dashData.dailyRecord.morning),
+            morningRevival: Boolean(dashData.dailyRecord.morningRevival || dashData.dailyRecord.morning),
+            bible: Boolean(dashData.dailyRecord.bibleReading || dashData.dailyRecord.bible),
+            bibleReading: Boolean(dashData.dailyRecord.bibleReading || dashData.dailyRecord.bible),
+            prayer: Boolean(dashData.dailyRecord.prayer),
+            book: Boolean(dashData.dailyRecord.bookPursuit || dashData.dailyRecord.book),
+            bookPursuit: Boolean(dashData.dailyRecord.bookPursuit || dashData.dailyRecord.book),
+            syncStatus: 'synced',
+            hasAmberDot: false
+          };
+          dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
+        }
+        if (dashData.meetingRecord) {
+          const currentWeek = dashboardView.currentWeekKey || dashboardView.getCurrentWeekKey();
+          practiceStore.meetingState[currentWeek] = {
+            smallGroup: Boolean(dashData.meetingRecord.groupMeeting || dashData.meetingRecord.smallGroup || dashData.meetingRecord.group),
+            prayerMeeting: Boolean(dashData.meetingRecord.prayerMeeting || dashData.meetingRecord.prayerMtg),
+            lordDayMeeting: Boolean(dashData.meetingRecord.lordsDayMeeting || dashData.meetingRecord.lordDayMeeting || dashData.meetingRecord.lordDay),
+            outreachVisit: Boolean(dashData.meetingRecord.mutualPursuit || dashData.meetingRecord.outreachVisit || dashData.meetingRecord.outreach),
+            syncStatus: 'synced',
+            hasAmberDot: false
+          };
+          dashboardView.renderMeetingPracticeState(practiceStore.meetingState[currentWeek]);
+        }
+      } catch (dashErr) {
+        console.warn('[App] 讀取主頁打卡狀態失敗', dashErr);
+      }
 
       // 5. 初始化小組交流
       if (groupId) {

@@ -107,11 +107,179 @@
         });
       }
 
+      // 頭像步進器與選擇
+      this.avatarGender = 'male';
+      this.avatarNo = 1;
+
+      const genderSel = document.getElementById('avatarGenderSelect');
+      if (genderSel) {
+        genderSel.addEventListener('change', () => {
+          this.avatarGender = genderSel.value || 'male';
+          this.updateAvatarPreview_();
+        });
+      }
+
+      const prevBtn = document.getElementById('avatarPrevBtn');
+      if (prevBtn) {
+        prevBtn.addEventListener('click', () => {
+          this.avatarNo = this.avatarNo > 1 ? this.avatarNo - 1 : 8;
+          this.updateAvatarPreview_();
+        });
+      }
+
+      const nextBtn = document.getElementById('avatarNextBtn');
+      if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+          this.avatarNo = this.avatarNo < 8 ? this.avatarNo + 1 : 1;
+          this.updateAvatarPreview_();
+        });
+      }
+
+      const randomBtn = document.getElementById('avatarRandomBtn');
+      if (randomBtn) {
+        randomBtn.addEventListener('click', () => {
+          this.avatarNo = Math.floor(Math.random() * 8) + 1;
+          this.updateAvatarPreview_();
+        });
+      }
+
       // 開啟帳號設定彈窗 (密碼更新)
       const openSettingsBtn = document.getElementById('openAccountSettingsBtn');
       if (openSettingsBtn) {
         openSettingsBtn.addEventListener('click', () => {
           if (this.accountSettingsModal) this.accountSettingsModal.classList.remove('hidden');
+        });
+      }
+
+      const changePwdForm = document.getElementById('changePasswordForm');
+      if (changePwdForm) {
+        changePwdForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const currentPwd = (document.getElementById('currentPasswordCode') || {}).value?.trim();
+          const newPwd = (document.getElementById('newPasswordCode') || {}).value?.trim();
+          const confirmPwd = (document.getElementById('confirmNewPasswordCode') || {}).value?.trim();
+
+          if (!currentPwd || !newPwd) {
+            alert('請填寫目前密碼與新密碼');
+            return;
+          }
+          if (newPwd !== confirmPwd) {
+            alert('兩次輸入的新密碼不一致，請重新確認');
+            return;
+          }
+          if (newPwd.length < 6) {
+            alert('新密碼長度至少需 6 碼以上');
+            return;
+          }
+
+          try {
+            const res = await this.apiClient.updatePassword(currentPwd, newPwd);
+            if (res && res.success) {
+              alert('密碼更新成功！');
+              if (this.accountSettingsModal) this.accountSettingsModal.classList.add('hidden');
+              changePwdForm.reset();
+            } else {
+              alert((res && (res.error || res.message)) || '更新密碼失敗');
+            }
+          } catch (err) {
+            alert(err.message || '更新密碼逾時，請稍後再試');
+          }
+        });
+      }
+
+      // 活力組管理彈窗與操作
+      const vitalModal = document.getElementById('vitalGroupsModal');
+      const openVitalBtn = document.getElementById('openVitalGroupsBtn');
+      if (openVitalBtn && vitalModal) {
+        openVitalBtn.addEventListener('click', () => {
+          vitalModal.classList.remove('hidden');
+          const listMount = document.getElementById('vitalGroupsList');
+          if (listMount) {
+            if (this.currentUserProfile && this.currentUserProfile.groupId) {
+              listMount.innerHTML = `
+                <div class="vital-group-item active-group" style="padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin-bottom:8px;">
+                  <strong style="color:#15803d;font-size:15px;">現屬活力組：${this.currentUserProfile.groupName || this.currentUserProfile.groupId}</strong>
+                  <div style="font-size:13px;color:#475569;margin-top:4px;">組別代碼：${this.currentUserProfile.groupId}</div>
+                </div>
+              `;
+            } else {
+              listMount.innerHTML = `<div class="empty-card" style="padding:16px;text-align:center;color:#64748b;">目前尚未加入任何活力組，可於下方建立新組或以邀請碼加入。</div>`;
+            }
+          }
+        });
+      }
+
+      document.querySelectorAll('[data-close-modal="vitalGroupsModal"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (vitalModal) vitalModal.classList.add('hidden');
+        });
+      });
+
+      const createGrpForm = document.getElementById('createVitalGroupForm');
+      if (createGrpForm) {
+        createGrpForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const nameInput = document.getElementById('createVitalGroupName');
+          const groupName = nameInput ? nameInput.value.trim() : '';
+          if (!groupName) {
+            alert('請輸入活力組名稱');
+            return;
+          }
+
+          try {
+            const res = await this.apiClient.createGroup({ groupName });
+            if (res && res.success) {
+              alert(`恭喜！活力組【${groupName}】建立成功！`);
+              if (vitalModal) vitalModal.classList.add('hidden');
+              if (nameInput) nameInput.value = '';
+              if (typeof window.AppCoordinator?.refreshUserData === 'function') {
+                window.AppCoordinator.refreshUserData();
+              }
+            } else {
+              alert((res && (res.error || res.message)) || '建立活力組失敗');
+            }
+          } catch (err) {
+            alert(err.message || '連線逾時，請稍後再試');
+          }
+        });
+      }
+
+      const joinGrpForm = document.getElementById('joinVitalGroupForm');
+      if (joinGrpForm) {
+        joinGrpForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const codeInput = document.getElementById('joinVitalGroupCode');
+          const inviteCode = codeInput ? codeInput.value.trim() : '';
+          if (!inviteCode) {
+            alert('請輸入邀請碼');
+            return;
+          }
+
+          try {
+            const res = await this.apiClient.joinGroup({ inviteCode });
+            if (res && res.success) {
+              alert('成功加入活力組！歡迎一同在主裡奔跑！');
+              if (vitalModal) vitalModal.classList.add('hidden');
+              if (codeInput) codeInput.value = '';
+              if (typeof window.AppCoordinator?.refreshUserData === 'function') {
+                window.AppCoordinator.refreshUserData();
+              }
+            } else {
+              alert((res && (res.error || res.message)) || '加入活力組失敗，請檢查邀請碼');
+            }
+          } catch (err) {
+            alert(err.message || '連線逾時，請稍後再試');
+          }
+        });
+      }
+
+      // 同行貢獻按鈕
+      const growthBtn = document.getElementById('openGrowthModalBtn');
+      if (growthBtn) {
+        growthBtn.addEventListener('click', () => {
+          if (typeof this.onFootprintClick === 'function') {
+            this.onFootprintClick();
+          }
         });
       }
 
@@ -126,6 +294,10 @@
       const fellowshipBtn = document.getElementById('openGroupPostModalBtn');
       if (fellowshipBtn) {
         fellowshipBtn.addEventListener('click', () => {
+          if (this.currentUserProfile && !this.currentUserProfile.groupId) {
+            alert('您尚未加入任何活力組！請先加入或建立活力組，才能使用小組公告與交通功能。');
+            return;
+          }
           if (typeof this.onFellowshipClick === 'function') this.onFellowshipClick();
         });
       }
@@ -161,6 +333,7 @@
 
     render(userProfile) {
       if (!userProfile) return;
+      this.currentUserProfile = userProfile;
 
       const myNameEl = document.getElementById('myPlayerName');
       const myGroupEl = document.getElementById('myGroupName');
@@ -177,8 +350,25 @@
       }
     }
 
+    updateAvatarPreview_() {
+      const folder = this.avatarGender === 'female' ? 'avatar-female' : 'avatar-male';
+      const prefix = this.avatarGender === 'female' ? 'avatar-female-direct' : 'avatar-male-direct';
+      const num = String(this.avatarNo).padStart(3, '0');
+      this.selectedAvatarUrl = `../${folder}/${prefix}-${num}.png`;
+      if (this.avatarPreview) {
+        this.avatarPreview.src = this.selectedAvatarUrl;
+        this.avatarPreview.classList.remove('hidden');
+      }
+      if (this.avatarInfo) {
+        const label = this.avatarGender === 'female' ? '姊妹' : '弟兄';
+        this.avatarInfo.textContent = `${label} ${this.avatarNo}`;
+      }
+      return this.selectedAvatarUrl;
+    }
+
     openAvatarModal() {
       if (this.avatarModal) this.avatarModal.classList.remove('hidden');
+      this.updateAvatarPreview_();
       this.renderAvatarGrid_();
     }
 
