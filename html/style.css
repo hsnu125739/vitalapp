@@ -3655,7 +3655,7 @@ body{
   align-items:center;
   min-width:0;
   width:auto;
-  max-width:78px;
+  max-width:none;
   height:34px;
   margin:0;
   padding:0;
