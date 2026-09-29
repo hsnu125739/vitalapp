@@ -10,6 +10,9 @@
  *    切換分頁 (Page Visibility API) 或閒置超過 3 分鐘自動暫停輪詢，零外部 WebSocket 依賴。
  */
 
+(function(global) {
+  'use strict';
+
 class ChatStore {
   constructor({ apiClient, groupId, storage = null, onMessagesUpdated = null }) {
     this.apiClient = apiClient;
@@ -269,6 +272,9 @@ class ChatStore {
   }
 }
 
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { ChatStore };
-}
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { ChatStore };
+  }
+  global.ChatStore = ChatStore;
+
+})(typeof window !== 'undefined' ? window : global);
