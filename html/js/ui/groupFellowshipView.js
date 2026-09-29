@@ -44,7 +44,7 @@
             return;
           }
           if (this.chatStore) {
-            this.chatStore.sendMessage(this.currentUserId, text, true);
+            this.chatStore.sendMessage(this.currentUserId, text);
           }
           if (groupPostInput) groupPostInput.value = '';
           alert('小組公告已發布！');
@@ -93,7 +93,6 @@
           <form class="chat-input-bar" id="chatForm" style="display: flex; gap: 8px;">
             <input type="text" class="chat-input" id="chatInput" placeholder="分享今日晨興心得、禱告負擔..." maxlength="200" required autocomplete="off" style="flex:1; border:1px solid #cbd5e1; border-radius:8px; padding:8px 12px; font-size:14px;" />
             <button type="submit" class="btn-primary" id="btnSendChat" style="background:#0284c7; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-weight:600; cursor:pointer;">送出</button>
-            ${this.isLeader ? '<button type="button" class="btn-primary" id="btnSendPinned" style="background-color: #d97706; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-weight:600; cursor:pointer;" title="以隊長身份發布為置頂">置頂</button>' : ''}
           </form>
         </section>
       `;
@@ -114,20 +113,7 @@
           e.preventDefault();
           const text = input.value.trim();
           if (!text) return;
-          this.chatStore.sendMessage(this.currentUserId, text, false);
-          input.value = '';
-        });
-      }
-
-      const btnPinned = this.container.querySelector('#btnSendPinned');
-      if (btnPinned) {
-        btnPinned.addEventListener('click', () => {
-          const text = input.value.trim();
-          if (!text) {
-            alert('請輸入要置頂的訊息內容');
-            return;
-          }
-          this.chatStore.sendMessage(this.currentUserId, text, true);
+          this.chatStore.sendMessage(this.currentUserId, text);
           input.value = '';
         });
       }
