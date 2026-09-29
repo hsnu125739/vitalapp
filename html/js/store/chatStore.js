@@ -85,6 +85,17 @@ class ChatStore {
   }
 
   /**
+   * 初始化小組 ID 並進入交流板
+   */
+  init(groupId) {
+    if (groupId) {
+      this.groupId = groupId;
+      this.loadFromCache();
+      this.enterChat();
+    }
+  }
+
+  /**
    * 進入交流板初始化載入 (Cache-First + Background Refresh)
    */
   async enterChat() {
