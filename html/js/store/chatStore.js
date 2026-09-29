@@ -14,9 +14,10 @@
   'use strict';
 
 class ChatStore {
-  constructor({ apiClient, groupId, storage = null, onMessagesUpdated = null }) {
+  constructor({ apiClient, groupId, postsColIndex = null, storage = null, onMessagesUpdated = null }) {
     this.apiClient = apiClient;
     this.groupId = groupId;
+    this.postsColIndex = postsColIndex ? Number(postsColIndex) : null;
     this.storage = storage || (typeof localStorage !== 'undefined' ? localStorage : {
       store: {},
       getItem(k) { return this.store[k] || null; },
@@ -87,9 +88,10 @@ class ChatStore {
   /**
    * 初始化小組 ID 並進入交流板
    */
-  init(groupId) {
+  init(groupId, postsColIndex = null) {
     if (groupId) {
       this.groupId = groupId;
+      if (postsColIndex) this.postsColIndex = Number(postsColIndex);
       this.loadFromCache();
       this.enterChat();
     }
@@ -104,8 +106,9 @@ class ChatStore {
 
     // 背景抓取最新狀態
     try {
-      const res = await this.apiClient.getGroupPosts(this.groupId, 20);
+      const res = await this.apiClient.getGroupPosts(this.groupId, 20, this.postsColIndex);
       if (res && res.success) {
+        if (res.postsColIndex) this.postsColIndex = Number(res.postsColIndex);
         const incomingPosts = Array.isArray(res.data) ? res.data : (res.posts || (res.data && res.data.posts) || []);
         const ann = res.announcement || (res.data && res.data.announcement) || res.pinnedPost || (res.data && res.data.pinnedPost) || null;
         this.mergeIncomingPosts(incomingPosts, ann);
@@ -125,7 +128,7 @@ class ChatStore {
   /**
    * 本地樂觀追加新留言 (Optimistic Append)
    */
-  async sendMessage(authorPlayerId, content, authorName = '') {
+  async sendMessage(authorPlayerId, content, authorName = '', postsColIndex = null) {
     if (!content || !content.trim()) return;
 
     let resolvedAuthorName = authorName;
@@ -139,6 +142,7 @@ class ChatStore {
       } catch (e) {}
     }
 
+    const col = postsColIndex || this.postsColIndex;
     const tempId = `TEMP_${Date.now()}`;
     const optimisticPost = {
       id: tempId,
@@ -161,10 +165,12 @@ class ChatStore {
         groupId: this.groupId,
         authorPlayerId,
         authorName: resolvedAuthorName,
-        content: optimisticPost.content
+        content: optimisticPost.content,
+        postsColIndex: col
       });
 
       if (res && res.success && res.data) {
+        if (res.postsColIndex) this.postsColIndex = Number(res.postsColIndex);
         const confirmedPost = res.data.post || res.data;
         // 替換暫存留言為正式權威物件
         const idx = this.messages.findIndex(m => m.id === tempId);
@@ -198,8 +204,9 @@ class ChatStore {
     }
   }
 
-  async setAnnouncement(content, authorName = '', authorPlayerId = '', sourcePostId = '') {
+  async setAnnouncement(content, authorName = '', authorPlayerId = '', sourcePostId = '', postsColIndex = null) {
     if (!content || !content.trim()) return;
+    const col = postsColIndex || this.postsColIndex;
     const annObj = {
       content: content.trim(),
       authorName: authorName || '聖徒',
@@ -213,13 +220,17 @@ class ChatStore {
     this.notify();
 
     try {
-      await this.apiClient.setGroupAnnouncement({
+      const res = await this.apiClient.setGroupAnnouncement({
         groupId: this.groupId,
         content: annObj.content,
         authorName: annObj.authorName,
         authorPlayerId: annObj.authorPlayerId,
-        sourcePostId: annObj.sourcePostId
+        sourcePostId: annObj.sourcePostId,
+        postsColIndex: col
       });
+      if (res && res.postsColIndex) {
+        this.postsColIndex = Number(res.postsColIndex);
+      }
     } catch (err) {
       console.warn('[ChatStore] 設定小組公告失敗', err);
     }
@@ -270,8 +281,9 @@ class ChatStore {
       if (typeof document !== 'undefined' && document.hidden) return;
 
       try {
-        const res = await this.apiClient.getGroupPosts(this.groupId, 20);
+        const res = await this.apiClient.getGroupPosts(this.groupId, 20, this.postsColIndex);
         if (res && res.success) {
+          if (res.postsColIndex) this.postsColIndex = Number(res.postsColIndex);
           const incomingPosts = Array.isArray(res.data) ? res.data : (res.posts || (res.data && res.data.posts) || []);
           const ann = res.announcement || (res.data && res.data.announcement) || res.pinnedPost || (res.data && res.data.pinnedPost) || null;
           this.mergeIncomingPosts(incomingPosts, ann);
