@@ -186,6 +186,7 @@
       // 5. 初始化小組交流
       if (groupId) {
         fellowshipView.currentUserId = currentUserProfile.playerId || currentUserProfile.username;
+        fellowshipView.currentUserName = currentUserProfile.name || currentUserProfile.displayName || currentUserProfile.username || '';
         fellowshipView.isLeader = Boolean(currentUserProfile.isLeader);
         chatStore.init(groupId);
       }
