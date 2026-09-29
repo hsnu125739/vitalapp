@@ -7,8 +7,8 @@
 (function(global) {
   'use strict';
 
-  const MALE_AVATARS = Array.from({ length: 8 }, (_, i) => `../avatar-male/Avatar_Male_0${i + 1}.png`);
-  const FEMALE_AVATARS = Array.from({ length: 8 }, (_, i) => `../avatar-female/Avatar_Female_0${i + 1}.png`);
+  const MALE_AVATARS = Array.from({ length: 8 }, (_, i) => `../avatar-male/avatar-male-direct-${String(i + 1).padStart(3, '0')}.png`);
+  const FEMALE_AVATARS = Array.from({ length: 8 }, (_, i) => `../avatar-female/avatar-female-direct-${String(i + 1).padStart(3, '0')}.png`);
 
   class ProfileView {
     constructor({ apiClient, onAvatarUpdated, onLogout, onFootprintClick, onFellowshipClick }) {
