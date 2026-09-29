@@ -138,6 +138,18 @@
       return '';
     }
 
+    getMatrixColIndexFromStorage() {
+      try {
+        const userStr = this.storage.getItem('vital_current_player');
+        if (userStr) {
+          const u = JSON.parse(userStr);
+          const col = Number(u.matrixColIndex || u.colIndex);
+          if (!isNaN(col) && col >= 2) return col;
+        }
+      } catch (e) {}
+      return null;
+    }
+
     clearSessionToken() {
       this.token = null;
       this.storage.removeItem('vital_session_token');
@@ -288,6 +300,7 @@
 
         try {
           const pId = (payload && payload.playerId) || (data && (data.playerId || data.targetId)) || this.getPlayerIdFromToken() || '';
+          const colIdx = (payload && payload.matrixColIndex) || (data && (data.matrixColIndex || data.colIndex)) || this.getMatrixColIndexFromStorage();
           channel.source.postMessage({
             type: 'GAS_CALL',
             id: reqId,
@@ -296,6 +309,7 @@
             token: this.token,
             sessionToken: this.token,
             playerId: pId,
+            matrixColIndex: colIdx,
             args: [payload],
             payload: payload
           }, '*');
@@ -311,17 +325,22 @@
 
     async request(action, data = {}) {
       const pId = (data && (data.playerId || data.targetId)) || this.getPlayerIdFromToken() || '';
+      const colIndex = (data && (data.matrixColIndex || data.colIndex)) || this.getMatrixColIndexFromStorage();
       const payload = {
         action,
         token: this.token,
         sessionToken: this.token,
         playerId: pId,
+        matrixColIndex: colIndex,
         data: data || {}
       };
       if (typeof data === 'object' && data !== null) {
         Object.assign(payload, data);
         if (!payload.playerId && pId) {
           payload.playerId = pId;
+        }
+        if (!payload.matrixColIndex && colIndex) {
+          payload.matrixColIndex = colIndex;
         }
       }
 
@@ -455,12 +474,25 @@
     getRegistrationAreaOptions() { return this.request('getRegistrationAreaOptions'); }
 
     // 操練與聚會打卡
-    submitDailyPractice(data) { return this.request('submitDailyPractice', data); }
-    submitMeetingPractice(data) { return this.request('submitMeetingPractice', data); }
+    submitDailyPractice(data) {
+      const col = (data && (data.matrixColIndex || data.colIndex)) || this.getMatrixColIndexFromStorage();
+      return this.request('submitDailyPractice', { ...data, matrixColIndex: col });
+    }
+    submitMeetingPractice(data) {
+      const col = (data && (data.matrixColIndex || data.colIndex)) || this.getMatrixColIndexFromStorage();
+      return this.request('submitMeetingPractice', { ...data, matrixColIndex: col });
+    }
 
-    getFootprints(playerId = null) {
+    getFootprints(playerId = null, matrixColIndex = null) {
       const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
-      return this.request('getFootprints', { playerId: resolvedPlayerId });
+      const col = matrixColIndex || this.getMatrixColIndexFromStorage();
+      return this.request('getFootprints', { playerId: resolvedPlayerId, matrixColIndex: col });
+    }
+
+    getHomeDashboard(playerId = null, matrixColIndex = null) {
+      const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
+      const col = matrixColIndex || this.getMatrixColIndexFromStorage();
+      return this.request('getHomeDashboard', { playerId: resolvedPlayerId, matrixColIndex: col });
     }
 
     // 活力組與成長篇章

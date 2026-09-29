@@ -150,7 +150,7 @@
 
       // 4.5 水合當日操練與當週聚會狀態
       try {
-        const homeDashRes = await apiClient.request('getHomeDashboard', { playerId: currentUserProfile.playerId });
+        const homeDashRes = await apiClient.getHomeDashboard(currentUserProfile.playerId, currentUserProfile.matrixColIndex);
         const dashData = (homeDashRes && homeDashRes.data) || homeDashRes || {};
         if (dashData.dailyRecord) {
           const today = dashboardView.currentDate || dashboardView.getTodayDateString();
