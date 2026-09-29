@@ -407,53 +407,20 @@
 
     async register(userData) {
       const res = await this.request('register', userData);
-      const token = res && (res.token || res.sessionToken || (res.data && (res.data.token || res.data.sessionToken)));
+      const token = res && res.token;
       if (token) this.setSessionToken(token);
       return res;
     }
 
     async login(username, password) {
-      const res = await this.request('login', { username, phone: username, password });
-      const token = res && (res.token || res.sessionToken || (res.data && (res.data.token || res.data.sessionToken)));
+      const res = await this.request('login', { username, password });
+      const token = res && res.token;
       if (token) this.setSessionToken(token);
       return res;
     }
 
-    async getProfile(playerId = null) {
-      try {
-        const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
-        const res = await this.request('getProfile', { playerId: resolvedPlayerId });
-        if (res && res.success) return res;
-        // 若為 Core 微服務環境（Core 未實作 getProfile，實作為 verifySession 與 getHomeDashboard）
-        if (res && (res.code === 'UNKNOWN_ACTION' || String(res.error).includes('UNKNOWN_ACTION') || String(res.error).includes('未支援'))) {
-          // 優先以 verifySession 驗證並取得最新 player 檔案
-          const vRes = await this.request('verifySession', { playerId: resolvedPlayerId });
-          if (vRes && (vRes.success || vRes.valid)) {
-            const p = vRes.player || (vRes.data && vRes.data.player) || vRes;
-            return { success: true, player: p, data: { player: p } };
-          }
-          // 次以 getHomeDashboard 取得
-          const hRes = await this.request('getHomeDashboard', { playerId: resolvedPlayerId });
-          if (hRes && hRes.success) {
-            const p = hRes.player || (hRes.data && hRes.data.player);
-            return { success: true, player: p, data: hRes.data || { player: p } };
-          }
-        }
-        return res;
-      } catch (err) {
-        const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
-        // 若以例外拋出 UNKNOWN_ACTION，嘗試 verifySession 降級相容
-        if (String(err.message).includes('UNKNOWN_ACTION') || String(err.message).includes('未支援')) {
-          try {
-            const vRes = await this.request('verifySession', { playerId: resolvedPlayerId });
-            if (vRes && (vRes.success || vRes.valid)) {
-              const p = vRes.player || (vRes.data && vRes.data.player) || vRes;
-              return { success: true, player: p, data: { player: p } };
-            }
-          } catch (e2) {}
-        }
-        return { success: false, error: err.message, code: err.code };
-      }
+    async getProfile() {
+      return await this.request('getProfile');
     }
 
     updateProfile(updates) { return this.request('updateProfile', { updates }); }
