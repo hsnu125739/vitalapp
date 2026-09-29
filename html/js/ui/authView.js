@@ -23,6 +23,8 @@
       this.authMessage = document.getElementById('authMessage');
 
       this.areaData = [];
+      this.registerAvatarNo = 1;
+      this.registerAvatarGender = 'male';
 
       this.initEvents_();
     }
@@ -93,6 +95,30 @@
         });
       }
 
+      // 註冊頭像選擇器
+      const genderSelect = document.getElementById('registerAvatarGender');
+      if (genderSelect) {
+        genderSelect.addEventListener('change', () => {
+          this.registerAvatarGender = genderSelect.value || 'male';
+          this.updateRegisterAvatar_();
+        });
+      }
+
+      const prevBtn = document.getElementById('registerPrevAvatarBtn');
+      if (prevBtn) {
+        prevBtn.addEventListener('click', () => this.stepRegisterAvatar_(-1));
+      }
+
+      const nextBtn = document.getElementById('registerNextAvatarBtn');
+      if (nextBtn) {
+        nextBtn.addEventListener('click', () => this.stepRegisterAvatar_(1));
+      }
+
+      const randomBtn = document.getElementById('registerRandomAvatarBtn');
+      if (randomBtn) {
+        randomBtn.addEventListener('click', () => this.randomizeRegisterAvatar_());
+      }
+
       // 註冊提交
       if (this.registerForm) {
         this.registerForm.addEventListener('submit', async (e) => {
@@ -106,8 +132,16 @@
           const birthYear = (document.getElementById('registerBirthYear') || {}).value;
           const gender = (document.getElementById('registerAvatarGender') || {}).value || 'male';
 
+          const regMsgEl = document.getElementById('registerMessage');
+          if (regMsgEl) regMsgEl.classList.add('hidden');
+
+          if (!district || !area) {
+            this.showRegisterMessage_('請選擇照顧區與大區');
+            return;
+          }
+
           if (password !== confirmPassword) {
-            alert('兩次輸入的密碼不一致，請重新確認');
+            this.showRegisterMessage_('兩次輸入的密碼不一致，請重新確認');
             return;
           }
 
@@ -118,17 +152,25 @@
           }
 
           try {
-            const avatarUrl = gender === 'female'
-              ? '../avatar-female/Avatar_Female_01.png'
-              : '../avatar-male/Avatar_Male_01.png';
+            const avatarUrl = this.updateRegisterAvatar_();
 
             const res = await this.apiClient.register({
               username,
+              loginName: username,
+              playerId: username,
               password,
+              passwordCode: password,
               name,
+              displayName: name,
+              playerName: name,
               careDistrict: district,
               careArea: area,
+              district,
+              area,
               birthYear,
+              gender: gender === 'female' ? 'SISTER' : 'BROTHER',
+              avatarGender: gender,
+              avatarNo: this.registerAvatarNo,
               avatarUrl
             });
 
@@ -141,17 +183,58 @@
                 this.onLoginSuccess(profile);
               }
             } else {
-              alert((res && (res.error || res.message)) || '註冊失敗');
+              const errMsg = (res && (res.error || res.message)) || '註冊失敗';
+              this.showRegisterMessage_(errMsg);
             }
           } catch (err) {
-            alert(err.message || '註冊失敗，請稍後再試');
+            this.showRegisterMessage_(err.message || '註冊失敗，請稍後再試');
           } finally {
             if (regBtn) {
               regBtn.disabled = false;
-              regBtn.textContent = '完成註冊並登入';
+              regBtn.textContent = '完成註冊';
             }
           }
         });
+      }
+    }
+
+    stepRegisterAvatar_(delta) {
+      let no = this.registerAvatarNo + delta;
+      if (no < 1) no = 8;
+      if (no > 8) no = 1;
+      this.registerAvatarNo = no;
+      this.updateRegisterAvatar_();
+    }
+
+    randomizeRegisterAvatar_() {
+      this.registerAvatarNo = Math.floor(Math.random() * 8) + 1;
+      this.updateRegisterAvatar_();
+    }
+
+    updateRegisterAvatar_() {
+      const img = document.getElementById('registerAvatarPreview');
+      const info = document.getElementById('registerAvatarInfo');
+      const gender = this.registerAvatarGender || 'male';
+      const no = this.registerAvatarNo || 1;
+      const genderLabel = gender === 'female' ? '姊妹' : '弟兄';
+      const folder = gender === 'female' ? 'avatar-female' : 'avatar-male';
+      const prefix = gender === 'female' ? 'avatar-female-direct' : 'avatar-male-direct';
+      const padNo = String(no).padStart(3, '0');
+      const url = `../${folder}/${prefix}-${padNo}.png`;
+
+      if (img) img.src = url;
+      if (info) info.textContent = `${genderLabel}｜第 ${no} 號`;
+      return url;
+    }
+
+    showRegisterMessage_(msg) {
+      const regMsgEl = document.getElementById('registerMessage');
+      if (regMsgEl) {
+        regMsgEl.textContent = msg;
+        regMsgEl.className = 'result-box error';
+        regMsgEl.classList.remove('hidden');
+      } else {
+        alert(msg);
       }
     }
 
@@ -159,6 +242,10 @@
       if (this.registerModal) {
         this.registerModal.classList.remove('hidden');
       }
+      this.registerAvatarNo = 1;
+      const gSel = document.getElementById('registerAvatarGender');
+      if (gSel) this.registerAvatarGender = gSel.value || 'male';
+      this.updateRegisterAvatar_();
       await this.loadAreaOptions_();
     }
 
