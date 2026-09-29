@@ -164,7 +164,12 @@
           this.pendingRequests.delete(String(msg.id));
 
           if (msg.success) {
-            resolve(msg.data !== undefined ? msg.data : msg);
+            let outData = msg.data;
+            if (outData !== undefined && typeof outData === 'object' && outData !== null) {
+              resolve({ success: true, ...msg, ...outData });
+            } else {
+              resolve(msg.data !== undefined ? msg.data : msg);
+            }
           } else {
             const err = new Error(msg.error || 'GAS RPC 執行失敗');
             err.code = msg.code || 'GAS_RPC_ERROR';
@@ -233,17 +238,15 @@
       const channel = this.channels[serviceName];
 
       await this.ensureChannel_(serviceName);
-
       if (!channel.source) {
         await Promise.race([
           channel.readyPromise,
-          new Promise((_, reject) => {
-            setTimeout(() => reject(new Error(`微服務 [${serviceName}] 連線逾時`)), 15000);
-          })
+          new Promise((_, rj) => setTimeout(() => rj(new Error(`[${serviceName}] 橋接逾時`)), 10000))
         ]);
       }
 
-      const reqId = 'req_' + serviceName.toLowerCase() + '_' + Date.now().toString(36) + '_' + (++this.requestSeq);
+      this.requestSeq++;
+      const reqId = `req_${serviceName.toLowerCase()}_${Date.now().toString(36)}_${this.requestSeq}`;
       const payload = {
         action,
         token: this.token,
@@ -371,19 +374,53 @@
 
     async register(userData) {
       const res = await this.request('register', userData);
-      const token = res && (res.token || (res.data && res.data.token) || (res.data && res.data.data && res.data.data.token));
+      const token = res && (res.token || res.sessionToken || (res.data && (res.data.token || res.data.sessionToken)));
       if (token) this.setSessionToken(token);
       return res;
     }
 
     async login(username, password) {
       const res = await this.request('login', { username, phone: username, password });
-      const token = res && (res.token || (res.data && res.data.token) || (res.data && res.data.data && res.data.data.token));
+      const token = res && (res.token || res.sessionToken || (res.data && (res.data.token || res.data.sessionToken)));
       if (token) this.setSessionToken(token);
       return res;
     }
 
-    getProfile(playerId = null) { return this.request('getProfile', { playerId }); }
+    async getProfile(playerId = null) {
+      try {
+        const res = await this.request('getProfile', { playerId });
+        if (res && res.success) return res;
+        // 若為 Core 微服務環境（Core 未實作 getProfile，實作為 verifySession 與 getHomeDashboard）
+        if (res && (res.code === 'UNKNOWN_ACTION' || String(res.error).includes('UNKNOWN_ACTION') || String(res.error).includes('未支援'))) {
+          // 優先以 verifySession 驗證並取得最新 player 檔案
+          const vRes = await this.request('verifySession', { playerId });
+          if (vRes && (vRes.success || vRes.valid)) {
+            const p = vRes.player || (vRes.data && vRes.data.player) || vRes;
+            return { success: true, player: p, data: { player: p } };
+          }
+          // 次以 getHomeDashboard 取得
+          const hRes = await this.request('getHomeDashboard', { playerId });
+          if (hRes && hRes.success) {
+            const p = hRes.player || (hRes.data && hRes.data.player);
+            return { success: true, player: p, data: hRes.data || { player: p } };
+          }
+        }
+        return res;
+      } catch (err) {
+        // 若以例外拋出 UNKNOWN_ACTION，嘗試 verifySession 降級相容
+        if (String(err.message).includes('UNKNOWN_ACTION') || String(err.message).includes('未支援')) {
+          try {
+            const vRes = await this.request('verifySession', { playerId });
+            if (vRes && (vRes.success || vRes.valid)) {
+              const p = vRes.player || (vRes.data && vRes.data.player) || vRes;
+              return { success: true, player: p, data: { player: p } };
+            }
+          } catch (e2) {}
+        }
+        return { success: false, error: err.message, code: err.code };
+      }
+    }
+
     updateProfile(updates) { return this.request('updateProfile', { updates }); }
     updatePassword(currentPassword, newPassword) { return this.request('updateMyPassword', { currentPassword, newPassword }); }
     updateAvatar(avatarUrl) { return this.request('updatePlayerAvatar', { avatarUrl }); }
@@ -393,7 +430,22 @@
     // 操練與聚會打卡
     submitDailyPractice(data) { return this.request('submitDailyPractice', data); }
     submitMeetingPractice(data) { return this.request('submitMeetingPractice', data); }
-    getUserFootprint(playerId = null) { return this.request('getUserFootprint', { playerId }); }
+
+    async getUserFootprint(playerId = null) {
+      try {
+        const res = await this.request('getUserFootprint', { playerId });
+        if (res && res.success) return res;
+        if (res && (res.code === 'UNKNOWN_ACTION' || String(res.error).includes('UNKNOWN_ACTION') || String(res.error).includes('未支援'))) {
+          return await this.request('getFootprints', { playerId });
+        }
+        return res;
+      } catch (err) {
+        if (String(err.message).includes('UNKNOWN_ACTION') || String(err.message).includes('未支援')) {
+          try { return await this.request('getFootprints', { playerId }); } catch (e2) {}
+        }
+        return { success: false, error: err.message };
+      }
+    }
 
     // 活力組與成長篇章
     createGroup(data) { return this.request('createGroup', data); }
@@ -412,7 +464,21 @@
     getPlayerChestCollection() { return this.request('getPlayerChestCollection'); }
 
     // 系統公告
-    getActiveAnnouncements(currentDate = null) { return this.request('getActiveAnnouncements', { currentDate }); }
+    async getActiveAnnouncements(currentDate = null) {
+      try {
+        const res = await this.request('getActiveAnnouncements', { currentDate });
+        if (res && res.success) return res;
+        if (res && (res.code === 'UNKNOWN_ACTION' || String(res.error).includes('UNKNOWN_ACTION') || String(res.error).includes('未支援'))) {
+          return await this.request('getAnnouncements', { currentDate });
+        }
+        return res;
+      } catch (err) {
+        if (String(err.message).includes('UNKNOWN_ACTION') || String(err.message).includes('未支援')) {
+          try { return await this.request('getAnnouncements', { currentDate }); } catch (e2) {}
+        }
+        return { success: false, error: err.message, announcements: [] };
+      }
+    }
   }
 
   // 匯出至全域與模組環境
