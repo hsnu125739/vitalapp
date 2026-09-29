@@ -153,13 +153,17 @@ class OptimisticPracticeStore {
 
     try {
       // 第 1 次嘗試
-      const res = await this.apiClient.submitDailyPractice({
+      const dailyPayload = {
         date,
+        morning: Boolean(payload.morningRevival !== undefined ? payload.morningRevival : payload.morning),
         morningRevival: Boolean(payload.morningRevival !== undefined ? payload.morningRevival : payload.morning),
+        bible: Boolean(payload.bibleReading !== undefined ? payload.bibleReading : payload.bible),
         bibleReading: Boolean(payload.bibleReading !== undefined ? payload.bibleReading : payload.bible),
         prayer: Boolean(payload.prayer),
+        book: Boolean(payload.bookPursuit !== undefined ? payload.bookPursuit : payload.book),
         bookPursuit: Boolean(payload.bookPursuit !== undefined ? payload.bookPursuit : payload.book)
-      });
+      };
+      const res = await this.apiClient.submitDailyPractice(dailyPayload);
 
       if (res && res.success) {
         currentState.syncStatus = 'synced';
@@ -185,13 +189,17 @@ class OptimisticPracticeStore {
 
       try {
         // 第 2 次嘗試
-        const res2 = await this.apiClient.submitDailyPractice({
+        const retryDailyPayload = {
           date,
+          morning: Boolean(payload.morningRevival !== undefined ? payload.morningRevival : payload.morning),
           morningRevival: Boolean(payload.morningRevival !== undefined ? payload.morningRevival : payload.morning),
+          bible: Boolean(payload.bibleReading !== undefined ? payload.bibleReading : payload.bible),
           bibleReading: Boolean(payload.bibleReading !== undefined ? payload.bibleReading : payload.bible),
           prayer: Boolean(payload.prayer),
+          book: Boolean(payload.bookPursuit !== undefined ? payload.bookPursuit : payload.book),
           bookPursuit: Boolean(payload.bookPursuit !== undefined ? payload.bookPursuit : payload.book)
-        });
+        };
+        const res2 = await this.apiClient.submitDailyPractice(retryDailyPayload);
 
         if (res2 && res2.success) {
           currentState.syncStatus = 'synced';
@@ -263,13 +271,18 @@ class OptimisticPracticeStore {
 
     try {
       const currentState = this.meetingState[weekKey];
-      const res = await this.apiClient.submitMeetingPractice({
+      const meetingPayload = {
         weekKey,
-        smallGroup: payload.smallGroup,
-        prayerMeeting: payload.prayerMeeting,
-        lordDayMeeting: payload.lordDayMeeting,
-        outreachVisit: payload.outreachVisit
-      });
+        group: Boolean(payload.smallGroup !== undefined ? payload.smallGroup : payload.group),
+        smallGroup: Boolean(payload.smallGroup !== undefined ? payload.smallGroup : payload.group),
+        prayerMtg: Boolean(payload.prayerMeeting !== undefined ? payload.prayerMeeting : payload.prayerMtg),
+        prayerMeeting: Boolean(payload.prayerMeeting !== undefined ? payload.prayerMeeting : payload.prayerMtg),
+        lordDay: Boolean(payload.lordDayMeeting !== undefined ? payload.lordDayMeeting : payload.lordDay),
+        lordDayMeeting: Boolean(payload.lordDayMeeting !== undefined ? payload.lordDayMeeting : payload.lordDay),
+        outreach: Boolean(payload.outreachVisit !== undefined ? payload.outreachVisit : payload.outreach),
+        outreachVisit: Boolean(payload.outreachVisit !== undefined ? payload.outreachVisit : payload.outreach)
+      };
+      const res = await this.apiClient.submitMeetingPractice(meetingPayload);
 
       if (res && res.success) {
         currentState.syncStatus = 'synced';
@@ -286,10 +299,18 @@ class OptimisticPracticeStore {
       if (this.pendingMeeting.has(weekKey)) return;
 
       try {
-        const res2 = await this.apiClient.submitMeetingPractice({
+        const retryMeetingPayload = {
           weekKey,
-          ...payload
-        });
+          group: Boolean(payload.smallGroup !== undefined ? payload.smallGroup : payload.group),
+          smallGroup: Boolean(payload.smallGroup !== undefined ? payload.smallGroup : payload.group),
+          prayerMtg: Boolean(payload.prayerMeeting !== undefined ? payload.prayerMeeting : payload.prayerMtg),
+          prayerMeeting: Boolean(payload.prayerMeeting !== undefined ? payload.prayerMeeting : payload.prayerMtg),
+          lordDay: Boolean(payload.lordDayMeeting !== undefined ? payload.lordDayMeeting : payload.lordDay),
+          lordDayMeeting: Boolean(payload.lordDayMeeting !== undefined ? payload.lordDayMeeting : payload.lordDay),
+          outreach: Boolean(payload.outreachVisit !== undefined ? payload.outreachVisit : payload.outreach),
+          outreachVisit: Boolean(payload.outreachVisit !== undefined ? payload.outreachVisit : payload.outreach)
+        };
+        const res2 = await this.apiClient.submitMeetingPractice(retryMeetingPayload);
         if (res2 && res2.success) {
           const currentState = this.meetingState[weekKey];
           currentState.syncStatus = 'synced';
@@ -421,12 +442,16 @@ class OptimisticPracticeStore {
     for (const item of queue) {
       try {
         if (item.type === 'DAILY') {
+          const p = item.payload || {};
           const res = await this.apiClient.submitDailyPractice({
             date: item.key,
-            morningRevival: item.payload.morning,
-            bibleReading: item.payload.bible,
-            prayer: item.payload.prayer,
-            bookPursuit: item.payload.book
+            morning: Boolean(p.morningRevival !== undefined ? p.morningRevival : p.morning),
+            morningRevival: Boolean(p.morningRevival !== undefined ? p.morningRevival : p.morning),
+            bible: Boolean(p.bibleReading !== undefined ? p.bibleReading : p.bible),
+            bibleReading: Boolean(p.bibleReading !== undefined ? p.bibleReading : p.bible),
+            prayer: Boolean(p.prayer),
+            book: Boolean(p.bookPursuit !== undefined ? p.bookPursuit : p.book),
+            bookPursuit: Boolean(p.bookPursuit !== undefined ? p.bookPursuit : p.book)
           });
           if (res && res.success) {
             if (this.dailyState[item.key]) {
@@ -437,9 +462,17 @@ class OptimisticPracticeStore {
             continue;
           }
         } else if (item.type === 'MEETING') {
+          const p = item.payload || {};
           const res = await this.apiClient.submitMeetingPractice({
             weekKey: item.key,
-            ...item.payload
+            group: Boolean(p.smallGroup !== undefined ? p.smallGroup : p.group),
+            smallGroup: Boolean(p.smallGroup !== undefined ? p.smallGroup : p.group),
+            prayerMtg: Boolean(p.prayerMeeting !== undefined ? p.prayerMeeting : p.prayerMtg),
+            prayerMeeting: Boolean(p.prayerMeeting !== undefined ? p.prayerMeeting : p.prayerMtg),
+            lordDay: Boolean(p.lordDayMeeting !== undefined ? p.lordDayMeeting : payload.lordDay),
+            lordDayMeeting: Boolean(p.lordDayMeeting !== undefined ? p.lordDayMeeting : payload.lordDay),
+            outreach: Boolean(p.outreachVisit !== undefined ? p.outreachVisit : p.outreach),
+            outreachVisit: Boolean(p.outreachVisit !== undefined ? p.outreachVisit : p.outreach)
           });
           if (res && res.success) {
             if (this.meetingState[item.key]) {
