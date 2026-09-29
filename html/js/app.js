@@ -152,7 +152,7 @@
 
       // 4. 渲染視圖
       dashboardView.render(currentUserProfile, currentJourneyData, announcements);
-      profileView.render(currentUserProfile);
+      profileView.render(currentUserProfile, currentJourneyData);
 
       // 4.5 水合當日操練與當週聚會狀態
       try {
@@ -204,7 +204,7 @@
   function openChests() {
     const points = (currentUserProfile && (currentUserProfile.totalPoints !== undefined ? currentUserProfile.totalPoints : currentUserProfile.totalScore)) || 0;
     const claimed = (currentUserProfile && currentUserProfile.claimedChests) || [];
-    chestView.openChestModal(points, claimed);
+    chestView.openChestModal(points, claimed, currentUserProfile);
   }
 
   async function refreshUserData() {
