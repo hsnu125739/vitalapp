@@ -128,7 +128,7 @@
           const username = (document.getElementById('registerLoginName') || {}).value?.trim();
           const password = (document.getElementById('registerPassword') || {}).value;
           const confirmPassword = (document.getElementById('registerPasswordConfirm') || {}).value;
-          const name = (document.getElementById('registerName') || {}).value?.trim();
+          const name = (document.getElementById('registerName') || document.getElementById('regName') || {}).value?.trim() || username;
           const birthYear = (document.getElementById('registerBirthYear') || {}).value;
           const gender = (document.getElementById('registerAvatarGender') || {}).value || 'male';
 
@@ -156,21 +156,12 @@
 
             const res = await this.apiClient.register({
               username,
-              loginName: username,
-              playerId: username,
               password,
-              passwordCode: password,
               name,
-              displayName: name,
-              playerName: name,
               careDistrict: district,
               careArea: area,
-              district,
-              area,
               birthYear,
               gender: gender === 'female' ? 'SISTER' : 'BROTHER',
-              avatarGender: gender,
-              avatarNo: this.registerAvatarNo,
               avatarUrl
             });
 
