@@ -71,7 +71,7 @@
       logoutBtn.addEventListener('click', () => {
         if (loginView) loginView.classList.remove('hidden');
         if (appView) appView.classList.add('hidden');
-        if (logoutBtn) logoutBtn.classList.add('hidden');
+        if (logoutBtn) logoutBtn.classList.remove('hidden');
         if (pwdInput) pwdInput.value = '';
       });
     }
@@ -163,7 +163,7 @@
     listMount.innerHTML = '<div style="padding:15px; color:#64748b;">讀取公告中...</div>';
 
     try {
-      const res = await apiClient.request('getActiveAnnouncements', { currentDate: new Date().toISOString().slice(0, 10) });
+      const res = await apiClient.getAnnouncements(new Date().toISOString().slice(0, 10));
       const list = (res && (res.announcements || (res.data && res.data.announcements))) || [];
 
       if (!Array.isArray(list) || list.length === 0) {
