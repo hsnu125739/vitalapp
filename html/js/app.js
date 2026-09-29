@@ -127,6 +127,13 @@
           const journeyRes = await apiClient.getGroupJourney(groupId);
           if (journeyRes && journeyRes.success) {
             currentJourneyData = journeyRes.data || journeyRes.journey || journeyRes;
+            const pCol = Number(currentJourneyData?.postsColIndex || currentJourneyData?.groupPostsColIndex);
+            if (!isNaN(pCol) && pCol >= 2 && currentUserProfile) {
+              currentUserProfile.postsColIndex = pCol;
+              try {
+                localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
+              } catch (e) {}
+            }
           }
         } catch (jErr) {
           console.warn('[App] 讀取小組歷程失敗', jErr);
@@ -187,8 +194,10 @@
       if (groupId) {
         fellowshipView.currentUserId = currentUserProfile.playerId || currentUserProfile.username;
         fellowshipView.currentUserName = currentUserProfile.name || currentUserProfile.displayName || currentUserProfile.username || '';
+        const pCol = currentUserProfile.postsColIndex || currentJourneyData?.postsColIndex || null;
+        fellowshipView.postsColIndex = pCol;
         fellowshipView.isLeader = Boolean(currentUserProfile.isLeader);
-        chatStore.init(groupId);
+        chatStore.init(groupId, pCol);
       }
 
     } catch (err) {
