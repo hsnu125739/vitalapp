@@ -238,15 +238,17 @@
       const channel = this.channels[serviceName];
 
       await this.ensureChannel_(serviceName);
+
       if (!channel.source) {
         await Promise.race([
           channel.readyPromise,
-          new Promise((_, rj) => setTimeout(() => rj(new Error(`[${serviceName}] 橋接逾時`)), 10000))
+          new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`微服務 [${serviceName}] 連線逾時`)), 15000);
+          })
         ]);
       }
 
-      this.requestSeq++;
-      const reqId = `req_${serviceName.toLowerCase()}_${Date.now().toString(36)}_${this.requestSeq}`;
+      const reqId = 'req_' + serviceName.toLowerCase() + '_' + Date.now().toString(36) + '_' + (++this.requestSeq);
       const payload = {
         action,
         token: this.token,
@@ -449,7 +451,12 @@
 
     // 活力組與成長篇章
     createGroup(data) { return this.request('createGroup', data); }
-    joinGroup(groupId, joinedDate = null) { return this.request('joinGroup', { groupId, joinedDate }); }
+    joinGroup(groupId, joinedDate = null) {
+      if (typeof groupId === 'object' && groupId !== null) {
+        return this.request('joinGroup', groupId);
+      }
+      return this.request('joinGroup', { groupId, joinedDate });
+    }
     leaveGroup(groupId = null) { return this.request('leaveGroup', { groupId }); }
     getGroupJourney(groupId = null) { return this.request('getGroupJourney', { groupId }); }
 
