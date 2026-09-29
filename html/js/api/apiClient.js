@@ -517,6 +517,10 @@
     }
     leaveGroup(groupId = null) { return this.request('leaveGroup', { groupId }); }
     getGroupJourney(groupId = null) { return this.request('getGroupJourney', { groupId }); }
+    getMyGroupContributionSummary(groupId = null, playerId = null) {
+      const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
+      return this.request('getMyGroupContributionSummary', { groupId, playerId: resolvedPlayerId });
+    }
 
     // 小組交流板
     createGroupPost(data) { return this.request('createGroupPost', data); }
