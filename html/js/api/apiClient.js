@@ -462,9 +462,6 @@
       const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
       return this.request('getFootprints', { playerId: resolvedPlayerId });
     }
-    getUserFootprint(playerId = null) {
-      return this.getFootprints(playerId);
-    }
 
     // 活力組與成長篇章
     createGroup(data) { return this.request('createGroup', data); }
