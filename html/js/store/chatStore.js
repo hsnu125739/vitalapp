@@ -55,7 +55,7 @@ class ChatStore {
       try {
         const data = JSON.parse(cached);
         this.messages = data.messages || [];
-        this.pinnedPost = data.announcement || data.pinnedPost || null;
+        this.pinnedPost = data.pinnedPost || null;
         this.lastMessageCount = data.messageCount || this.messages.length;
         this.notify();
       } catch (e) {
@@ -67,7 +67,6 @@ class ChatStore {
   saveToCache() {
     const cacheData = {
       messages: this.messages,
-      announcement: this.pinnedPost,
       pinnedPost: this.pinnedPost,
       messageCount: this.messages.length,
       timestamp: Date.now()
@@ -126,14 +125,27 @@ class ChatStore {
   /**
    * 本地樂觀追加新留言 (Optimistic Append)
    */
-  async sendMessage(authorPlayerId, content) {
+  async sendMessage(authorPlayerId, content, authorName = '') {
     if (!content || !content.trim()) return;
+
+    let resolvedAuthorName = authorName;
+    if (!resolvedAuthorName) {
+      try {
+        const storedUser = this.storage.getItem('vital_current_player');
+        if (storedUser) {
+          const u = JSON.parse(storedUser);
+          resolvedAuthorName = u.name || u.displayName || u.username || '';
+        }
+      } catch (e) {}
+    }
 
     const tempId = `TEMP_${Date.now()}`;
     const optimisticPost = {
       id: tempId,
       groupId: this.groupId,
       authorPlayerId,
+      authorId: authorPlayerId,
+      authorName: resolvedAuthorName || '聖徒',
       content: content.trim(),
       isPinned: false, // 留言發布與置頂解耦，所有留言皆發布為常態留言
       timestamp: new Date().toISOString(),
@@ -148,6 +160,7 @@ class ChatStore {
       const res = await this.apiClient.createGroupPost({
         groupId: this.groupId,
         authorPlayerId,
+        authorName: resolvedAuthorName,
         content: optimisticPost.content
       });
 
@@ -156,7 +169,12 @@ class ChatStore {
         // 替換暫存留言為正式權威物件
         const idx = this.messages.findIndex(m => m.id === tempId);
         if (idx !== -1) {
-          this.messages[idx] = { ...confirmedPost, isPending: false };
+          this.messages[idx] = {
+            ...confirmedPost,
+            authorPlayerId: confirmedPost.authorPlayerId || confirmedPost.authorId || authorPlayerId,
+            authorName: confirmedPost.authorName || resolvedAuthorName,
+            isPending: false
+          };
         }
         this.saveToCache();
         this.notify();
