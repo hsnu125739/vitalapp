@@ -136,7 +136,7 @@
       // 3. 取得有效系統公告
       let announcements = [];
       try {
-        const annRes = await apiClient.getActiveAnnouncements();
+        const annRes = await apiClient.getAnnouncements();
         if (annRes && annRes.success) {
           announcements = annRes.announcements || annRes.data?.announcements || annRes.data || [];
         }
