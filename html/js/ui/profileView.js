@@ -11,12 +11,13 @@
   const FEMALE_AVATARS = Array.from({ length: 8 }, (_, i) => `../avatar-female/avatar-female-direct-${String(i + 1).padStart(3, '0')}.png`);
 
   class ProfileView {
-    constructor({ apiClient, onAvatarUpdated, onLogout, onFootprintClick, onFellowshipClick }) {
+    constructor({ apiClient, onAvatarUpdated, onLogout, onFootprintClick, onFellowshipClick, onContributionClick }) {
       this.apiClient = apiClient;
       this.onAvatarUpdated = onAvatarUpdated;
       this.onLogout = onLogout;
       this.onFootprintClick = onFootprintClick;
       this.onFellowshipClick = onFellowshipClick;
+      this.onContributionClick = onContributionClick;
 
       this.homeViewEl = document.getElementById('homeView');
       this.myViewEl = document.getElementById('myView');
@@ -29,7 +30,13 @@
 
       this.accountSettingsModal = document.getElementById('accountSettingsModal');
 
+      this.infoModal = document.getElementById('infoModal');
+      this.infoModalTitle = document.getElementById('infoModalTitle');
+      this.infoModalContent = document.getElementById('infoModalContent');
+
       this.selectedAvatarUrl = '';
+      this.currentUserProfile = null;
+      this.currentJourneyData = null;
 
       this.initEvents_();
     }
@@ -273,17 +280,19 @@
         });
       }
 
-      // 同行貢獻按鈕
+      // 同行貢獻按鈕 (展示活力組成長篇章與同行點數貢獻總覽)
       const growthBtn = document.getElementById('openGrowthModalBtn');
       if (growthBtn) {
         growthBtn.addEventListener('click', () => {
-          if (typeof this.onFootprintClick === 'function') {
-            this.onFootprintClick();
+          if (typeof this.onContributionClick === 'function') {
+            this.onContributionClick();
+          } else {
+            this.openContributionModal();
           }
         });
       }
 
-      // 操練紀錄與小組公告捷徑
+      // 操練紀錄與小組公告捷徑 (展示30天操練足跡)
       const practiceHistoryBtn = document.getElementById('openPracticeHistoryBtn');
       if (practiceHistoryBtn) {
         practiceHistoryBtn.addEventListener('click', () => {
@@ -331,9 +340,10 @@
       if (navMy) navMy.classList.add('active');
     }
 
-    render(userProfile) {
+    render(userProfile, journeyData = null) {
       if (!userProfile) return;
       this.currentUserProfile = userProfile;
+      if (journeyData) this.currentJourneyData = journeyData;
 
       const myNameEl = document.getElementById('myPlayerName');
       const myGroupEl = document.getElementById('myGroupName');
@@ -402,6 +412,120 @@
           }
         });
       });
+    }
+
+    async openContributionModal() {
+      if (this.infoModalTitle) this.infoModalTitle.textContent = '同行貢獻總覽';
+      if (this.infoModal) this.infoModal.classList.remove('hidden');
+      if (this.infoModalContent) {
+        this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">讀取同行貢獻資料中...</div>';
+      }
+
+      const p = this.currentUserProfile || {};
+      const groupId = p.groupId;
+      const myPoints = Number((p.totalPoints !== undefined ? p.totalPoints : p.totalScore) || 0);
+
+      if (!groupId) {
+        if (this.infoModalContent) {
+          this.infoModalContent.innerHTML = `
+            <div style="text-align:center; padding:32px 16px;">
+              <div style="font-size:42px; margin-bottom:12px;">🌱</div>
+              <h4 style="font-size:16px; font-weight:700; color:#1e293b; margin-bottom:8px;">尚未加入活力組</h4>
+              <p style="font-size:13px; color:#64748b; line-height:1.6; margin-bottom:20px;">
+                同行貢獻記錄您與活力組同伴共同奔跑的點數與篇章進度。<br>
+                您目前累積個人操練分為 <strong>${myPoints.toLocaleString()}</strong> 點。<br>
+                請先至「活力組管理」建立小組或以邀請碼加入，開始與同伴同心建造！
+              </p>
+              <button id="contribGoVitalBtn" class="primary-btn" style="display:inline-block; padding:8px 20px; font-size:13px; font-weight:600; border-radius:8px; background:#2563eb; color:#fff; border:none; cursor:pointer;">
+                前往活力組管理
+              </button>
+            </div>
+          `;
+          const goBtn = document.getElementById('contribGoVitalBtn');
+          if (goBtn) {
+            goBtn.addEventListener('click', () => {
+              if (this.infoModal) this.infoModal.classList.add('hidden');
+              const vitalModal = document.getElementById('vitalGroupsModal');
+              if (vitalModal) vitalModal.classList.remove('hidden');
+            });
+          }
+        }
+        return;
+      }
+
+      try {
+        let journeyData = this.currentJourneyData;
+        if (!journeyData) {
+          try {
+            const jRes = await this.apiClient.getGroupJourney(groupId);
+            if (jRes && jRes.success) {
+              journeyData = jRes.data || jRes.journey || jRes;
+            }
+          } catch (e) {}
+        }
+
+        let contribSummary = null;
+        try {
+          const cRes = await this.apiClient.getMyGroupContributionSummary(groupId);
+          if (cRes && cRes.success) {
+            contribSummary = cRes.data || cRes;
+          }
+        } catch (e) {}
+
+        const groupName = (journeyData && journeyData.groupName) || p.groupName || groupId;
+        const totalGroupScore = Number((journeyData && journeyData.totalScore) || (contribSummary && contribSummary.groupTotalPoints) || myPoints);
+        const chapterTitle = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.title || journeyData.currentChapter.name)) || '初信成長';
+        const chapterIndex = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.index || journeyData.currentChapter.chapterIndex)) || 1;
+        const percent = totalGroupScore > 0 ? Math.min(100, Math.round((myPoints / totalGroupScore) * 100)) : 100;
+        const coScore = Math.max(0, totalGroupScore - myPoints);
+
+        if (this.infoModalContent) {
+          this.infoModalContent.innerHTML = `
+            <div style="padding:16px;">
+              <div style="background:linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%); border:1px solid #bae6fd; border-radius:14px; padding:16px; margin-bottom:16px; text-align:center;">
+                <div style="font-size:12px; font-weight:700; color:#0284c7; text-transform:uppercase; letter-spacing:0.5px;">VITAL GROUP JOURNEY</div>
+                <h3 style="font-size:18px; font-weight:800; color:#0f172a; margin:4px 0 8px 0;">${groupName}</h3>
+                <div style="display:inline-flex; align-items:center; gap:6px; background:#fff; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; color:#16a34a; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+                  <span>🏆 當前篇章：第 ${chapterIndex} 篇【${chapterTitle}】</span>
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+                <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; text-align:center;">
+                  <div style="font-size:12px; color:#64748b; font-weight:600;">小組總累積點數</div>
+                  <div style="font-size:24px; font-weight:800; color:#2563eb; margin-top:4px;">${totalGroupScore.toLocaleString()}<small style="font-size:12px; font-weight:600; margin-left:2px;">分</small></div>
+                </div>
+                <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; text-align:center;">
+                  <div style="font-size:12px; color:#64748b; font-weight:600;">我的個人奉獻點數</div>
+                  <div style="font-size:24px; font-weight:800; color:#16a34a; margin-top:4px;">${myPoints.toLocaleString()}<small style="font-size:12px; font-weight:600; margin-left:2px;">分</small></div>
+                </div>
+              </div>
+
+              <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; font-weight:700;">
+                  <span style="color:#334155;">個人操練貢獻比例</span>
+                  <span style="color:#2563eb;">${percent}%</span>
+                </div>
+                <div style="height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden;">
+                  <div style="height:100%; width:${percent}%; background:linear-gradient(90deg, #3b82f6, #10b981); border-radius:4px; transition:width 0.3s ease;"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#64748b;">
+                  <span>我的操練：${myPoints.toLocaleString()} 分</span>
+                  <span>組員同心同行：${coScore.toLocaleString()} 分</span>
+                </div>
+              </div>
+
+              <div style="background:#f8fafc; border-radius:10px; padding:12px; text-align:center; font-size:12px; color:#475569; line-height:1.5;">
+                💡 每日晨興、讀經、禱告、書報與聚會回報，均會為小組累積活力點數，推進篇章突破！
+              </div>
+            </div>
+          `;
+        }
+      } catch (err) {
+        if (this.infoModalContent) {
+          this.infoModalContent.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444;">讀取同行貢獻失敗：${err.message}</div>`;
+        }
+      }
     }
   }
 
