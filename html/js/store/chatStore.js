@@ -131,25 +131,13 @@ class ChatStore {
   async sendMessage(authorPlayerId, content, authorName = '', postsColIndex = null) {
     if (!content || !content.trim()) return;
 
-    let resolvedAuthorName = authorName;
-    if (!resolvedAuthorName) {
-      try {
-        const storedUser = this.storage.getItem('vital_current_player');
-        if (storedUser) {
-          const u = JSON.parse(storedUser);
-          resolvedAuthorName = u.name || u.displayName || u.username || '';
-        }
-      } catch (e) {}
-    }
-
     const col = postsColIndex || this.postsColIndex;
     const tempId = `TEMP_${Date.now()}`;
     const optimisticPost = {
       id: tempId,
       groupId: this.groupId,
-      authorPlayerId,
-      authorId: authorPlayerId,
-      authorName: resolvedAuthorName || '聖徒',
+      authorPlayerId: authorPlayerId,
+      authorName: authorName || '聖徒',
       content: content.trim(),
       isPinned: false, // 留言發布與置頂解耦，所有留言皆發布為常態留言
       timestamp: new Date().toISOString(),
@@ -163,8 +151,8 @@ class ChatStore {
     try {
       const res = await this.apiClient.createGroupPost({
         groupId: this.groupId,
-        authorPlayerId,
-        authorName: resolvedAuthorName,
+        authorPlayerId: authorPlayerId,
+        authorName: authorName,
         content: optimisticPost.content,
         postsColIndex: col
       });
@@ -177,8 +165,9 @@ class ChatStore {
         if (idx !== -1) {
           this.messages[idx] = {
             ...confirmedPost,
+            id: confirmedPost.id || confirmedPost.postId || tempId,
             authorPlayerId: confirmedPost.authorPlayerId || confirmedPost.authorId || authorPlayerId,
-            authorName: confirmedPost.authorName || resolvedAuthorName,
+            authorName: confirmedPost.authorName || authorName || '聖徒',
             isPending: false
           };
         }
@@ -255,10 +244,12 @@ class ChatStore {
     const regular = posts.filter(p => !p.isPinned);
     const map = new Map();
     for (const p of this.messages) {
-      map.set(p.id, p);
+      const pid = p.id || p.postId;
+      map.set(pid, { ...p, id: pid, authorPlayerId: p.authorPlayerId || p.authorId || '' });
     }
     for (const p of regular) {
-      map.set(p.id, p);
+      const pid = p.id || p.postId;
+      map.set(pid, { ...p, id: pid, authorPlayerId: p.authorPlayerId || p.authorId || '' });
     }
 
     this.messages = Array.from(map.values())
