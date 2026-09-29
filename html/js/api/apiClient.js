@@ -148,6 +148,26 @@
       return null;
     }
 
+    getPostsColIndexFromStorage() {
+      try {
+        const userStr = this.storage.getItem('vital_current_player');
+        if (userStr) {
+          const u = JSON.parse(userStr);
+          const col = Number(u.postsColIndex || u.groupPostsColIndex);
+          if (!isNaN(col) && col >= 2) return col;
+        }
+      } catch (e) {}
+      try {
+        const groupStr = this.storage.getItem('vital_current_group');
+        if (groupStr) {
+          const g = JSON.parse(groupStr);
+          const col = Number(g.postsColIndex);
+          if (!isNaN(col) && col >= 2) return col;
+        }
+      } catch (e) {}
+      return null;
+    }
+
     clearSessionToken() {
       this.token = null;
       this.storage.removeItem('vital_session_token');
@@ -533,12 +553,29 @@
           }
         } catch (e) {}
       }
-      return this.request('createGroupPost', { ...data, authorName: resolvedAuthorName || '聖徒' });
+      const col = (data && data.postsColIndex) || this.getPostsColIndexFromStorage();
+      return this.request('createGroupPost', {
+        ...data,
+        authorName: resolvedAuthorName || '聖徒',
+        postsColIndex: col
+      });
     }
-    pinGroupPost(data) { return this.request('pinGroupPost', data); }
-    setGroupAnnouncement(data) { return this.request('setGroupAnnouncement', data); }
-    clearGroupAnnouncement(groupId) { return this.request('clearGroupAnnouncement', { groupId }); }
-    getGroupPosts(groupId, limit = 30) { return this.request('getGroupPosts', { groupId, limit }); }
+    pinGroupPost(data) {
+      const col = (data && data.postsColIndex) || this.getPostsColIndexFromStorage();
+      return this.request('pinGroupPost', { ...data, postsColIndex: col });
+    }
+    setGroupAnnouncement(data) {
+      const col = (data && data.postsColIndex) || this.getPostsColIndexFromStorage();
+      return this.request('setGroupAnnouncement', { ...data, postsColIndex: col });
+    }
+    clearGroupAnnouncement(groupId, postsColIndex = null) {
+      const col = postsColIndex || this.getPostsColIndexFromStorage();
+      return this.request('clearGroupAnnouncement', { groupId, postsColIndex: col });
+    }
+    getGroupPosts(groupId, limit = 30, postsColIndex = null) {
+      const col = postsColIndex || this.getPostsColIndexFromStorage();
+      return this.request('getGroupPosts', { groupId, limit, postsColIndex: col });
+    }
     deleteGroupPost(postId) { return this.request('deleteGroupPost', { postId }); }
 
     // 成就與寶箱
