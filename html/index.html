@@ -513,14 +513,9 @@
         <span></span>
       </div>
 
-      <form id="homeGroupPostForm" class="form-stack">
-        <label class="field-label">
-          公告內容（15 個中文字以內）
-          <input id="homeGroupPostInput" type="text" maxlength="15" placeholder="最多 15 個字">
-        </label>
-        <button id="homeGroupPostSubmitBtn" class="primary-btn" type="submit">發布公告</button>
-        <button id="cancelGroupPostEditBtn" class="secondary-btn hidden" type="button">取消編輯</button>
-      </form>
+      <div id="groupLeaderAnnouncementControls" class="form-stack hidden" style="margin-bottom: 12px;">
+        <button id="btnToggleSelectPinnedPost" class="primary-btn" type="button" style="background:#e11d48; color:#fff; border:none; border-radius:8px; padding:10px 16px; font-weight:700; width:100%; cursor:pointer;">選擇置頂貼文</button>
+      </div>
 
       <section class="management-section">
         <h4>我的小組公告</h4>
