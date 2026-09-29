@@ -8,11 +8,12 @@
   'use strict';
 
   class GroupFellowshipView {
-    constructor({ container = null, chatStore, currentUserId, isLeader = false }) {
+    constructor({ container = null, chatStore, currentPlayerId = '', currentUserName = '', isLeader = false }) {
       this.container = container || (typeof document !== 'undefined' ? (document.getElementById('chatSectionMount') || document.getElementById('homeGroupPosts')) : null);
       this.modalContainer = typeof document !== 'undefined' ? document.getElementById('groupPostModal') : null;
       this.chatStore = chatStore;
-      this.currentUserId = currentUserId;
+      this.currentPlayerId = currentPlayerId;
+      this.currentUserName = currentUserName;
       this.postsColIndex = null;
       this.isLeader = isLeader;
       this.isSelectingPin = false;
@@ -25,6 +26,13 @@
       }
 
       this.initModalEvents_();
+    }
+
+    get currentUserId() {
+      return this.currentPlayerId;
+    }
+    set currentUserId(val) {
+      this.currentPlayerId = val;
     }
 
     initModalEvents_() {
@@ -135,7 +143,7 @@
           e.preventDefault();
           const text = input.value.trim();
           if (!text) return;
-          this.chatStore.sendMessage(this.currentUserId, text, this.currentUserName, this.postsColIndex);
+          this.chatStore.sendMessage(this.currentPlayerId, text, this.currentUserName, this.postsColIndex);
           input.value = '';
         });
       }
@@ -172,15 +180,8 @@
       const showPinBtn = Boolean(this.isLeader && this.isSelectingPin);
 
       msgContainer.innerHTML = messages.map(msg => {
-        const authorId = msg.authorPlayerId || msg.authorId || '';
-        const currentId = this.currentUserId || (window.activeApiClient && window.activeApiClient.getPlayerIdFromToken()) || '';
-        const authorName = (msg.authorName || '').trim();
-        const currentName = (this.currentUserName || '').trim();
-
-        const isOwn = (Boolean(authorId) && Boolean(currentId) && String(authorId).trim() === String(currentId).trim()) ||
-                      (Boolean(authorName) && Boolean(currentName) && authorName === currentName);
-
-        const authorText = isOwn ? '我' : (authorName || authorId || '聖徒');
+        const isOwn = msg.authorPlayerId === this.currentPlayerId;
+        const authorText = isOwn ? '我' : (msg.authorName || '聖徒');
         const bg = isOwn ? '#e0f2fe' : '#ffffff';
         const align = isOwn ? 'flex-end' : 'flex-start';
 
@@ -188,7 +189,7 @@
           <button type="button" class="btn-pin-post"
             data-post-id="${this.escapeAttr(msg.id || msg.postId || '')}"
             data-post-content="${this.escapeAttr(msg.content || '')}"
-            data-author-name="${this.escapeAttr(msg.authorName || msg.authorPlayerId || '')}"
+            data-author-name="${this.escapeAttr(msg.authorName || '')}"
             data-author-id="${this.escapeAttr(msg.authorPlayerId || '')}"
             style="background:#fef3c7; border:1px solid #fde68a; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:transform 0.1s;"
             title="設為小組公告">📌</button>
