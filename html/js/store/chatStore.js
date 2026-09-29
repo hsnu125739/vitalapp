@@ -55,7 +55,7 @@ class ChatStore {
       try {
         const data = JSON.parse(cached);
         this.messages = data.messages || [];
-        this.pinnedPost = data.pinnedPost || null;
+        this.pinnedPost = data.announcement || data.pinnedPost || null;
         this.lastMessageCount = data.messageCount || this.messages.length;
         this.notify();
       } catch (e) {
@@ -67,6 +67,7 @@ class ChatStore {
   saveToCache() {
     const cacheData = {
       messages: this.messages,
+      announcement: this.pinnedPost,
       pinnedPost: this.pinnedPost,
       messageCount: this.messages.length,
       timestamp: Date.now()
@@ -105,8 +106,10 @@ class ChatStore {
     // 背景抓取最新狀態
     try {
       const res = await this.apiClient.getGroupPosts(this.groupId, 20);
-      if (res && res.success && Array.isArray(res.data)) {
-        this.mergeIncomingPosts(res.data);
+      if (res && res.success) {
+        const incomingPosts = Array.isArray(res.data) ? res.data : (res.posts || (res.data && res.data.posts) || []);
+        const ann = res.announcement || (res.data && res.data.announcement) || res.pinnedPost || (res.data && res.data.pinnedPost) || null;
+        this.mergeIncomingPosts(incomingPosts, ann);
       }
     } catch (err) {
       // 網路異常維持展示快取
@@ -177,16 +180,50 @@ class ChatStore {
     }
   }
 
-  mergeIncomingPosts(posts) {
-    if (!posts || posts.length === 0) return;
+  async setAnnouncement(content, authorName = '', authorPlayerId = '', sourcePostId = '') {
+    if (!content || !content.trim()) return;
+    const annObj = {
+      content: content.trim(),
+      authorName: authorName || '聖徒',
+      authorPlayerId: authorPlayerId,
+      sourcePostId: sourcePostId,
+      updatedAt: Date.now()
+    };
+    // 立即樂觀更新
+    this.pinnedPost = annObj;
+    this.saveToCache();
+    this.notify();
 
-    const pinned = posts.find(p => p.isPinned);
-    if (pinned) {
-      this.pinnedPost = pinned;
+    try {
+      await this.apiClient.setGroupAnnouncement({
+        groupId: this.groupId,
+        content: annObj.content,
+        authorName: annObj.authorName,
+        authorPlayerId: annObj.authorPlayerId,
+        sourcePostId: annObj.sourcePostId
+      });
+    } catch (err) {
+      console.warn('[ChatStore] 設定小組公告失敗', err);
+    }
+  }
+
+  mergeIncomingPosts(posts, announcement = null) {
+    if (announcement) {
+      this.pinnedPost = announcement;
+    }
+
+    if (!posts || posts.length === 0) {
+      this.saveToCache();
+      this.notify();
+      return;
+    }
+
+    const pinnedFromPosts = posts.find(p => p.isPinned);
+    if (pinnedFromPosts && !this.pinnedPost) {
+      this.pinnedPost = pinnedFromPosts;
     }
 
     const regular = posts.filter(p => !p.isPinned);
-    // 合併並去重
     const map = new Map();
     for (const p of this.messages) {
       map.set(p.id, p);
@@ -216,8 +253,10 @@ class ChatStore {
 
       try {
         const res = await this.apiClient.getGroupPosts(this.groupId, 20);
-        if (res && res.success && Array.isArray(res.data)) {
-          this.mergeIncomingPosts(res.data);
+        if (res && res.success) {
+          const incomingPosts = Array.isArray(res.data) ? res.data : (res.posts || (res.data && res.data.posts) || []);
+          const ann = res.announcement || (res.data && res.data.announcement) || res.pinnedPost || (res.data && res.data.pinnedPost) || null;
+          this.mergeIncomingPosts(incomingPosts, ann);
         }
       } catch (e) {
         // 輪詢容錯
