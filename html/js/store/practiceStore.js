@@ -469,8 +469,8 @@ class OptimisticPracticeStore {
             smallGroup: Boolean(p.smallGroup !== undefined ? p.smallGroup : p.group),
             prayerMtg: Boolean(p.prayerMeeting !== undefined ? p.prayerMeeting : p.prayerMtg),
             prayerMeeting: Boolean(p.prayerMeeting !== undefined ? p.prayerMeeting : p.prayerMtg),
-            lordDay: Boolean(p.lordDayMeeting !== undefined ? p.lordDayMeeting : payload.lordDay),
-            lordDayMeeting: Boolean(p.lordDayMeeting !== undefined ? p.lordDayMeeting : payload.lordDay),
+            lordDay: Boolean(p.lordDayMeeting !== undefined ? p.lordDayMeeting : p.lordDay),
+            lordDayMeeting: Boolean(p.lordDayMeeting !== undefined ? p.lordDayMeeting : p.lordDay),
             outreach: Boolean(p.outreachVisit !== undefined ? p.outreachVisit : p.outreach),
             outreachVisit: Boolean(p.outreachVisit !== undefined ? p.outreachVisit : p.outreach)
           });
