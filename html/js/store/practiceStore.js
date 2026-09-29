@@ -152,16 +152,10 @@ class OptimisticPracticeStore {
     const currentState = this.dailyState[date];
 
     try {
-      // 第 1 次嘗試
+      // 第 1 次嘗試：使用 Base-100 打包值直傳，去除冗餘布林值
       const dailyPayload = {
         date,
-        morning: Boolean(payload.morningRevival !== undefined ? payload.morningRevival : payload.morning),
-        morningRevival: Boolean(payload.morningRevival !== undefined ? payload.morningRevival : payload.morning),
-        bible: Boolean(payload.bibleReading !== undefined ? payload.bibleReading : payload.bible),
-        bibleReading: Boolean(payload.bibleReading !== undefined ? payload.bibleReading : payload.bible),
-        prayer: Boolean(payload.prayer),
-        book: Boolean(payload.bookPursuit !== undefined ? payload.bookPursuit : payload.book),
-        bookPursuit: Boolean(payload.bookPursuit !== undefined ? payload.bookPursuit : payload.book)
+        packedValue: payload.packedValue
       };
       const res = await this.apiClient.submitDailyPractice(dailyPayload);
 
@@ -188,16 +182,10 @@ class OptimisticPracticeStore {
       }
 
       try {
-        // 第 2 次嘗試
+        // 第 2 次嘗試：使用 Base-100 打包值直傳，去除冗餘布林值
         const retryDailyPayload = {
           date,
-          morning: Boolean(payload.morningRevival !== undefined ? payload.morningRevival : payload.morning),
-          morningRevival: Boolean(payload.morningRevival !== undefined ? payload.morningRevival : payload.morning),
-          bible: Boolean(payload.bibleReading !== undefined ? payload.bibleReading : payload.bible),
-          bibleReading: Boolean(payload.bibleReading !== undefined ? payload.bibleReading : payload.bible),
-          prayer: Boolean(payload.prayer),
-          book: Boolean(payload.bookPursuit !== undefined ? payload.bookPursuit : payload.book),
-          bookPursuit: Boolean(payload.bookPursuit !== undefined ? payload.bookPursuit : payload.book)
+          packedValue: payload.packedValue
         };
         const res2 = await this.apiClient.submitDailyPractice(retryDailyPayload);
 
@@ -271,16 +259,10 @@ class OptimisticPracticeStore {
 
     try {
       const currentState = this.meetingState[weekKey];
+      // 使用 Base-100 打包值直傳，去除冗餘布林值
       const meetingPayload = {
         weekKey,
-        group: Boolean(payload.smallGroup !== undefined ? payload.smallGroup : payload.group),
-        smallGroup: Boolean(payload.smallGroup !== undefined ? payload.smallGroup : payload.group),
-        prayerMtg: Boolean(payload.prayerMeeting !== undefined ? payload.prayerMeeting : payload.prayerMtg),
-        prayerMeeting: Boolean(payload.prayerMeeting !== undefined ? payload.prayerMeeting : payload.prayerMtg),
-        lordDay: Boolean(payload.lordDayMeeting !== undefined ? payload.lordDayMeeting : payload.lordDay),
-        lordDayMeeting: Boolean(payload.lordDayMeeting !== undefined ? payload.lordDayMeeting : payload.lordDay),
-        outreach: Boolean(payload.outreachVisit !== undefined ? payload.outreachVisit : payload.outreach),
-        outreachVisit: Boolean(payload.outreachVisit !== undefined ? payload.outreachVisit : payload.outreach)
+        packedValue: payload.packedValue
       };
       const res = await this.apiClient.submitMeetingPractice(meetingPayload);
 
@@ -299,16 +281,10 @@ class OptimisticPracticeStore {
       if (this.pendingMeeting.has(weekKey)) return;
 
       try {
+        // 使用 Base-100 打包值直傳，去除冗餘布林值
         const retryMeetingPayload = {
           weekKey,
-          group: Boolean(payload.smallGroup !== undefined ? payload.smallGroup : payload.group),
-          smallGroup: Boolean(payload.smallGroup !== undefined ? payload.smallGroup : payload.group),
-          prayerMtg: Boolean(payload.prayerMeeting !== undefined ? payload.prayerMeeting : payload.prayerMtg),
-          prayerMeeting: Boolean(payload.prayerMeeting !== undefined ? payload.prayerMeeting : payload.prayerMtg),
-          lordDay: Boolean(payload.lordDayMeeting !== undefined ? payload.lordDayMeeting : payload.lordDay),
-          lordDayMeeting: Boolean(payload.lordDayMeeting !== undefined ? payload.lordDayMeeting : payload.lordDay),
-          outreach: Boolean(payload.outreachVisit !== undefined ? payload.outreachVisit : payload.outreach),
-          outreachVisit: Boolean(payload.outreachVisit !== undefined ? payload.outreachVisit : payload.outreach)
+          packedValue: payload.packedValue
         };
         const res2 = await this.apiClient.submitMeetingPractice(retryMeetingPayload);
         if (res2 && res2.success) {
@@ -373,15 +349,32 @@ class OptimisticPracticeStore {
       if (item.type === 'DAILY' && item.key) {
         if (!this.dailyState[item.key]) {
           const p = item.payload || {};
+          let packed = Number(p.packedValue);
+          let morning = false;
+          let bible = false;
+          let prayer = false;
+          let book = false;
+          if (!isNaN(packed) && packed > 0) {
+            book = Math.floor(packed / 1000000) % 100 > 0;
+            prayer = Math.floor(packed / 10000) % 100 > 0;
+            bible = Math.floor(packed / 100) % 100 > 0;
+            morning = packed % 100 > 0;
+          } else {
+            morning = Boolean(p.morning || p.morningRevival);
+            bible = Boolean(p.bible || p.bibleReading);
+            prayer = Boolean(p.prayer);
+            book = Boolean(p.book || p.bookPursuit);
+            packed = ((book ? 1 : 0) * 1000000) + ((prayer ? 1 : 0) * 10000) + ((bible ? 1 : 0) * 100) + (morning ? 1 : 0);
+          }
           this.dailyState[item.key] = {
-            morning: Boolean(p.morning || p.morningRevival),
-            morningRevival: Boolean(p.morning || p.morningRevival),
-            bible: Boolean(p.bible || p.bibleReading),
-            bibleReading: Boolean(p.bible || p.bibleReading),
-            prayer: Boolean(p.prayer),
-            book: Boolean(p.book || p.bookPursuit),
-            bookPursuit: Boolean(p.book || p.bookPursuit),
-            packedValue: p.packedValue || 0,
+            morning,
+            morningRevival: morning,
+            bible,
+            bibleReading: bible,
+            prayer,
+            book,
+            bookPursuit: book,
+            packedValue: packed,
             syncStatus: 'error',
             hasAmberDot: true
           };
@@ -389,12 +382,29 @@ class OptimisticPracticeStore {
       } else if (item.type === 'MEETING' && item.key) {
         if (!this.meetingState[item.key]) {
           const p = item.payload || {};
+          let packed = Number(p.packedValue);
+          let smallGroup = false;
+          let prayerMeeting = false;
+          let lordDayMeeting = false;
+          let outreachVisit = false;
+          if (!isNaN(packed) && packed > 0) {
+            outreachVisit = Math.floor(packed / 1000000) % 100 > 0;
+            lordDayMeeting = Math.floor(packed / 10000) % 100 > 0;
+            prayerMeeting = Math.floor(packed / 100) % 100 > 0;
+            smallGroup = packed % 100 > 0;
+          } else {
+            smallGroup = Boolean(p.smallGroup || p.group);
+            prayerMeeting = Boolean(p.prayerMeeting || p.prayerMtg);
+            lordDayMeeting = Boolean(p.lordDayMeeting || p.lordDay);
+            outreachVisit = Boolean(p.outreachVisit || p.outreach);
+            packed = ((outreachVisit ? 1 : 0) * 1000000) + ((lordDayMeeting ? 1 : 0) * 10000) + ((prayerMeeting ? 1 : 0) * 100) + (smallGroup ? 1 : 0);
+          }
           this.meetingState[item.key] = {
-            smallGroup: Boolean(p.smallGroup),
-            prayerMeeting: Boolean(p.prayerMeeting),
-            lordDayMeeting: Boolean(p.lordDayMeeting),
-            outreachVisit: Boolean(p.outreachVisit),
-            packedValue: p.packedValue || 0,
+            smallGroup,
+            prayerMeeting,
+            lordDayMeeting,
+            outreachVisit,
+            packedValue: packed,
             syncStatus: 'error',
             hasAmberDot: true
           };
@@ -445,13 +455,7 @@ class OptimisticPracticeStore {
           const p = item.payload || {};
           const res = await this.apiClient.submitDailyPractice({
             date: item.key,
-            morning: Boolean(p.morningRevival !== undefined ? p.morningRevival : p.morning),
-            morningRevival: Boolean(p.morningRevival !== undefined ? p.morningRevival : p.morning),
-            bible: Boolean(p.bibleReading !== undefined ? p.bibleReading : p.bible),
-            bibleReading: Boolean(p.bibleReading !== undefined ? p.bibleReading : p.bible),
-            prayer: Boolean(p.prayer),
-            book: Boolean(p.bookPursuit !== undefined ? p.bookPursuit : p.book),
-            bookPursuit: Boolean(p.bookPursuit !== undefined ? p.bookPursuit : p.book)
+            packedValue: p.packedValue
           });
           if (res && res.success) {
             if (this.dailyState[item.key]) {
@@ -465,14 +469,7 @@ class OptimisticPracticeStore {
           const p = item.payload || {};
           const res = await this.apiClient.submitMeetingPractice({
             weekKey: item.key,
-            group: Boolean(p.smallGroup !== undefined ? p.smallGroup : p.group),
-            smallGroup: Boolean(p.smallGroup !== undefined ? p.smallGroup : p.group),
-            prayerMtg: Boolean(p.prayerMeeting !== undefined ? p.prayerMeeting : p.prayerMtg),
-            prayerMeeting: Boolean(p.prayerMeeting !== undefined ? p.prayerMeeting : p.prayerMtg),
-            lordDay: Boolean(p.lordDayMeeting !== undefined ? p.lordDayMeeting : p.lordDay),
-            lordDayMeeting: Boolean(p.lordDayMeeting !== undefined ? p.lordDayMeeting : p.lordDay),
-            outreach: Boolean(p.outreachVisit !== undefined ? p.outreachVisit : p.outreach),
-            outreachVisit: Boolean(p.outreachVisit !== undefined ? p.outreachVisit : p.outreach)
+            packedValue: p.packedValue
           });
           if (res && res.success) {
             if (this.meetingState[item.key]) {
