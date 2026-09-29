@@ -26,7 +26,7 @@
       }
 
       try {
-        const res = await this.apiClient.getUserFootprint();
+        const res = await this.apiClient.getFootprints();
         const data = (res && res.data) || res || {};
         const list = Array.isArray(data) ? data : (data.dailyDetails || data.footprints || []);
 

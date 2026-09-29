@@ -458,20 +458,12 @@
     submitDailyPractice(data) { return this.request('submitDailyPractice', data); }
     submitMeetingPractice(data) { return this.request('submitMeetingPractice', data); }
 
-    async getUserFootprint(playerId = null) {
-      try {
-        const res = await this.request('getUserFootprint', { playerId });
-        if (res && res.success) return res;
-        if (res && (res.code === 'UNKNOWN_ACTION' || String(res.error).includes('UNKNOWN_ACTION') || String(res.error).includes('未支援'))) {
-          return await this.request('getFootprints', { playerId });
-        }
-        return res;
-      } catch (err) {
-        if (String(err.message).includes('UNKNOWN_ACTION') || String(err.message).includes('未支援')) {
-          try { return await this.request('getFootprints', { playerId }); } catch (e2) {}
-        }
-        return { success: false, error: err.message };
-      }
+    getFootprints(playerId = null) {
+      const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
+      return this.request('getFootprints', { playerId: resolvedPlayerId });
+    }
+    getUserFootprint(playerId = null) {
+      return this.getFootprints(playerId);
     }
 
     // 活力組與成長篇章
@@ -483,7 +475,20 @@
       return this.request('joinGroup', { groupId, joinedDate });
     }
     leaveGroup(groupId = null) { return this.request('leaveGroup', { groupId }); }
-    getGroupJourney(groupId = null) { return this.request('getGroupJourney', { groupId }); }
+    getGroupJourney(groupId = null) {
+      let resolvedGroupId = groupId;
+      if (!resolvedGroupId) {
+        try {
+          const userStr = this.storage.getItem('vital_current_player');
+          if (userStr) {
+            const u = JSON.parse(userStr);
+            resolvedGroupId = u.groupId || u.currentGroupId || '';
+          }
+        } catch (e) {}
+      }
+      const pId = this.getPlayerIdFromToken() || '';
+      return this.request('getGroupJourney', { groupId: resolvedGroupId, playerId: pId });
+    }
     getMyGroupContributionSummary(groupId = null, playerId = null) {
       const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
       return this.request('getMyGroupContributionSummary', { groupId, playerId: resolvedPlayerId });
