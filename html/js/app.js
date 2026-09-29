@@ -93,12 +93,33 @@
       // 1. 取得使用者檔案
       const profileRes = await apiClient.getProfile();
       if (!profileRes || !profileRes.success) {
-        handleLogout();
-        return;
+        const isAuthError = profileRes && (
+          profileRes.code === 401 ||
+          profileRes.code === 'UNAUTHORIZED' ||
+          String(profileRes.error || '').toUpperCase().includes('UNAUTHORIZED') ||
+          String(profileRes.error || '').toUpperCase().includes('SESSION')
+        );
+
+        if (isAuthError || !currentUserProfile) {
+          handleLogout();
+          return;
+        }
+        console.warn('[App] 取得遠端使用者檔案失敗，使用登入快照呈現', profileRes);
+      } else {
+        const fetchedPlayer = profileRes.player || profileRes.data?.player || profileRes.data || {};
+        currentUserProfile = { ...currentUserProfile, ...fetchedPlayer };
       }
 
-      currentUserProfile = profileRes.player || profileRes.data?.player || profileRes.data || {};
-      const groupId = currentUserProfile.groupId;
+      if (currentUserProfile && !currentUserProfile.avatarUrl && currentUserProfile.avatarKey) {
+        const isFemale = currentUserProfile.gender === 'SISTER' || currentUserProfile.gender === 'female';
+        const folder = isFemale ? 'avatar-female' : 'avatar-male';
+        const prefix = isFemale ? 'avatar-female-direct' : 'avatar-male-direct';
+        const match = String(currentUserProfile.avatarKey).match(/\d+/);
+        const no = match ? String(match[0]).padStart(3, '0') : '001';
+        currentUserProfile.avatarUrl = `../${folder}/${prefix}-${no}.png`;
+      }
+
+      const groupId = currentUserProfile?.groupId;
 
       // 2. 取得小組成長歷程
       if (groupId) {
