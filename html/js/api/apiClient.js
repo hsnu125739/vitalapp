@@ -522,7 +522,19 @@
     }
 
     // 小組交流板
-    createGroupPost(data) { return this.request('createGroupPost', data); }
+    createGroupPost(data) {
+      let resolvedAuthorName = data && data.authorName;
+      if (!resolvedAuthorName) {
+        try {
+          const userStr = this.storage.getItem('vital_current_player');
+          if (userStr) {
+            const u = JSON.parse(userStr);
+            resolvedAuthorName = u.name || u.displayName || u.username || '';
+          }
+        } catch (e) {}
+      }
+      return this.request('createGroupPost', { ...data, authorName: resolvedAuthorName || '聖徒' });
+    }
     pinGroupPost(data) { return this.request('pinGroupPost', data); }
     setGroupAnnouncement(data) { return this.request('setGroupAnnouncement', data); }
     clearGroupAnnouncement(groupId) { return this.request('clearGroupAnnouncement', { groupId }); }
