@@ -287,11 +287,15 @@
         this.pendingRequests.set(reqId, { resolve, reject, timer });
 
         try {
+          const pId = (payload && payload.playerId) || (data && (data.playerId || data.targetId)) || this.getPlayerIdFromToken() || '';
           channel.source.postMessage({
             type: 'GAS_CALL',
             id: reqId,
             targetService: serviceName,
             action: action,
+            token: this.token,
+            sessionToken: this.token,
+            playerId: pId,
             args: [payload],
             payload: payload
           }, '*');
@@ -306,14 +310,19 @@
     // --- 統一 RPC 派發核心 (Request Core) ---
 
     async request(action, data = {}) {
+      const pId = (data && (data.playerId || data.targetId)) || this.getPlayerIdFromToken() || '';
       const payload = {
         action,
         token: this.token,
         sessionToken: this.token,
+        playerId: pId,
         data: data || {}
       };
       if (typeof data === 'object' && data !== null) {
         Object.assign(payload, data);
+        if (!payload.playerId && pId) {
+          payload.playerId = pId;
+        }
       }
 
       // 照顧區特例：0ms SWR 秒開
@@ -412,18 +421,19 @@
 
     async getProfile(playerId = null) {
       try {
-        const res = await this.request('getProfile', { playerId });
+        const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
+        const res = await this.request('getProfile', { playerId: resolvedPlayerId });
         if (res && res.success) return res;
         // 若為 Core 微服務環境（Core 未實作 getProfile，實作為 verifySession 與 getHomeDashboard）
         if (res && (res.code === 'UNKNOWN_ACTION' || String(res.error).includes('UNKNOWN_ACTION') || String(res.error).includes('未支援'))) {
           // 優先以 verifySession 驗證並取得最新 player 檔案
-          const vRes = await this.request('verifySession', { playerId });
+          const vRes = await this.request('verifySession', { playerId: resolvedPlayerId });
           if (vRes && (vRes.success || vRes.valid)) {
             const p = vRes.player || (vRes.data && vRes.data.player) || vRes;
             return { success: true, player: p, data: { player: p } };
           }
           // 次以 getHomeDashboard 取得
-          const hRes = await this.request('getHomeDashboard', { playerId });
+          const hRes = await this.request('getHomeDashboard', { playerId: resolvedPlayerId });
           if (hRes && hRes.success) {
             const p = hRes.player || (hRes.data && hRes.data.player);
             return { success: true, player: p, data: hRes.data || { player: p } };
@@ -431,10 +441,11 @@
         }
         return res;
       } catch (err) {
+        const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
         // 若以例外拋出 UNKNOWN_ACTION，嘗試 verifySession 降級相容
         if (String(err.message).includes('UNKNOWN_ACTION') || String(err.message).includes('未支援')) {
           try {
-            const vRes = await this.request('verifySession', { playerId });
+            const vRes = await this.request('verifySession', { playerId: resolvedPlayerId });
             if (vRes && (vRes.success || vRes.valid)) {
               const p = vRes.player || (vRes.data && vRes.data.player) || vRes;
               return { success: true, player: p, data: { player: p } };
