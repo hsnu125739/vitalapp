@@ -58,7 +58,8 @@
 
     fellowshipView = new (global.GroupFellowshipView || window.GroupFellowshipView)({
       chatStore: chatStore,
-      currentUserId: ''
+      currentPlayerId: '',
+      currentUserName: ''
     });
 
     dashboardView = new (global.DashboardView || window.DashboardView)({
@@ -108,6 +109,11 @@
       } else {
         const fetchedPlayer = profileRes.player || profileRes.data?.player || profileRes.data || {};
         currentUserProfile = { ...currentUserProfile, ...fetchedPlayer };
+        if (typeof localStorage !== 'undefined') {
+          try {
+            localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
+          } catch (e) {}
+        }
       }
 
       if (currentUserProfile && !currentUserProfile.avatarUrl && currentUserProfile.avatarKey) {
@@ -192,8 +198,8 @@
 
       // 5. 初始化小組交流
       if (groupId) {
-        fellowshipView.currentUserId = currentUserProfile.playerId || currentUserProfile.username;
-        fellowshipView.currentUserName = currentUserProfile.name || currentUserProfile.displayName || currentUserProfile.username || '';
+        fellowshipView.currentPlayerId = currentUserProfile.playerId;
+        fellowshipView.currentUserName = currentUserProfile.name;
         const pCol = currentUserProfile.postsColIndex || currentJourneyData?.postsColIndex || null;
         fellowshipView.postsColIndex = pCol;
         fellowshipView.isLeader = Boolean(currentUserProfile.isLeader);
@@ -217,6 +223,11 @@
 
   function handleLoginSuccess(profile) {
     currentUserProfile = profile;
+    if (profile && typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('vital_current_player', JSON.stringify(profile));
+      } catch (e) {}
+    }
     loadUserData();
   }
 
