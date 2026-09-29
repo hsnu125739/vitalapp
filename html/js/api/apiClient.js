@@ -157,14 +157,16 @@
           if (!isNaN(col) && col >= 2) return col;
         }
       } catch (e) {}
-      try {
-        const groupStr = this.storage.getItem('vital_current_group');
-        if (groupStr) {
-          const g = JSON.parse(groupStr);
-          const col = Number(g.postsColIndex);
-          if (!isNaN(col) && col >= 2) return col;
-        }
-      } catch (e) {}
+      if (typeof localStorage !== 'undefined') {
+        try {
+          const groupStr = this.storage.getItem('vital_current_group');
+          if (groupStr) {
+            const g = JSON.parse(groupStr);
+            const col = Number(g.postsColIndex);
+            if (!isNaN(col) && col >= 2) return col;
+          }
+        } catch (e) {}
+      }
       return null;
     }
 
@@ -543,20 +545,9 @@
 
     // 小組交流板
     createGroupPost(data) {
-      let resolvedAuthorName = data && data.authorName;
-      if (!resolvedAuthorName) {
-        try {
-          const userStr = this.storage.getItem('vital_current_player');
-          if (userStr) {
-            const u = JSON.parse(userStr);
-            resolvedAuthorName = u.name || u.displayName || u.username || '';
-          }
-        } catch (e) {}
-      }
       const col = (data && data.postsColIndex) || this.getPostsColIndexFromStorage();
       return this.request('createGroupPost', {
         ...data,
-        authorName: resolvedAuthorName || '聖徒',
         postsColIndex: col
       });
     }
