@@ -47,13 +47,11 @@
     });
 
     chestView = new (global.ChestView || window.ChestView)({
-      apiClient: apiClient,
-      onChestClaimed: () => refreshUserData()
+      apiClient: apiClient
     });
 
     footprintsView = new (global.FootprintsView || window.FootprintsView)({
-      apiClient: apiClient,
-      onChestClaimed: () => refreshUserData()
+      apiClient: apiClient
     });
 
     fellowshipView = new (global.GroupFellowshipView || window.GroupFellowshipView)({
@@ -126,9 +124,31 @@
         currentUserProfile.avatarUrl = `../${folder}/${prefix}-${no}.png`;
       }
 
+      const playerId = currentUserProfile?.playerId;
       const groupId = currentUserProfile?.groupId;
 
-      // 2. 取得小組成長歷程
+      // 1.5 取得個人成就進度 (PlayerProgress.milestones)
+      let playerMilestones = [];
+      if (playerId) {
+        try {
+          const ppRes = await apiClient.getPlayerProgress(playerId);
+          if (ppRes && (ppRes.success || ppRes.data)) {
+            const data = ppRes.data || ppRes;
+            playerMilestones = data.milestones || [];
+            if (typeof playerMilestones === 'string') {
+              try { playerMilestones = JSON.parse(playerMilestones); } catch (e) { playerMilestones = []; }
+            }
+          }
+        } catch (pErr) {
+          console.warn('[App] 讀取個人成就進度失敗', pErr);
+          try {
+            playerMilestones = JSON.parse(localStorage.getItem('vital_player_milestones') || '[]');
+          } catch (e) { playerMilestones = []; }
+        }
+      }
+
+      // 2. 取得小組成長歷程 (GroupProgress.milestones)
+      let groupMilestones = [];
       if (groupId) {
         try {
           const journeyRes = await apiClient.getGroupJourney(groupId);
@@ -141,9 +161,20 @@
                 localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
               } catch (e) {}
             }
+            groupMilestones = currentJourneyData?.milestones || [];
+            if (typeof groupMilestones === 'string') {
+              try { groupMilestones = JSON.parse(groupMilestones); } catch (e) { groupMilestones = []; }
+            }
+            try {
+              localStorage.setItem('vital_group_journey', JSON.stringify(currentJourneyData));
+            } catch (e) {}
           }
         } catch (jErr) {
           console.warn('[App] 讀取小組歷程失敗', jErr);
+          try {
+            currentJourneyData = JSON.parse(localStorage.getItem('vital_group_journey') || 'null');
+            groupMilestones = (currentJourneyData && currentJourneyData.milestones) || [];
+          } catch (e) {}
         }
       } else {
         currentJourneyData = null;
@@ -154,9 +185,14 @@
           delete currentUserProfile.postsColIndex;
           try {
             localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
+            localStorage.removeItem('vital_group_journey');
+            localStorage.removeItem('vital_group_milestones');
           } catch (e) {}
         }
       }
+
+      // 2.5 登入時核對新成就並覆蓋本地快取
+      checkMilestone(playerMilestones, groupMilestones);
 
       // 3. 取得有效系統公告
       let announcements = [];
@@ -231,10 +267,110 @@
     }
   }
 
+  function checkMilestone(playerMilestones, groupMilestones) {
+    let lastLogin = '1970-01-01T00:00:00Z';
+    try {
+      lastLogin = localStorage.getItem('vital_last_login') || '1970-01-01T00:00:00Z';
+    } catch (e) {}
+
+    const pMs = Array.isArray(playerMilestones) ? playerMilestones : [];
+    const gMs = Array.isArray(groupMilestones) ? groupMilestones : [];
+
+    const newPlayerMs = pMs.filter(m => m && m.completedAt && m.completedAt > lastLogin);
+    const newGroupMs = gMs.filter(m => m && m.completedAt && m.completedAt > lastLogin);
+
+    if (newPlayerMs.length > 0 || newGroupMs.length > 0) {
+      showMilestonesCelebration(newPlayerMs, newGroupMs);
+    }
+
+    // 無論有無新成就，全覆蓋寫入 localStorage 確保一致性
+    try {
+      localStorage.setItem('vital_player_milestones', JSON.stringify(pMs));
+      localStorage.setItem('vital_group_milestones', JSON.stringify(gMs));
+      localStorage.setItem('vital_last_login', new Date().toISOString());
+    } catch (e) {}
+  }
+
+  function showMilestonesCelebration(newPlayerMs, newGroupMs) {
+    if (typeof document === 'undefined') return;
+    const modal = document.getElementById('milestoneCelebrationModal');
+    if (!modal) return;
+
+    const chestListEl = document.getElementById('celebrationChestList');
+    const chapterListEl = document.getElementById('celebrationChapterList');
+    const taskListEl = document.getElementById('celebrationTaskList');
+    const closeBtn = document.getElementById('closeCelebrationBtn');
+
+    const allNew = [...(newPlayerMs || []), ...(newGroupMs || [])];
+    const chests = [];
+    const chapters = [];
+    const tasks = [];
+
+    allNew.forEach(m => {
+      const id = String((m && m.id) || '');
+      if (id.startsWith('CHEST_') || /^T\d+$/.test(id)) {
+        chests.push(m);
+      } else if (id.startsWith('CHAPTER_') || /^CH\d+$/i.test(id)) {
+        chapters.push(m);
+      } else {
+        tasks.push(m);
+      }
+    });
+
+    const formatReward = (r) => {
+      if (!r) return '';
+      const pt = typeof r === 'object' ? (r.point || r.points || 0) : Number(r);
+      return pt ? ` (+${pt} 操練分)` : '';
+    };
+
+    if (chestListEl) {
+      if (chests.length > 0) {
+        chestListEl.innerHTML = `<strong>🎁 獲得新寶箱：</strong><ul style="margin: 4px 0 0 18px; padding: 0;">` +
+          chests.map(c => `<li>${c.id}${formatReward(c.reward)}</li>`).join('') +
+          `</ul>`;
+        chestListEl.style.display = 'block';
+      } else {
+        chestListEl.innerHTML = '';
+        chestListEl.style.display = 'none';
+      }
+    }
+
+    if (chapterListEl) {
+      if (chapters.length > 0) {
+        chapterListEl.innerHTML = `<strong>📜 達成新篇章：</strong><ul style="margin: 4px 0 0 18px; padding: 0;">` +
+          chapters.map(c => `<li>${c.id}${formatReward(c.reward)}</li>`).join('') +
+          `</ul>`;
+        chapterListEl.style.display = 'block';
+      } else {
+        chapterListEl.innerHTML = '';
+        chapterListEl.style.display = 'none';
+      }
+    }
+
+    if (taskListEl) {
+      if (tasks.length > 0) {
+        taskListEl.innerHTML = `<strong>⭐ 完成新任務：</strong><ul style="margin: 4px 0 0 18px; padding: 0;">` +
+          tasks.map(t => `<li>${t.id}${formatReward(t.reward)}</li>`).join('') +
+          `</ul>`;
+        taskListEl.style.display = 'block';
+      } else {
+        taskListEl.innerHTML = '';
+        taskListEl.style.display = 'none';
+      }
+    }
+
+    modal.classList.remove('hidden');
+
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        modal.classList.add('hidden');
+      };
+    }
+  }
+
   function openChests(selectedIdx = null) {
     const points = (currentUserProfile && (currentUserProfile.totalPoints !== undefined ? currentUserProfile.totalPoints : currentUserProfile.totalScore)) || 0;
-    const claimed = (currentUserProfile && currentUserProfile.claimedChests) || [];
-    chestView.openChestModal(points, claimed, currentUserProfile, selectedIdx);
+    chestView.openChestModal(points, selectedIdx);
   }
 
   async function refreshUserData() {
@@ -266,7 +402,7 @@
     authView.showAuth();
   }
 
-  function updateUserGroupState(groupId, groupName = '', isLeader = false) {
+  async function updateUserGroupState(groupId, groupName = '', isLeader = false) {
     if (!currentUserProfile) return;
     currentUserProfile.groupId = groupId || '';
     if (groupId) {
@@ -283,9 +419,39 @@
         localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
         if (!groupId) {
           localStorage.removeItem('vital_current_group');
+          localStorage.removeItem('vital_group_journey');
+          localStorage.removeItem('vital_group_milestones');
         }
       } catch (e) {}
     }
+
+    if (groupId) {
+      try {
+        const journeyRes = await apiClient.getGroupJourney(groupId);
+        if (journeyRes && journeyRes.success) {
+          currentJourneyData = journeyRes.data || journeyRes.journey || journeyRes;
+          const pCol = Number(currentJourneyData?.postsColIndex || currentJourneyData?.groupPostsColIndex);
+          if (!isNaN(pCol) && pCol >= 2) {
+            currentUserProfile.postsColIndex = pCol;
+          }
+          let groupMilestones = currentJourneyData?.milestones || [];
+          if (typeof groupMilestones === 'string') {
+            try { groupMilestones = JSON.parse(groupMilestones); } catch (e) { groupMilestones = []; }
+          }
+          try {
+            localStorage.setItem('vital_group_journey', JSON.stringify(currentJourneyData));
+          } catch (e) {}
+          let playerMilestones = [];
+          try {
+            playerMilestones = JSON.parse(localStorage.getItem('vital_player_milestones') || '[]');
+          } catch (e) {}
+          checkMilestone(playerMilestones, groupMilestones);
+        }
+      } catch (jErr) {
+        console.warn('[App] 創組/加入小組後讀取小組歷程失敗', jErr);
+      }
+    }
+
     if (profileView && typeof profileView.render === 'function') {
       profileView.render(currentUserProfile, currentJourneyData);
     }
@@ -322,7 +488,9 @@
     initApp,
     loadUserData,
     refreshUserData,
-    updateUserGroupState
+    updateUserGroupState,
+    checkMilestone,
+    showMilestonesCelebration
   };
 
 })(typeof window !== 'undefined' ? window : global);
