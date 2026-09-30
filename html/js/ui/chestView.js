@@ -35,9 +35,8 @@
   }
 
   class ChestView {
-    constructor({ apiClient, onChestClaimed }) {
+    constructor({ apiClient }) {
       this.apiClient = apiClient;
-      this.onChestClaimed = onChestClaimed;
 
       this.infoModal = document.getElementById('infoModal');
       this.infoModalTitle = document.getElementById('infoModalTitle');
@@ -48,7 +47,6 @@
       this.detailName = document.getElementById('chestDetailModalName');
       this.detailText = document.getElementById('chestDetailModalText');
       this.detailStatus = document.getElementById('chestDetailModalStatus');
-      this.claimBtn = document.getElementById('chestClaimRewardBtn');
 
       this.currentChestData = [];
       this.activeChest = null;
@@ -70,135 +68,49 @@
           if (this.detailModal) this.detailModal.classList.add('hidden');
         });
       });
-
-      // 領取獎勵
-      if (this.claimBtn) {
-        this.claimBtn.addEventListener('click', async () => {
-          if (!this.activeChest) return;
-          const tierId = this.activeChest.tierId;
-          const chestName = this.activeChest.name || '寶箱';
-
-          this.claimBtn.disabled = true;
-          this.claimBtn.textContent = '領取中...';
-
-          try {
-            const res = await this.apiClient.claimChest(tierId);
-            if (res && res.success) {
-              alert(`恭喜！成功領取【${chestName}】！`);
-              this.activeChest.isClaimed = true;
-              this.applyDetailModal_(this.activeChest);
-              if (this.detailModal) this.detailModal.classList.add('hidden');
-              if (typeof this.onChestClaimed === 'function') {
-                this.onChestClaimed();
-              }
-              // 重新渲染清單
-              this.renderChestGrid_();
-            } else {
-              alert((res && (res.error || res.message)) || '領取失敗');
-            }
-          } catch (err) {
-            alert(err.message || '連線逾時，請稍後再試');
-          } finally {
-            this.claimBtn.disabled = false;
-          }
-        });
-      }
     }
 
-    async openChestModal(userPoints = 0, claimedList = [], userProfile = null, selectedIdx = null) {
-      if (userProfile) this.currentUserProfile = userProfile;
+    openChestModal(userPoints = 0, selectedIdx = null) {
       if (this.infoModalTitle) this.infoModalTitle.textContent = '成就寶藏收藏';
       if (this.infoModal) this.infoModal.classList.remove('hidden');
 
-      if (this.infoModalContent) {
-        this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">讀取寶藏收藏中...</div>';
+      let milestones = [];
+      if (typeof localStorage !== 'undefined') {
+        try {
+          milestones = JSON.parse(localStorage.getItem('vital_player_milestones') || '[]');
+        } catch (e) {
+          milestones = [];
+        }
       }
 
-      try {
-        const res = await this.apiClient.getPlayerChestCollection();
-        let rawChests = (res && res.data && res.data.chests) || (res && res.chests) || [];
-        let chests = [];
+      const claimedSet = new Set(
+        milestones
+          .filter(m => m && m.id && (m.id.startsWith('CHEST_') || /^T\d+$/.test(m.id)))
+          .map(m => m.id)
+      );
 
-        if (Array.isArray(rawChests) && rawChests.length > 0) {
-          chests = rawChests.map((c, index) => {
-            const tierId = c.tierId || c.tier || `tier_${index + 1}`;
-            const name = c.name || c.title || `成就寶箱 ${index + 1}`;
-            const minPoints = c.minPoints !== undefined ? c.minPoints : (c.pointsThreshold !== undefined ? c.pointsThreshold : (c.points || 0));
-            const desc = c.desc || c.description || `個人累積達到 ${minPoints.toLocaleString()} 點操練分`;
-            const img = resolveChestImg(c, index);
-            const isClaimed = Boolean(c.isClaimed !== undefined ? c.isClaimed : c.claimed);
-            const isUnlocked = Boolean(c.isUnlocked !== undefined ? c.isUnlocked : (c.unlocked !== undefined ? c.unlocked : (userPoints >= minPoints)));
-            return {
-              tierId,
-              tier: tierId,
-              name,
-              title: name,
-              minPoints,
-              pointsThreshold: minPoints,
-              desc,
-              description: desc,
-              img,
-              icon: img,
-              isClaimed,
-              claimed: isClaimed,
-              isUnlocked,
-              unlocked: isUnlocked,
-              statusText: isClaimed ? '已領取' : (isUnlocked ? '可領取' : '未達成')
-            };
-          });
-        } else {
-          // 本地計算預設階梯
-          const claimedSet = new Set(claimedList || []);
-          chests = DEFAULT_CHESTS.map((c, index) => {
-            const isClaimed = claimedSet.has(c.tierId) || claimedSet.has(c.tier);
-            const isUnlocked = userPoints >= c.minPoints;
-            const img = resolveChestImg(c, index);
-            return {
-              ...c,
-              tier: c.tierId,
-              title: c.name,
-              img,
-              icon: img,
-              isClaimed,
-              claimed: isClaimed,
-              isUnlocked,
-              unlocked: isUnlocked,
-              statusText: isClaimed ? '已領取' : (isUnlocked ? '可領取' : '未達成')
-            };
-          });
-        }
+      this.currentChestData = DEFAULT_CHESTS.map((c, index) => {
+        const isClaimed = claimedSet.has(c.tierId) || claimedSet.has(`CHEST_${c.tierId}`) || claimedSet.has(`T${index + 1}`) || claimedSet.has(`CHEST_T${index + 1}`);
+        const isUnlocked = isClaimed || userPoints >= c.minPoints;
+        const img = resolveChestImg(c, index);
+        return {
+          ...c,
+          tier: c.tierId,
+          title: c.name,
+          img,
+          icon: img,
+          isClaimed,
+          claimed: isClaimed,
+          isUnlocked,
+          unlocked: isUnlocked,
+          statusText: isClaimed ? '已獲得' : (isUnlocked ? '達標待結算' : '未達門檻')
+        };
+      });
 
-        this.currentChestData = chests;
-        this.renderChestGrid_();
+      this.renderChestGrid_();
 
-        if (selectedIdx !== null && selectedIdx !== undefined && this.currentChestData[selectedIdx]) {
-          this.openChestDetail(this.currentChestData[selectedIdx]);
-        }
-      } catch (err) {
-        console.warn('[ChestView] 遠端讀取寶藏失敗，啟用本機階梯防禦渲染', err);
-        const claimedSet = new Set(claimedList || []);
-        this.currentChestData = DEFAULT_CHESTS.map((c, index) => {
-          const isClaimed = claimedSet.has(c.tierId) || claimedSet.has(c.tier);
-          const isUnlocked = userPoints >= c.minPoints;
-          const img = resolveChestImg(c, index);
-          return {
-            ...c,
-            tier: c.tierId,
-            title: c.name,
-            img,
-            icon: img,
-            isClaimed,
-            claimed: isClaimed,
-            isUnlocked,
-            unlocked: isUnlocked,
-            statusText: isClaimed ? '已領取' : (isUnlocked ? '可領取' : '未達成')
-          };
-        });
-        this.renderChestGrid_();
-
-        if (selectedIdx !== null && selectedIdx !== undefined && this.currentChestData[selectedIdx]) {
-          this.openChestDetail(this.currentChestData[selectedIdx]);
-        }
+      if (selectedIdx !== null && selectedIdx !== undefined && this.currentChestData[selectedIdx]) {
+        this.openChestDetail(this.currentChestData[selectedIdx]);
       }
     }
 
@@ -211,7 +123,7 @@
             const imgUrl = resolveChestImg(chest, index);
             const isClaimed = Boolean(chest.isClaimed);
             const isUnlocked = Boolean(chest.isUnlocked);
-            const statusLabel = isClaimed ? '已領取' : (isUnlocked ? '可領取' : '待解鎖');
+            const statusLabel = isClaimed ? '已獲得' : (isUnlocked ? '達標待結算' : '待解鎖');
             const statusColor = isClaimed ? '#10b981' : (isUnlocked ? '#f59e0b' : '#94a3b8');
 
             return `
@@ -254,30 +166,14 @@
         this.detailImage.src = resolveChestImg(chest, 0);
       }
       if (this.detailName) this.detailName.textContent = chest.name;
-      if (this.detailText) this.detailText.textContent = chest.desc || chest.description || `達到門檻即可領取專屬獎勵`;
+      if (this.detailText) this.detailText.textContent = chest.desc || chest.description || `達到門檻即可自動解鎖入庫`;
 
       const isClaimed = Boolean(chest.isClaimed);
       const isUnlocked = Boolean(chest.isUnlocked);
 
       if (this.detailStatus) {
-        this.detailStatus.textContent = isClaimed ? '已領取' : (isUnlocked ? '達成可領取' : '尚未達成解鎖門檻');
+        this.detailStatus.textContent = isClaimed ? '✅ 已解鎖入庫' : (isUnlocked ? '⏳ 已達標，每日結算後自動發放' : `🔒 尚未達成解鎖門檻（需 ${chest.minPoints.toLocaleString()} 分）`);
         this.detailStatus.style.color = isClaimed ? '#10b981' : (isUnlocked ? '#f59e0b' : '#94a3b8');
-      }
-
-      if (this.claimBtn) {
-        if (isClaimed) {
-          this.claimBtn.textContent = '已完成領取';
-          this.claimBtn.disabled = true;
-          this.claimBtn.style.opacity = '0.6';
-        } else if (isUnlocked) {
-          this.claimBtn.textContent = '立即領取獎勵';
-          this.claimBtn.disabled = false;
-          this.claimBtn.style.opacity = '1';
-        } else {
-          this.claimBtn.textContent = '未達解鎖門檻';
-          this.claimBtn.disabled = true;
-          this.claimBtn.style.opacity = '0.6';
-        }
       }
     }
   }
