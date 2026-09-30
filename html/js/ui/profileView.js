@@ -296,7 +296,7 @@
           if (leaveBtn) {
             leaveBtn.addEventListener('click', async () => {
               if (memberCount <= 1) {
-                const ok = confirm(\`確定要解散「\${grpName}」嗎？解散後，此活力組的所有紀錄將會全面刪除。您可自由加入新組。\`);
+                const ok = confirm(`確定要解散「${grpName}」嗎？解散後，此活力組的所有紀錄將會全面刪除。您可自由加入新組。`);
                 if (!ok) return;
                 leaveBtn.disabled = true;
                 leaveBtn.textContent = '正在解散...';
@@ -321,7 +321,7 @@
                   alert('您是組長，請先轉讓組長身份後再退出！');
                   return;
                 }
-                const ok = confirm(\`確定要退出「\${grpName}」嗎？您先前的操練貢獻仍會保留在該組，但您未來的操練將不會計入。您可自由加入新組。\`);
+                const ok = confirm(`確定要退出「${grpName}」嗎？您先前的操練貢獻仍會保留在該組，但您未來的操練將不會計入。您可自由加入新組。`);
                 if (!ok) return;
                 leaveBtn.disabled = true;
                 leaveBtn.textContent = '正在退出...';
@@ -358,16 +358,16 @@
                   if (m.playerId === this.currentUserProfile.playerId) return;
                   const item = document.createElement('div');
                   item.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;';
-                  item.innerHTML = \`
+                  item.innerHTML = `
                     <div style="display:flex;align-items:center;gap:8px;">
-                      <img src="\${(typeof window.AppCoordinator !== 'undefined' ? '' : '../') + 'images/avatar-male-direct-001.png'}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;background:#e2e8f0;" />
-                      <span style="font-size:14px;color:#334155;font-weight:500;">\${this.escapeHtml(m.name || m.playerId)}</span>
+                      <img src="${(typeof window.AppCoordinator !== 'undefined' ? '' : '../') + 'images/avatar-male-direct-001.png'}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;background:#e2e8f0;" />
+                      <span style="font-size:14px;color:#334155;font-weight:500;">${this.escapeHtml(m.name || m.playerId)}</span>
                     </div>
                     <button type="button" class="primary-btn" style="padding:4px 10px;font-size:12px;border-radius:4px;">交接</button>
-                  \`;
+                  `;
                   const tBtn = item.querySelector('button');
                   tBtn.addEventListener('click', async () => {
-                    if (confirm(\`確定要將組長交接給「\${m.name || m.playerId}」嗎？\`)) {
+                    if (confirm(`確定要將組長交接給「${m.name || m.playerId}」嗎？`)) {
                       tBtn.disabled = true;
                       tBtn.textContent = '交接中...';
                       try {
