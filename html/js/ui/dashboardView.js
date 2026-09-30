@@ -214,9 +214,12 @@
         greetingEl.textContent = `平安，${userProfile.name || '聖徒'}！歡迎一同在主裡同奔賽程。`;
       }
 
-      const personalPoints = userProfile.totalPoints !== undefined ? userProfile.totalPoints : (userProfile.totalScore || 0);
+      // 貢獻點數（在組累積貢獻點數 contributionPoints）
+      const contribution = userProfile.contributionPoints !== undefined 
+        ? userProfile.contributionPoints 
+        : (userProfile.contribution !== undefined ? userProfile.contribution : (userProfile.totalPoints || 0));
       const contribEl = document.getElementById('homeContributionText');
-      if (contribEl) contribEl.textContent = personalPoints.toLocaleString();
+      if (contribEl) contribEl.textContent = Number(contribution || 0).toLocaleString();
 
       const groupScore = (journeyData && (journeyData.totalPoints || journeyData.totalScore)) || 0;
       const groupScoreEl = document.getElementById('homeGroupScoreText');
