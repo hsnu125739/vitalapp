@@ -71,7 +71,7 @@
       logoutBtn.addEventListener('click', () => {
         if (loginView) loginView.classList.remove('hidden');
         if (appView) appView.classList.add('hidden');
-        if (logoutBtn) logoutBtn.classList.remove('hidden');
+        if (logoutBtn) logoutBtn.classList.add('hidden');
         if (pwdInput) pwdInput.value = '';
       });
     }
