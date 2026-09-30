@@ -130,6 +130,7 @@
           const confirmPassword = (document.getElementById('registerPasswordConfirm') || {}).value;
           const name = (document.getElementById('registerName') || document.getElementById('regName') || {}).value?.trim() || username;
           const birthYear = (document.getElementById('registerBirthYear') || {}).value;
+          const phone = (document.getElementById('registerPhone') || {}).value?.trim() || '';
           const gender = (document.getElementById('registerAvatarGender') || {}).value || 'male';
 
           const regMsgEl = document.getElementById('registerMessage');
@@ -158,6 +159,7 @@
               username,
               password,
               name,
+              phone,
               careDistrict: district,
               careArea: area,
               birthYear,
