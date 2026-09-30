@@ -18,6 +18,9 @@
   let profileView;
   let fellowshipView;
 
+  let currentUserProfile = null;
+  let currentJourneyData = null;
+
   const CHAPTER_NAMES = ['信心', '美德', '知識', '節制', '忍耐', '敬虔', '弟兄相愛', '愛'];
 
   function deriveJourneyFromGroupProgress(groupProgress, fallbackProfile = null) {
