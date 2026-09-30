@@ -59,6 +59,16 @@
       return `${y}-${m}-${day}`;
     }
 
+    setSyncLock(isLocked) {
+      this.isSyncing = isLocked;
+      const btns = document.querySelectorAll('.quest-card');
+      btns.forEach(btn => {
+        btn.style.opacity = isLocked ? '0.6' : '1';
+        btn.style.pointerEvents = isLocked ? 'none' : 'auto';
+        btn.style.filter = isLocked ? 'grayscale(0.5)' : 'none';
+      });
+    }
+
     getCurrentWeekKey() {
       const now = new Date();
       const year = now.getFullYear();
@@ -81,6 +91,7 @@
         const btn = document.querySelector(selector);
         if (btn) {
           btn.addEventListener('click', () => {
+            if (this.isSyncing) return;
             this.practiceStore.toggleDailyPractice(this.currentDate, key);
           });
         }
@@ -98,6 +109,7 @@
         const btn = document.querySelector(selector);
         if (btn) {
           btn.addEventListener('click', () => {
+            if (this.isSyncing) return;
             this.practiceStore.toggleMeetingPractice(this.currentWeekKey, key);
           });
         }
