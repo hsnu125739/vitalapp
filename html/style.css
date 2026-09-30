@@ -3333,7 +3333,7 @@ body{
     display:none;
 }
 
-#homeView .home-hero-card .hero-contribution{
+#homeView .home-hero-card > .hero-contribution:not(.hero-score-card){
   position:absolute;
     inset:18px 14px auto auto;
     min-width:0;
@@ -4526,7 +4526,7 @@ body{
   display:none;
 }
 
-#homeView .hero-contribution{
+#homeView .hero-contribution:not(.hero-score-card){
   background:linear-gradient(180deg,#fffbe5,#f1d5b8);
     color:#78544e;
     top:18px;
@@ -4673,35 +4673,46 @@ body{
     text-align:left;
 }
 
+#homeView .home-hero-card .hero-score-grid .hero-score-card,
+#homeView .home-hero-card .hero-score-grid .hero-personal-score,
+#homeView .home-hero-card .hero-score-grid .hero-contribution,
+#homeView .home-hero-card .hero-score-grid .hero-group-score{
+  position:relative !important;
+  inset:auto !important;
+  top:auto !important;
+  right:auto !important;
+  bottom:auto !important;
+  left:auto !important;
+  display:block !important;
+  width:100% !important;
+  max-width:none !important;
+  min-width:0 !important;
+  height:100% !important;
+  min-height:0 !important;
+  justify-self:stretch !important;
+  align-self:stretch !important;
+  margin:0 !important;
+  padding:0 !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  transform:none !important;
+  color:#7a625a !important;
+  text-align:left !important;
+}
+
 #homeView .home-hero-card .hero-score-grid .hero-personal-score,
 #homeView .home-hero-card .hero-score-grid .hero-score-card:first-child{
-  position:relative;
-    inset:auto;
-    display:block;
-    grid-row:1;
-    order:initial;
-    width:100%;
-    max-width:none;
-    min-width:0;
-    height:100%;
-    min-height:0;
-    justify-self:stretch;
-    align-self:stretch;
-    margin:0;
-    padding:0;
-    border:0;
-    border-bottom:1px solid rgba(151,106,82,.34);
-    border-radius:0;
-    background:transparent;
-    box-shadow:none;
-    transform:none;
+  grid-row:1 !important;
+  border-bottom:1px solid rgba(151,106,82,.34) !important;
 }
 
 #homeView .home-hero-card .hero-score-grid .hero-contribution,
+#homeView .home-hero-card .hero-score-grid .hero-score-card:nth-child(2),
 #homeView .home-hero-card .hero-score-grid .hero-group-score{
-  grid-row:2;
-    order:initial;
-    border-bottom:0;
+  grid-row:2 !important;
+  border-bottom:0 !important;
 }
 
 #homeView .home-hero-card .hero-score-grid .hero-score-card span{
