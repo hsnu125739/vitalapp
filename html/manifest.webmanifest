@@ -11,7 +11,7 @@
   "icons": [
     {
       "src": "../UI/app-icon.png?v=20260813-stableasset1",
-      "sizes": "1024x1024",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
