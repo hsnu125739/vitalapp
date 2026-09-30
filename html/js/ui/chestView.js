@@ -1,56 +1,27 @@
 /**
  * chestView.js
- * 成就寶箱視圖深層模組 (Chest & Rewards View Deep Module)
- * 負責：八階成就寶藏收藏列表、寶箱詳情彈窗、一鍵領取獎勵與防止重複履約
+ * 成就寶箱與進度領取視圖模組 (Chest View Module)
+ * 負責：成長篇章成就寶箱列表展示、各級寶箱詳情彈窗與即時領取獎勵
  */
 
 (function(global) {
   'use strict';
-
-  const DEFAULT_CHESTS = [
-    { tierId: 'tier_1', name: '信心寶箱', minPoints: 100, desc: '個人累積達到 100 點操練分', img: '../Chest_Assets/Chest_01.png' },
-    { tierId: 'tier_2', name: '美德寶箱', minPoints: 300, desc: '個人累積達到 300 點操練分', img: '../Chest_Assets/Chest_02.png' },
-    { tierId: 'tier_3', name: '知識寶箱', minPoints: 600, desc: '個人累積達到 600 點操練分', img: '../Chest_Assets/Chest_03.png' },
-    { tierId: 'tier_4', name: '節制寶箱', minPoints: 1000, desc: '個人累積達到 1,000 點操練分', img: '../Chest_Assets/Chest_04.png' },
-    { tierId: 'tier_5', name: '忍耐寶箱', minPoints: 1500, desc: '個人累積達到 1,500 點操練分', img: '../Chest_Assets/Chest_05.png' },
-    { tierId: 'tier_6', name: '敬虔寶箱', minPoints: 2100, desc: '個人累積達到 2,100 點操練分', img: '../Chest_Assets/Chest_06.png' },
-    { tierId: 'tier_7', name: '弟兄相愛寶箱', minPoints: 2800, desc: '個人累積達到 2,800 點操練分', img: '../Chest_Assets/Chest_07.png' },
-    { tierId: 'tier_8', name: '愛之榮耀寶箱', minPoints: 3600, desc: '個人累積達到 3,600 點操練分', img: '../Chest_Assets/Chest_08.png' }
-  ];
-
-  function resolveChestImg(c, index) {
-    if (c && c.img && typeof c.img === 'string' && (c.img.startsWith('http') || c.img.startsWith('data:') || c.img.includes('Chest_0'))) {
-      return c.img;
-    }
-    const raw = String((c && (c.icon || c.tierId || c.tier || c.name || c.title)) || '');
-    const match = raw.match(/\d+/);
-    let num = (index % 8) + 1;
-    if (match) {
-      const parsed = parseInt(match[0], 10);
-      if (!isNaN(parsed) && parsed >= 1) {
-        num = ((parsed - 1) % 8) + 1;
-      }
-    }
-    return `../Chest_Assets/Chest_0${num}.png`;
-  }
 
   class ChestView {
     constructor({ apiClient, onChestClaimed }) {
       this.apiClient = apiClient;
       this.onChestClaimed = onChestClaimed;
 
-      this.infoModal = document.getElementById('infoModal');
-      this.infoModalTitle = document.getElementById('infoModalTitle');
-      this.infoModalContent = document.getElementById('infoModalContent');
-
+      this.chestsModal = document.getElementById('chestsModal');
+      this.chestsGrid = document.getElementById('chestsGrid');
       this.detailModal = document.getElementById('chestDetailModal');
-      this.detailImage = document.getElementById('chestDetailModalImage');
-      this.detailName = document.getElementById('chestDetailModalName');
-      this.detailText = document.getElementById('chestDetailModalText');
-      this.detailStatus = document.getElementById('chestDetailModalStatus');
-      this.claimBtn = document.getElementById('chestClaimRewardBtn');
 
-      this.currentChestData = [];
+      this.detailIcon = document.getElementById('chestDetailIcon');
+      this.detailTitle = document.getElementById('chestDetailTitle');
+      this.detailDesc = document.getElementById('chestDetailDesc');
+      this.detailPoints = document.getElementById('chestDetailPoints');
+      this.claimBtn = document.getElementById('claimChestRewardBtn');
+
       this.activeChest = null;
       this.currentUserProfile = null;
 
@@ -58,10 +29,22 @@
     }
 
     initEvents_() {
-      // 關閉 Modal
-      document.querySelectorAll('[data-close-modal="infoModal"]').forEach(btn => {
+      // 點擊開啟寶箱總覽 Modal 按鈕
+      const openChestsBtns = [
+        document.getElementById('openChestsModalBtn'),
+        document.getElementById('homeChestsBtn')
+      ];
+
+      openChestsBtns.forEach(btn => {
+        if (btn) {
+          btn.addEventListener('click', () => this.openChestsModal());
+        }
+      });
+
+      // 關閉 Modal 按鈕
+      document.querySelectorAll('[data-close-modal="chestsModal"]').forEach(btn => {
         btn.addEventListener('click', () => {
-          if (this.infoModal) this.infoModal.classList.add('hidden');
+          if (this.chestsModal) this.chestsModal.classList.add('hidden');
         });
       });
 
@@ -75,15 +58,14 @@
       if (this.claimBtn) {
         this.claimBtn.addEventListener('click', async () => {
           if (!this.activeChest) return;
-          const tierId = this.activeChest.tierId || this.activeChest.tier;
-          const chestName = this.activeChest.name || this.activeChest.title || '寶箱';
-          const resolvedPlayerId = (this.currentUserProfile && (this.currentUserProfile.playerId || this.currentUserProfile.id)) || this.apiClient.getPlayerIdFromToken();
+          const tierId = this.activeChest.tierId;
+          const chestName = this.activeChest.name || '寶箱';
 
           this.claimBtn.disabled = true;
           this.claimBtn.textContent = '領取中...';
 
           try {
-            const res = await this.apiClient.claimChest(tierId, resolvedPlayerId);
+            const res = await this.apiClient.claimChest(tierId);
             if (res && res.success) {
               alert(`恭喜！成功領取【${chestName}】！`);
               this.activeChest.isClaimed = true;
@@ -101,158 +83,116 @@
             alert(err.message || '連線逾時，請稍後再試');
           } finally {
             this.claimBtn.disabled = false;
+            this.claimBtn.textContent = '立即領取';
           }
         });
       }
     }
 
-    async openChestModal(userPoints = 0, claimedList = [], userProfile = null) {
+    async openChestsModal(userProfile = null) {
       if (userProfile) this.currentUserProfile = userProfile;
-      if (this.infoModalTitle) this.infoModalTitle.textContent = '成就寶藏收藏';
-      if (this.infoModal) this.infoModal.classList.remove('hidden');
+      if (this.chestsModal) this.chestsModal.classList.remove('hidden');
 
-      if (this.infoModalContent) {
-        this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">讀取寶藏收藏中...</div>';
+      if (this.chestsGrid) {
+        this.chestsGrid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:#64748b;">讀取寶箱進度中...</div>';
       }
 
       try {
         const res = await this.apiClient.getPlayerChestCollection();
-        let rawChests = (res && res.data && res.data.chests) || (res && res.chests) || [];
-        let chests = [];
-
-        if (Array.isArray(rawChests) && rawChests.length > 0) {
-          chests = rawChests.map((c, index) => {
-            const tierId = c.tierId || c.tier || `tier_${index + 1}`;
-            const name = c.name || c.title || `成就寶箱 ${index + 1}`;
-            const minPoints = c.minPoints !== undefined ? c.minPoints : (c.pointsThreshold !== undefined ? c.pointsThreshold : (c.points || 0));
-            const desc = c.desc || c.description || `個人累積達到 ${minPoints.toLocaleString()} 點操練分`;
-            const img = resolveChestImg(c, index);
-            const isClaimed = Boolean(c.isClaimed !== undefined ? c.isClaimed : c.claimed);
-            const isUnlocked = Boolean(c.isUnlocked !== undefined ? c.isUnlocked : (c.unlocked !== undefined ? c.unlocked : (userPoints >= minPoints)));
-            return {
-              tierId,
-              tier: tierId,
-              name,
-              title: name,
-              minPoints,
-              pointsThreshold: minPoints,
-              desc,
-              description: desc,
-              img,
-              icon: img,
-              isClaimed,
-              claimed: isClaimed,
-              isUnlocked,
-              unlocked: isUnlocked,
-              statusText: isClaimed ? '已領取' : (isUnlocked ? '可領取' : '未達成')
-            };
-          });
+        if (res && res.success) {
+          const chests = res.chests || (res.data && res.data.chests) || [];
+          this.chestsList = chests;
+          this.renderChestGrid_();
         } else {
-          // 本地計算預設階梯
-          const claimedSet = new Set(claimedList || []);
-          chests = DEFAULT_CHESTS.map((c, index) => {
-            const isClaimed = claimedSet.has(c.tierId) || claimedSet.has(c.tier);
-            const isUnlocked = userPoints >= c.minPoints;
-            const img = resolveChestImg(c, index);
-            return {
-              ...c,
-              tier: c.tierId,
-              title: c.name,
-              img,
-              icon: img,
-              isClaimed,
-              claimed: isClaimed,
-              isUnlocked,
-              unlocked: isUnlocked,
-              statusText: isClaimed ? '已領取' : (isUnlocked ? '可領取' : '未達成')
-            };
-          });
+          if (this.chestsGrid) {
+            this.chestsGrid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:24px;color:#ef4444;">${(res && res.error) || '讀取寶箱失敗'}</div>`;
+          }
         }
-
-        this.currentChestData = chests;
-        this.renderChestGrid_();
       } catch (err) {
-        if (this.infoModalContent) {
-          this.infoModalContent.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444;">讀取失敗：${err.message}</div>`;
+        if (this.chestsGrid) {
+          this.chestsGrid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:24px;color:#ef4444;">連線異常：${err.message}</div>`;
         }
       }
     }
 
     renderChestGrid_() {
-      if (!this.infoModalContent) return;
+      if (!this.chestsGrid) return;
+      if (!this.chestsList || this.chestsList.length === 0) {
+        this.chestsGrid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:#64748b;">目前無可用成就寶箱</div>';
+        return;
+      }
 
-      const html = `
-        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:12px; padding:12px;">
-          ${this.currentChestData.map((chest, index) => {
-            const imgUrl = resolveChestImg(chest, index);
-            const isClaimed = Boolean(chest.isClaimed);
-            const isUnlocked = Boolean(chest.isUnlocked);
-            const statusLabel = isClaimed ? '已領取' : (isUnlocked ? '可領取' : '待解鎖');
-            const statusColor = isClaimed ? '#10b981' : (isUnlocked ? '#f59e0b' : '#94a3b8');
+      this.chestsGrid.innerHTML = this.chestsList.map((chest, index) => {
+        const isUnlocked = Boolean(chest.isUnlocked || chest.unlocked);
+        const isClaimed = Boolean(chest.isClaimed || chest.claimed);
+        const icon = chest.iconUrl || chest.icon || `../UI/chest-tier-${(index % 6) + 1}.png`;
+        const name = chest.name || chest.title || `階段寶箱 ${index + 1}`;
+        const pts = chest.requiredPoints || chest.pointsThreshold || 0;
 
-            return `
-              <div class="chest-card-item" data-index="${index}" style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:12px; text-align:center; cursor:pointer; transition:transform 0.15s ease;">
-                <img src="${imgUrl}" alt="${chest.name}" onerror="this.onerror=null; this.src='../Chest_Assets/Chest_01.png';" style="width:64px; height:64px; object-fit:contain; margin:0 auto; filter:${!isUnlocked ? 'grayscale(0.8) opacity(0.6)' : 'none'};">
-                <div style="font-weight:700; font-size:13px; margin-top:8px; color:#1e293b;">${chest.name}</div>
-                <div style="font-size:11px; font-weight:600; color:${statusColor}; margin-top:4px;">${statusLabel}</div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      `;
+        let statusClass = 'locked';
+        let statusBadge = '<span style="font-size:11px;color:#94a3b8;background:#f1f5f9;padding:2px 8px;border-radius:12px;">未解鎖</span>';
 
-      this.infoModalContent.innerHTML = html;
+        if (isClaimed) {
+          statusClass = 'claimed';
+          statusBadge = '<span style="font-size:11px;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:12px;font-weight:600;">已領取</span>';
+        } else if (isUnlocked) {
+          statusClass = 'unlocked';
+          statusBadge = '<span style="font-size:11px;color:#ea580c;background:#ffedd5;padding:2px 8px;border-radius:12px;font-weight:700;animation:pulse 2s infinite;">可領取！</span>';
+        }
 
-      // 點擊事件
-      this.infoModalContent.querySelectorAll('.chest-card-item').forEach(card => {
+        return `
+          <div class="chest-card ${statusClass}" data-chest-index="${index}" style="background:#fff;border:2px solid ${isUnlocked && !isClaimed ? '#f97316' : '#e2e8f0'};border-radius:14px;padding:12px;text-align:center;cursor:pointer;position:relative;transition:transform 0.15s ease;">
+            <div style="width:52px;height:52px;margin:0 auto 8px auto;display:flex;align-items:center;justify-content:center;">
+              <img src="${icon}" alt="${name}" style="max-width:100%;max-height:100%;object-fit:contain;filter:${!isUnlocked ? 'grayscale(100%) opacity(0.6)' : 'none'};">
+            </div>
+            <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>
+            <div style="font-size:11px;color:#64748b;margin-bottom:8px;">${pts.toLocaleString()} 操練分</div>
+            <div>${statusBadge}</div>
+          </div>
+        `;
+      }).join('');
+
+      this.chestsGrid.querySelectorAll('.chest-card').forEach(card => {
         card.addEventListener('click', () => {
-          const idx = Number(card.getAttribute('data-index'));
-          const chest = this.currentChestData[idx];
-          if (chest) {
-            this.openChestDetail(chest);
-          }
+          const idx = Number(card.getAttribute('data-chest-index'));
+          const selected = this.chestsList[idx];
+          if (selected) this.openDetailModal(selected);
         });
       });
     }
 
-    openChestDetail(chest) {
+    openDetailModal(chest) {
       this.activeChest = chest;
       this.applyDetailModal_(chest);
       if (this.detailModal) this.detailModal.classList.remove('hidden');
     }
 
     applyDetailModal_(chest) {
-      if (this.detailImage) {
-        this.detailImage.onerror = () => {
-          this.detailImage.onerror = null;
-          this.detailImage.src = '../Chest_Assets/Chest_01.png';
-        };
-        this.detailImage.src = resolveChestImg(chest, 0);
-      }
-      if (this.detailName) this.detailName.textContent = chest.name;
-      if (this.detailText) this.detailText.textContent = chest.desc || chest.description || `達到門檻即可領取專屬獎勵`;
+      const isUnlocked = Boolean(chest.isUnlocked || chest.unlocked);
+      const isClaimed = Boolean(chest.isClaimed || chest.claimed);
+      const icon = chest.iconUrl || chest.icon || '../UI/app-icon.png';
+      const name = chest.name || chest.title || '成就寶箱';
+      const pts = chest.requiredPoints || chest.pointsThreshold || 0;
+      const desc = chest.description || chest.rewardDescription || '達成個人與同伴共同操練點數門檻即可解鎖豐富獎勵！';
 
-      const isClaimed = Boolean(chest.isClaimed);
-      const isUnlocked = Boolean(chest.isUnlocked);
-
-      if (this.detailStatus) {
-        this.detailStatus.textContent = isClaimed ? '已領取' : (isUnlocked ? '達成可領取' : '尚未達成解鎖門檻');
-        this.detailStatus.style.color = isClaimed ? '#10b981' : (isUnlocked ? '#f59e0b' : '#94a3b8');
-      }
+      if (this.detailIcon) this.detailIcon.src = icon;
+      if (this.detailTitle) this.detailTitle.textContent = name;
+      if (this.detailDesc) this.detailDesc.textContent = desc;
+      if (this.detailPoints) this.detailPoints.textContent = `解鎖條件：累計 ${pts.toLocaleString()} 點`;
 
       if (this.claimBtn) {
         if (isClaimed) {
-          this.claimBtn.textContent = '已完成領取';
           this.claimBtn.disabled = true;
-          this.claimBtn.style.opacity = '0.6';
+          this.claimBtn.textContent = '已領取獎勵';
+          this.claimBtn.style.background = '#94a3b8';
         } else if (isUnlocked) {
-          this.claimBtn.textContent = '立即領取獎勵';
           this.claimBtn.disabled = false;
-          this.claimBtn.style.opacity = '1';
+          this.claimBtn.textContent = '立即領取獎勵';
+          this.claimBtn.style.background = '#ea580c';
         } else {
-          this.claimBtn.textContent = '未達解鎖門檻';
           this.claimBtn.disabled = true;
-          this.claimBtn.style.opacity = '0.6';
+          this.claimBtn.textContent = '未達解鎖門檻';
+          this.claimBtn.style.background = '#cbd5e1';
         }
       }
     }
