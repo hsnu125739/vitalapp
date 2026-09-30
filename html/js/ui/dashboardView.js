@@ -337,17 +337,62 @@
       const container = document.getElementById('homeHeroAnnouncements');
       if (!container) return;
 
+      container.onclick = () => this.openAnnouncementsModal_();
+      container.style.cursor = 'pointer';
+
       if (!Array.isArray(announcements) || announcements.length === 0) {
-        container.innerHTML = '<div class="hero-announcement-item">今日無重大公告，願主與你同行</div>';
+        container.innerHTML = '<div style="width:100%;text-align:center;color:#806a68;font-size:13px;font-weight:700;">今日無重大公告，願主與你同行</div>';
         return;
       }
 
-      container.innerHTML = announcements.map(a => `
-        <div class="hero-announcement-item">
+      const itemsHtml = announcements.map(a => `
+        <span class="hero-announcement-item">
           <strong>${a.isPinned ? '<span style="color:#d97706;font-weight:700;margin-right:4px;">[置頂]</span>' : ''}${this.escapeHtml_(a.title || '系統公告')}</strong>
-          <span style="opacity:0.85; margin-left:6px;">${this.escapeHtml_(a.content || '')}</span>
+          <span style="opacity:0.9; margin-left:6px;">${this.escapeHtml_(a.content || '')}</span>
+        </span>
+      `).join('<span class="hero-announcement-sep" style="margin:0 24px;color:#c4a482;opacity:0.6;">✦</span>') + '<span class="hero-announcement-sep" style="margin:0 24px;color:#c4a482;opacity:0.6;">✦</span>';
+
+      container.innerHTML = `
+        <div class="hero-announcement-marquee" title="點擊檢視完整公告">
+          <div class="hero-announcement-track" id="heroAnnouncementTrack">
+            <div class="hero-announcement-content">${itemsHtml}</div>
+            <div class="hero-announcement-content" aria-hidden="true">${itemsHtml}</div>
+          </div>
         </div>
-      `).join('');
+      `;
+
+      requestAnimationFrame(() => {
+        const track = document.getElementById('heroAnnouncementTrack');
+        const firstChild = track && track.firstElementChild;
+        if (track && firstChild) {
+          const w = firstChild.offsetWidth;
+          const duration = Math.max(16, Math.round(w / 45));
+          track.style.animationDuration = `${duration}s`;
+        }
+      });
+    }
+
+    openAnnouncementsModal_() {
+      if (!this.infoModal || !this.currentAnnouncements || this.currentAnnouncements.length === 0) return;
+      if (this.infoModalTitle) this.infoModalTitle.textContent = '系統公告';
+      if (this.infoModalContent) {
+        this.infoModalContent.innerHTML = `
+          <div style="display:flex; flex-direction:column; gap:14px; max-height:60vh; overflow-y:auto; padding:4px;">
+            ${this.currentAnnouncements.map(a => `
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px;">
+                <div style="font-weight:700; font-size:15px; color:#1e293b; margin-bottom:6px;">
+                  ${a.isPinned ? '<span style="color:#d97706; font-weight:700; margin-right:6px;">[置頂]</span>' : ''}
+                  ${this.escapeHtml_(a.title || '系統公告')}
+                </div>
+                <div style="font-size:14px; color:#475569; line-height:1.6; white-space:pre-wrap;">
+                  ${this.escapeHtml_(a.content || '')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+      this.infoModal.classList.remove('hidden');
     }
 
     renderDailyPracticeState(state) {
