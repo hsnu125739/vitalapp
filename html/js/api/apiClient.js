@@ -580,18 +580,4 @@
     module.exports = { ApiClient };
   }
   global.ApiClient = ApiClient;
-
-  // 舊版 GasBackend 相容門面
-  if (typeof window !== 'undefined') {
-    window.GasBackend = {
-      invoke(action, args) {
-        if (!window.activeApiClient) {
-          window.activeApiClient = new ApiClient();
-        }
-        const data = (args && typeof args[0] === 'object') ? args[0] : (args || {});
-        return window.activeApiClient.request(action, data);
-      }
-    };
-  }
-
 })(typeof window !== 'undefined' ? window : global);
