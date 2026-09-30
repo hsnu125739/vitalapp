@@ -726,26 +726,15 @@
 
       try {
         let journeyData = this.currentJourneyData;
-        if (!journeyData) {
+        if (!journeyData && typeof localStorage !== 'undefined') {
           try {
-            const jRes = await this.apiClient.getGroupJourney(groupId);
-            if (jRes && jRes.success) {
-              journeyData = jRes.data || jRes.journey || jRes;
-            }
+            journeyData = JSON.parse(localStorage.getItem('vital_group_journey') || 'null');
           } catch (e) {}
         }
 
-        let contribSummary = null;
-        try {
-          const cRes = await this.apiClient.getMyGroupContributionSummary(groupId);
-          if (cRes && cRes.success) {
-            contribSummary = cRes.data || cRes;
-          }
-        } catch (e) {}
-
         const groupName = (journeyData && journeyData.groupName) || p.groupName || groupId;
-        const totalGroupScore = Number((journeyData && journeyData.totalScore) || (contribSummary && contribSummary.groupTotalPoints) || myPoints);
-        const chapterTitle = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.title || journeyData.currentChapter.name)) || '初信成長';
+        const totalGroupScore = Number((journeyData && journeyData.totalScore) || myPoints);
+        const chapterTitle = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.title || journeyData.currentChapter.name)) || '起步啟航';
         const chapterIndex = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.index || journeyData.currentChapter.chapterIndex)) || 1;
         const percent = totalGroupScore > 0 ? Math.min(100, Math.round((myPoints / totalGroupScore) * 100)) : 100;
         const coScore = Math.max(0, totalGroupScore - myPoints);
