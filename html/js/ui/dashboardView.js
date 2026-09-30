@@ -112,6 +112,13 @@
         });
       }
 
+      // 旅程軌道各節點點擊（亦對應八階篇章與寶箱）
+      document.querySelectorAll('#homeJourneyNodes .journey-node').forEach((node, idx) => {
+        node.addEventListener('click', () => {
+          if (typeof this.onChestClick === 'function') this.onChestClick(idx);
+        });
+      });
+
       // 更新與登出
       const refreshBtn = document.getElementById('refreshHomeBtn');
       if (refreshBtn) {
