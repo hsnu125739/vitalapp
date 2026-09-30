@@ -4720,14 +4720,16 @@ body{
     white-space:nowrap;
 }
 
-#homeView .home-hero-card .hero-score-grid .hero-score-card strong{
+#homeView .home-hero-card .hero-score-grid .hero-score-card strong,
+#homeView .home-hero-card .hero-score-grid .hero-personal-score strong,
+#homeView .home-hero-card .hero-score-grid .hero-score-card:first-child strong{
   position:absolute;
     right:24px;
     top:50%;
     transform:translateY(-50%);
     display:block;
     margin:0;
-    color:#d66b91;
+    color:#d66b91 !important;
     font-size:28px;
     font-weight:1000;
     line-height:1;
@@ -4737,8 +4739,9 @@ body{
 }
 
 #homeView .home-hero-card .hero-score-grid .hero-contribution strong,
+#homeView .home-hero-card .hero-score-grid .hero-score-card:nth-child(2) strong,
 #homeView .home-hero-card .hero-score-grid .hero-group-score strong{
-  color:#2f8f7e;
+  color:#2f8f7e !important;
 }
 
 #homeView .home-hero-card .hero-score-grid .hero-score-card small{
