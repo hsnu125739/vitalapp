@@ -108,11 +108,11 @@
               if (item.prayer) badges.push('🙏 禱告');
               if (item.bookPursuit || item.book) badges.push('📚 書報');
               
-              // 聚會紀錄
-              if (item.groupMeeting) badges.push('👥 小排');
-              if (item.prayerMeeting) badges.push('🛐 禱告聚會');
-              if (item.lordsDayMeeting) badges.push('🍞 主日');
-              if (item.mutualPursuit) badges.push('🤝 相調探望');
+              // 聚會紀錄 (相容 group/smallGroup, prayerMtg/prayerMeeting, lordDay/lordDayMeeting, outreach/outreachVisit/mutual)
+              if (item.group || item.smallGroup || item.groupMeeting) badges.push('👥 小排');
+              if (item.prayerMtg || item.prayerMeeting) badges.push('🛐 禱告聚會');
+              if (item.lordDay || item.lordDayMeeting || item.lordsDayMeeting) badges.push('🍞 主日');
+              if (item.outreach || item.outreachVisit || item.mutualPursuit || item.blend || item.mutual) badges.push('🤝 相調探望');
             }
 
             const points = item.points || item.pointsEarned || 0;
