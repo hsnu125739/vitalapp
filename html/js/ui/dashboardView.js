@@ -30,7 +30,7 @@
   ];
 
   class DashboardView {
-    constructor({ practiceStore, apiClient, onFootprintClick, onChestClick, onRefresh, onLogout, onGroupJourneyListClick }) {
+    constructor({ practiceStore, apiClient, onFootprintClick, onChestClick, onRefresh, onLogout, onGroupJourneyListClick, onContributionClick }) {
       this.practiceStore = practiceStore;
       this.apiClient = apiClient;
       this.onFootprintClick = onFootprintClick;
@@ -38,6 +38,7 @@
       this.onRefresh = onRefresh;
       this.onLogout = onLogout;
       this.onGroupJourneyListClick = onGroupJourneyListClick;
+      this.onContributionClick = onContributionClick;
 
       this.currentUserProfile = null;
       this.currentDate = this.getTodayDateString();
@@ -170,6 +171,15 @@
         });
       }
 
+      // 點擊同行貢獻卡片開啟彈窗
+      const contribCard = document.querySelector('.hero-score-card.hero-contribution');
+      if (contribCard) {
+        contribCard.style.cursor = 'pointer';
+        contribCard.addEventListener('click', () => {
+          if (typeof this.onContributionClick === 'function') this.onContributionClick();
+        });
+      }
+
       // 關閉通用彈窗
       document.querySelectorAll('[data-close-modal="infoModal"]').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -214,16 +224,23 @@
         greetingEl.textContent = `平安，${userProfile.name || '聖徒'}！歡迎一同在主裡同奔賽程。`;
       }
 
-      // 貢獻點數（在組累積貢獻點數 contributionPoints）
+      // 【個人點數】（當年度個人操練分 + 歷年歷史分）
+      const personalPoints = userProfile.personalPoints !== undefined 
+        ? userProfile.personalPoints 
+        : (userProfile.totalPoints !== undefined ? userProfile.totalPoints : (userProfile.totalScore || 0));
+      const personalEl = document.getElementById('homePersonalScoreText');
+      if (personalEl) personalEl.textContent = Number(personalPoints || 0).toLocaleString();
+
+      // 【貢獻點數】（在當前活力組累積貢獻點數 contributionPoints）
       const contribution = userProfile.contributionPoints !== undefined 
         ? userProfile.contributionPoints 
-        : (userProfile.contribution !== undefined ? userProfile.contribution : (userProfile.totalPoints || 0));
+        : (userProfile.contribution !== undefined ? userProfile.contribution : 0);
       const contribEl = document.getElementById('homeContributionText');
       if (contribEl) contribEl.textContent = Number(contribution || 0).toLocaleString();
 
-      const groupScore = (journeyData && (journeyData.totalPoints || journeyData.totalScore)) || 0;
+      // 兼容舊版 groupScoreEl
       const groupScoreEl = document.getElementById('homeGroupScoreText');
-      if (groupScoreEl) groupScoreEl.textContent = groupScore.toLocaleString();
+      if (groupScoreEl) groupScoreEl.textContent = Number(personalPoints || 0).toLocaleString();
 
       const streakEl = document.getElementById('homeStreakText');
       if (streakEl) streakEl.textContent = `${userProfile.streakDays || 0} 天`;
