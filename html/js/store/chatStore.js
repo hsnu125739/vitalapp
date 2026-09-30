@@ -98,6 +98,31 @@ class ChatStore {
   }
 
   /**
+   * 背景預載聊天室最新狀態 (供首頁切換時呼叫)
+   */
+  async prefetch() {
+    if (!this.groupId) return;
+    this.loadFromCache();
+    try {
+      const res = await this.apiClient.getGroupPosts(this.groupId, 20, this.postsColIndex, this.lastMessageCount || null);
+      if (res && res.success) {
+        if (res.status === 304 || (res.data && res.data.status === 304)) return;
+        if (res.postsColIndex) this.postsColIndex = Number(res.postsColIndex);
+        if (res.data && res.data.messageCount !== undefined) this.lastMessageCount = res.data.messageCount;
+        else if (res.messageCount !== undefined) this.lastMessageCount = res.messageCount;
+
+        const incomingPosts = Array.isArray(res.data) ? res.data : (res.posts || (res.data && res.data.posts) || []);
+        let ann = undefined;
+        if (res.announcement !== undefined) ann = res.announcement;
+        else if (res.data && res.data.announcement !== undefined) ann = res.data.announcement;
+        else if (res.pinnedPost !== undefined) ann = res.pinnedPost;
+        else if (res.data && res.data.pinnedPost !== undefined) ann = res.data.pinnedPost;
+        this.mergeIncomingPosts(incomingPosts, ann);
+      }
+    } catch (err) {}
+  }
+
+  /**
    * 進入交流板初始化載入 (Cache-First + Background Refresh)
    */
   async enterChat() {
