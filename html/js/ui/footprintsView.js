@@ -33,10 +33,15 @@
         }
 
         let dailyRecords = {};
+        let meetingRecords = {};
         if (pId && typeof localStorage !== 'undefined') {
           const stored = localStorage.getItem(`vital_daily_records_${pId}`);
           if (stored) {
             dailyRecords = JSON.parse(stored);
+          }
+          const storedMeeting = localStorage.getItem(`vital_meeting_records_${pId}`);
+          if (storedMeeting) {
+            meetingRecords = JSON.parse(storedMeeting);
           }
         }
 
@@ -48,7 +53,26 @@
             ...unpacked
           });
         }
-        list.sort((a, b) => new Date(b.date) - new Date(a.date));
+        for (const [weekStr, unpacked] of Object.entries(meetingRecords)) {
+          // weekStr looks like "2026-W40", map it to something sortable
+          const parts = weekStr.split('-W');
+          if (parts.length === 2) {
+             // For simplicity, just display the week string as the date title,
+             // but we need a sortable date field. 2026-W40 can roughly be 2026-09-30.
+             // We can just use the string for display and a fake date for sorting so they appear together.
+             const wStr = weekStr + ' 週聚會紀錄';
+             list.push({
+               date: wStr,
+               sortKey: weekStr, 
+               ...unpacked
+             });
+          }
+        }
+        list.sort((a, b) => {
+          const keyA = a.sortKey || a.date;
+          const keyB = b.sortKey || b.date;
+          return keyB.localeCompare(keyA);
+        });
 
         this.renderFootprintsList_(list);
       } catch (err) {
@@ -83,6 +107,12 @@
               if (item.bibleReading || item.bible) badges.push('📖 讀經');
               if (item.prayer) badges.push('🙏 禱告');
               if (item.bookPursuit || item.book) badges.push('📚 書報');
+              
+              // 聚會紀錄
+              if (item.groupMeeting) badges.push('👥 小排');
+              if (item.prayerMeeting) badges.push('🛐 禱告聚會');
+              if (item.lordsDayMeeting) badges.push('🍞 主日');
+              if (item.mutualPursuit) badges.push('🤝 相調探望');
             }
 
             const points = item.points || item.pointsEarned || 0;
