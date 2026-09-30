@@ -1,8 +1,9 @@
-const CACHE_NAME = 'vital-cache-v2';
+const CACHE_NAME = 'vital-cache-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './css/styles.css',
+  './style.css',
+  './login-webp-perf.css',
   './runtime-settings.js',
   './js/api/apiClient.js',
   './js/store/practiceStore.js',
