@@ -352,25 +352,7 @@
       dashboardView.render(currentUserProfile, currentJourneyData, announcements);
       profileView.render(currentUserProfile, currentJourneyData);
 
-      // 👉 即時加總個人點數 (若 profile 尚未帶入 points)
-      if (!currentUserProfile.totalPoints && !currentUserProfile.totalScore) {
-        let sumPts = 0;
-        if (dailyRecords) {
-          Object.values(dailyRecords).forEach(r => { sumPts += (r.points || 0); });
-        }
-        if (meetingRecords) {
-          Object.values(meetingRecords).forEach(r => { sumPts += (r.points || 0); });
-        }
-        if (sumPts > 0) {
-          currentUserProfile.totalPoints = sumPts;
-          currentUserProfile.totalScore = sumPts;
-          currentUserProfile.contributionPoints = sumPts;
-          if (typeof localStorage !== 'undefined') {
-            try { localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile)); } catch(e){}
-          }
-          dashboardView.render(currentUserProfile, currentJourneyData, announcements);
-        }
-      }
+
 
       // 6. 處理打卡狀態 (從 dailyRecords / meetingRecords 解析)
       if (dailyRecords) {
