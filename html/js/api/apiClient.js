@@ -168,6 +168,24 @@
       return null;
     }
 
+    getGroupIdFromStorage() {
+      try {
+        const userStr = this.storage.getItem('vital_current_player');
+        if (userStr) {
+          const u = JSON.parse(userStr);
+          if (u.groupId) return String(u.groupId).trim();
+        }
+      } catch (e) {}
+      try {
+        const groupStr = this.storage.getItem('vital_current_group');
+        if (groupStr) {
+          const g = JSON.parse(groupStr);
+          if (g.groupId) return String(g.groupId).trim();
+        }
+      } catch (e) {}
+      return null;
+    }
+
     clearSessionToken() {
       this.token = null;
       this.storage.removeItem('vital_session_token');
@@ -319,6 +337,8 @@
         try {
           const pId = (payload && payload.playerId) || (data && (data.playerId || data.targetId)) || this.getPlayerIdFromToken() || '';
           const colIdx = (payload && payload.matrixColIndex) || (data && (data.matrixColIndex || data.colIndex)) || this.getMatrixColIndexFromStorage();
+          const grpId = (payload && payload.groupId) || (data && data.groupId) || this.getGroupIdFromStorage() || '';
+          const pColIdx = (payload && payload.postsColIndex) || (data && (data.postsColIndex || data.groupPostsColIndex)) || this.getPostsColIndexFromStorage();
           channel.source.postMessage({
             type: 'GAS_CALL',
             id: reqId,
@@ -327,7 +347,9 @@
             token: this.token,
             sessionToken: this.token,
             playerId: pId,
+            groupId: grpId,
             matrixColIndex: colIdx,
+            postsColIndex: pColIdx,
             args: [payload],
             payload: payload
           }, '*');
@@ -344,12 +366,16 @@
     async request(action, data = {}) {
       const pId = (data && (data.playerId || data.targetId)) || this.getPlayerIdFromToken() || '';
       const colIndex = (data && (data.matrixColIndex || data.colIndex)) || this.getMatrixColIndexFromStorage();
+      const grpId = (data && data.groupId) || this.getGroupIdFromStorage() || '';
+      const postsColIndex = (data && (data.postsColIndex || data.groupPostsColIndex)) || this.getPostsColIndexFromStorage();
       const payload = {
         action,
         token: this.token,
         sessionToken: this.token,
         playerId: pId,
+        groupId: grpId,
         matrixColIndex: colIndex,
+        postsColIndex: postsColIndex,
         data: data || {}
       };
       if (typeof data === 'object' && data !== null) {
@@ -357,8 +383,14 @@
         if (!payload.playerId && pId) {
           payload.playerId = pId;
         }
+        if (!payload.groupId && grpId) {
+          payload.groupId = grpId;
+        }
         if (!payload.matrixColIndex && colIndex) {
           payload.matrixColIndex = colIndex;
+        }
+        if (!payload.postsColIndex && postsColIndex) {
+          payload.postsColIndex = postsColIndex;
         }
       }
 
