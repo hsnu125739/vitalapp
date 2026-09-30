@@ -18,8 +18,49 @@
   let profileView;
   let fellowshipView;
 
-  let currentUserProfile = null;
-  let currentJourneyData = null;
+  const CHAPTER_NAMES = ['信心', '美德', '知識', '節制', '忍耐', '敬虔', '弟兄相愛', '愛'];
+
+  function deriveJourneyFromGroupProgress(groupProgress, fallbackProfile = null) {
+    if (!groupProgress) return null;
+    let milestones = groupProgress.milestones || [];
+    if (typeof milestones === 'string') {
+      try { milestones = JSON.parse(milestones); } catch (e) { milestones = []; }
+    }
+
+    let maxChapterLevel = 1;
+    milestones.forEach(m => {
+      const id = String((m && m.id) || '');
+      const match = id.match(/(?:CHP_|CHAPTER_|CH)(\d+)/i);
+      if (match) {
+        const lvl = parseInt(match[1], 10);
+        if (lvl > maxChapterLevel) maxChapterLevel = lvl;
+      }
+    });
+
+    const chapterIndex = Math.min(8, Math.max(1, maxChapterLevel));
+    const chapterTitle = CHAPTER_NAMES[chapterIndex - 1] || '起步啟航';
+
+    let totalScore = 0;
+    if (groupProgress.historySummary) {
+      let hs = groupProgress.historySummary;
+      if (typeof hs === 'string') {
+        try { hs = JSON.parse(hs); } catch (e) { hs = {}; }
+      }
+      const currYear = String(new Date().getFullYear());
+      totalScore = Number(hs[currYear] || hs.totalScore || 0);
+    }
+
+    return {
+      ...groupProgress,
+      currentChapter: chapterIndex,
+      chapterTitle: chapterTitle,
+      chapterName: chapterTitle,
+      currentLevel: chapterIndex,
+      totalScore: totalScore || (fallbackProfile && (fallbackProfile.totalPoints || fallbackProfile.totalScore)) || 0,
+      progressPercent: Math.min(100, Math.round((chapterIndex / 8) * 100)),
+      milestones: milestones
+    };
+  }
 
   async function initApp() {
     // 1. 初始化 API 客戶端
@@ -147,36 +188,34 @@
         }
       }
 
-      // 2. 取得小組成長歷程 (GroupProgress.milestones)
+      // 2. 取得小組進度與成就 (GroupProgress.milestones)
       let groupMilestones = [];
+      let groupProgress = null;
       if (groupId) {
         try {
-          const journeyRes = await apiClient.getGroupJourney(groupId);
-          if (journeyRes && journeyRes.success) {
-            currentJourneyData = journeyRes.data || journeyRes.journey || journeyRes;
-            const pCol = Number(currentJourneyData?.postsColIndex || currentJourneyData?.groupPostsColIndex);
-            if (!isNaN(pCol) && pCol >= 2 && currentUserProfile) {
-              currentUserProfile.postsColIndex = pCol;
-              try {
-                localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
-              } catch (e) {}
-            }
-            groupMilestones = currentJourneyData?.milestones || [];
+          const gpRes = await apiClient.getGroupProgress(groupId);
+          if (gpRes && (gpRes.success || gpRes.data)) {
+            const data = gpRes.data || gpRes;
+            groupProgress = data;
+            groupMilestones = data.milestones || [];
             if (typeof groupMilestones === 'string') {
               try { groupMilestones = JSON.parse(groupMilestones); } catch (e) { groupMilestones = []; }
             }
             try {
-              localStorage.setItem('vital_group_journey', JSON.stringify(currentJourneyData));
+              localStorage.setItem('vital_group_progress', JSON.stringify(data));
+              localStorage.setItem('vital_group_milestones', JSON.stringify(groupMilestones));
             } catch (e) {}
           }
-        } catch (jErr) {
-          console.warn('[App] 讀取小組歷程失敗', jErr);
+        } catch (gpErr) {
+          console.warn('[App] 讀取小組進度失敗', gpErr);
           try {
-            currentJourneyData = JSON.parse(localStorage.getItem('vital_group_journey') || 'null');
-            groupMilestones = (currentJourneyData && currentJourneyData.milestones) || [];
-          } catch (e) {}
+            groupMilestones = JSON.parse(localStorage.getItem('vital_group_milestones') || '[]');
+            groupProgress = JSON.parse(localStorage.getItem('vital_group_progress') || 'null');
+          } catch (e) { groupMilestones = []; }
         }
+        currentJourneyData = deriveJourneyFromGroupProgress(groupProgress, currentUserProfile);
       } else {
+        groupProgress = null;
         currentJourneyData = null;
         if (currentUserProfile) {
           currentUserProfile.groupId = '';
@@ -185,8 +224,9 @@
           delete currentUserProfile.postsColIndex;
           try {
             localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
-            localStorage.removeItem('vital_group_journey');
+            localStorage.removeItem('vital_group_progress');
             localStorage.removeItem('vital_group_milestones');
+            localStorage.removeItem('vital_group_journey');
           } catch (e) {}
         }
       }
@@ -310,7 +350,7 @@
       const id = String((m && m.id) || '');
       if (id.startsWith('CHEST_') || /^T\d+$/.test(id)) {
         chests.push(m);
-      } else if (id.startsWith('CHAPTER_') || /^CH\d+$/i.test(id)) {
+      } else if (id.startsWith('CHAPTER_') || id.startsWith('CHP_') || /^CH\d+$/i.test(id)) {
         chapters.push(m);
       } else {
         tasks.push(m);
@@ -427,19 +467,17 @@
 
     if (groupId) {
       try {
-        const journeyRes = await apiClient.getGroupJourney(groupId);
-        if (journeyRes && journeyRes.success) {
-          currentJourneyData = journeyRes.data || journeyRes.journey || journeyRes;
-          const pCol = Number(currentJourneyData?.postsColIndex || currentJourneyData?.groupPostsColIndex);
-          if (!isNaN(pCol) && pCol >= 2) {
-            currentUserProfile.postsColIndex = pCol;
-          }
-          let groupMilestones = currentJourneyData?.milestones || [];
+        const gpRes = await apiClient.getGroupProgress(groupId);
+        if (gpRes && (gpRes.success || gpRes.data)) {
+          const data = gpRes.data || gpRes;
+          let groupMilestones = data?.milestones || [];
           if (typeof groupMilestones === 'string') {
             try { groupMilestones = JSON.parse(groupMilestones); } catch (e) { groupMilestones = []; }
           }
+          currentJourneyData = deriveJourneyFromGroupProgress(data, currentUserProfile);
           try {
-            localStorage.setItem('vital_group_journey', JSON.stringify(currentJourneyData));
+            localStorage.setItem('vital_group_progress', JSON.stringify(data));
+            localStorage.setItem('vital_group_milestones', JSON.stringify(groupMilestones));
           } catch (e) {}
           let playerMilestones = [];
           try {
@@ -448,7 +486,7 @@
           checkMilestone(playerMilestones, groupMilestones);
         }
       } catch (jErr) {
-        console.warn('[App] 創組/加入小組後讀取小組歷程失敗', jErr);
+        console.warn('[App] 創組/加入小組後讀取小組進度失敗', jErr);
       }
     }
 
