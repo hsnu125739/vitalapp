@@ -178,6 +178,10 @@
       const gId = currentUserProfile?.groupId;
       const matrixColIndex = currentUserProfile?.matrixColIndex;
 
+      if (dashboardView && typeof dashboardView.setSyncLock === 'function') {
+        dashboardView.setSyncLock(true);
+      }
+
       const reqs = [];
       reqs.push(skipProfile ? Promise.resolve({ success: true, player: currentUserProfile }) : apiClient.getBootstrap());
       if (pId) {
@@ -362,6 +366,10 @@
 
     } catch (err) {
       console.error('[App] 載入使用者資料發生異常', err);
+    } finally {
+      if (dashboardView && typeof dashboardView.setSyncLock === 'function') {
+        dashboardView.setSyncLock(false);
+      }
     }
   }
 
