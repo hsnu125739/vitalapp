@@ -66,7 +66,7 @@
       practiceStore: practiceStore,
       apiClient: apiClient,
       onFootprintClick: () => footprintsView.openFootprintsModal(),
-      onChestClick: () => openChests(),
+      onChestClick: (selectedIdx) => openChests(selectedIdx),
       onRefresh: () => refreshUserData(),
       onLogout: () => handleLogout()
     });
@@ -230,10 +230,10 @@
     }
   }
 
-  function openChests() {
+  function openChests(selectedIdx = null) {
     const points = (currentUserProfile && (currentUserProfile.totalPoints !== undefined ? currentUserProfile.totalPoints : currentUserProfile.totalScore)) || 0;
     const claimed = (currentUserProfile && currentUserProfile.claimedChests) || [];
-    chestView.openChestModal(points, claimed, currentUserProfile);
+    chestView.openChestModal(points, claimed, currentUserProfile, selectedIdx);
   }
 
   async function refreshUserData() {
