@@ -172,11 +172,14 @@
       }
 
       // 點擊同行貢獻卡片開啟彈窗
-      const contribCard = document.querySelector('.hero-score-card.hero-contribution');
-      if (contribCard) {
-        contribCard.style.cursor = 'pointer';
-        contribCard.addEventListener('click', () => {
-          if (typeof this.onContributionClick === 'function') this.onContributionClick();
+      // 點擊貢獻卡開啟彈窗（事件委託確保支援動態修復元素）
+      const scoreGrid = document.querySelector('.hero-score-grid');
+      if (scoreGrid) {
+        scoreGrid.addEventListener('click', (e) => {
+          const contribTarget = e.target.closest('.hero-contribution') || e.target.closest('.hero-score-card:nth-child(2)');
+          if (contribTarget) {
+            if (typeof this.onContributionClick === 'function') this.onContributionClick();
+          }
         });
       }
 
@@ -224,23 +227,41 @@
         greetingEl.textContent = `平安，${userProfile.name || '聖徒'}！歡迎一同在主裡同奔賽程。`;
       }
 
-      // 【個人點數】（當年度個人操練分 + 歷年歷史分）
+      // 自我修復與結構防禦：確保卡片 1 為【個人】、卡片 2 為【貢獻】
+      const scoreGridEl = document.querySelector('.hero-score-grid');
+      if (scoreGridEl) {
+        const cards = scoreGridEl.querySelectorAll('.hero-score-card');
+        if (cards.length >= 2) {
+          // 第一張卡必為【個人】
+          cards[0].className = 'hero-score-card hero-personal-score';
+          const label1 = cards[0].querySelector('span');
+          if (label1) label1.textContent = '個人';
+          const strong1 = cards[0].querySelector('strong');
+          if (strong1) strong1.id = 'homePersonalScoreText';
+
+          // 第二張卡必為【貢獻】
+          cards[1].className = 'hero-score-card hero-contribution';
+          cards[1].style.cursor = 'pointer';
+          const label2 = cards[1].querySelector('span');
+          if (label2) label2.textContent = '貢獻';
+          const strong2 = cards[1].querySelector('strong');
+          if (strong2) strong2.id = 'homeContributionText';
+        }
+      }
+
+      // 【個人點數】（整年操練分 + 歷史結算沉澱分 personalPoints）
       const personalPoints = userProfile.personalPoints !== undefined 
         ? userProfile.personalPoints 
         : (userProfile.totalPoints !== undefined ? userProfile.totalPoints : (userProfile.totalScore || 0));
       const personalEl = document.getElementById('homePersonalScoreText');
       if (personalEl) personalEl.textContent = Number(personalPoints || 0).toLocaleString();
 
-      // 【貢獻點數】（在當前活力組累積貢獻點數 contributionPoints）
+      // 【貢獻點數】（在目前組別累積貢獻點 contributionPoints）
       const contribution = userProfile.contributionPoints !== undefined 
         ? userProfile.contributionPoints 
         : (userProfile.contribution !== undefined ? userProfile.contribution : 0);
       const contribEl = document.getElementById('homeContributionText');
       if (contribEl) contribEl.textContent = Number(contribution || 0).toLocaleString();
-
-      // 兼容舊版 groupScoreEl
-      const groupScoreEl = document.getElementById('homeGroupScoreText');
-      if (groupScoreEl) groupScoreEl.textContent = Number(personalPoints || 0).toLocaleString();
 
       const streakEl = document.getElementById('homeStreakText');
       if (streakEl) streakEl.textContent = `${userProfile.streakDays || 0} 天`;
