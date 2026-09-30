@@ -108,9 +108,14 @@
           </div>
 
           <!-- 置頂留言橫幅 -->
-          <div class="pinned-banner hidden" id="pinnedBanner" style="background:#fef3c7; border:1px solid #fde68a; border-radius:8px; padding:8px 12px; margin-bottom:10px;">
-            <span class="pinned-badge" style="color:#b45309; font-weight:700; font-size:12px;">📌 置頂公告</span>
-            <div class="pinned-content" id="pinnedContent" style="font-size:13px; color:#92400e; margin-top:2px;">尚無置頂訊息</div>
+          <div class="pinned-banner hidden" id="pinnedBanner" style="background:#fef3c7; border:1px solid #fde68a; border-radius:8px; padding:8px 12px; margin-bottom:10px; position:relative;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span class="pinned-badge" style="color:#b45309; font-weight:700; font-size:12px;">📌 置頂公告</span>
+              <button type="button" id="btnUnpinAnnouncement" class="hidden" style="background:#fee2e2; border:1px solid #fca5a5; color:#dc2626; border-radius:6px; padding:3px 10px; font-size:12px; font-weight:700; cursor:pointer; display:none; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="取消目前置頂公告">
+                <span>❌ 取消置頂</span>
+              </button>
+            </div>
+            <div class="pinned-content" id="pinnedContent" style="font-size:13px; color:#92400e; margin-top:4px; word-break:break-word;">尚無置頂訊息</div>
           </div>
 
           <!-- 留言清單容器 -->
@@ -149,6 +154,33 @@
           this.scrollToBottom_();
         });
       }
+
+      // 取消置頂按鈕點擊監聽
+      const unpinBtn = this.container.querySelector('#btnUnpinAnnouncement');
+      if (unpinBtn) {
+        unpinBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const ok = confirm('確定要取消目前的小組置頂公告嗎？\n\n取消後該則訊息將恢復為常態留言，不再顯示置頂橫幅。');
+          if (!ok) return;
+
+          unpinBtn.disabled = true;
+          unpinBtn.textContent = '取消中...';
+
+          try {
+            if (this.chatStore) {
+              await this.chatStore.clearAnnouncement(this.postsColIndex);
+            }
+          } finally {
+            unpinBtn.disabled = false;
+            unpinBtn.innerHTML = '<span>❌ 取消置頂</span>';
+            this.isSelectingPin = false;
+            this.updatePinButtonState_();
+            if (this.chatStore) {
+              this.renderMessages(this.chatStore.messages, this.chatStore.pinnedPost);
+            }
+          }
+        });
+      }
     }
 
     renderMessages(messages, pinnedPost) {
@@ -156,16 +188,30 @@
       const banner = this.container.querySelector('#pinnedBanner');
       const pinnedContent = this.container.querySelector('#pinnedContent');
       const msgContainer = this.container.querySelector('#chatMessagesContainer');
+      const unpinBtn = this.container.querySelector('#btnUnpinAnnouncement');
 
       if (!msgContainer) return;
 
-      // 1. 置頂橫幅
+      // 1. 置頂橫幅與取消置頂按鈕
+      const hasPinned = Boolean(pinnedPost && pinnedPost.content);
+      const showUnpinBtn = Boolean(this.isLeader && this.isSelectingPin && hasPinned);
+
       if (banner && pinnedContent) {
-        if (pinnedPost && pinnedPost.content) {
+        if (hasPinned) {
           pinnedContent.textContent = pinnedPost.content;
           banner.classList.remove('hidden');
         } else {
           banner.classList.add('hidden');
+        }
+      }
+
+      if (unpinBtn) {
+        if (showUnpinBtn) {
+          unpinBtn.classList.remove('hidden');
+          unpinBtn.style.display = 'inline-flex';
+        } else {
+          unpinBtn.classList.add('hidden');
+          unpinBtn.style.display = 'none';
         }
       }
 

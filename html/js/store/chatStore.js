@@ -110,7 +110,11 @@ class ChatStore {
       if (res && res.success) {
         if (res.postsColIndex) this.postsColIndex = Number(res.postsColIndex);
         const incomingPosts = Array.isArray(res.data) ? res.data : (res.posts || (res.data && res.data.posts) || []);
-        const ann = res.announcement || (res.data && res.data.announcement) || res.pinnedPost || (res.data && res.data.pinnedPost) || null;
+        let ann = undefined;
+        if (res.announcement !== undefined) ann = res.announcement;
+        else if (res.data && res.data.announcement !== undefined) ann = res.data.announcement;
+        else if (res.pinnedPost !== undefined) ann = res.pinnedPost;
+        else if (res.data && res.data.pinnedPost !== undefined) ann = res.data.pinnedPost;
         this.mergeIncomingPosts(incomingPosts, ann);
       }
     } catch (err) {
@@ -227,9 +231,31 @@ class ChatStore {
     }
   }
 
-  mergeIncomingPosts(posts, announcement = null) {
-    if (announcement) {
-      this.pinnedPost = announcement;
+  async clearAnnouncement(postsColIndex = null) {
+    const col = postsColIndex || this.postsColIndex;
+    // 立即樂觀清除本機置頂公告
+    this.pinnedPost = null;
+    this.saveToCache();
+    this.notify();
+
+    try {
+      const res = await this.apiClient.clearGroupAnnouncement(this.groupId, col);
+      if (res && res.postsColIndex) {
+        this.postsColIndex = Number(res.postsColIndex);
+      }
+      return res;
+    } catch (err) {
+      console.warn('[ChatStore] 清除小組公告失敗', err);
+    }
+  }
+
+  mergeIncomingPosts(posts, announcement = undefined) {
+    if (announcement !== undefined) {
+      if (announcement && announcement.content) {
+        this.pinnedPost = announcement;
+      } else if (announcement === null) {
+        this.pinnedPost = null;
+      }
     }
 
     if (!posts || posts.length === 0) {
@@ -280,7 +306,11 @@ class ChatStore {
         if (res && res.success) {
           if (res.postsColIndex) this.postsColIndex = Number(res.postsColIndex);
           const incomingPosts = Array.isArray(res.data) ? res.data : (res.posts || (res.data && res.data.posts) || []);
-          const ann = res.announcement || (res.data && res.data.announcement) || res.pinnedPost || (res.data && res.data.pinnedPost) || null;
+          let ann = undefined;
+          if (res.announcement !== undefined) ann = res.announcement;
+          else if (res.data && res.data.announcement !== undefined) ann = res.data.announcement;
+          else if (res.pinnedPost !== undefined) ann = res.pinnedPost;
+          else if (res.data && res.data.pinnedPost !== undefined) ann = res.data.pinnedPost;
           this.mergeIncomingPosts(incomingPosts, ann);
         }
       } catch (e) {
