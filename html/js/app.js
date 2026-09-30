@@ -111,7 +111,8 @@
       onChestClick: (selectedIdx) => openChests(selectedIdx),
       onRefresh: () => refreshUserData(),
       onLogout: () => handleLogout(),
-      onGroupJourneyListClick: () => dashboardView.openGroupJourneyListModal()
+      onGroupJourneyListClick: () => dashboardView.openGroupJourneyListModal(),
+      onContributionClick: () => profileView && profileView.openContributionModal()
     });
 
     profileView = new (global.ProfileView || window.ProfileView)({
@@ -289,6 +290,15 @@
           }
           if (currentPId && typeof localStorage !== 'undefined') {
             try { localStorage.setItem(`vital_player_milestones_${currentPId}`, JSON.stringify(playerMilestones)); } catch(e) {}
+          }
+          if (currentUserProfile) {
+            if (data.playerProgress.personalPoints !== undefined) {
+              currentUserProfile.personalPoints = Number(data.playerProgress.personalPoints || 0);
+            }
+            if (data.playerProgress.contributionPoints !== undefined) {
+              currentUserProfile.contributionPoints = Number(data.playerProgress.contributionPoints || 0);
+            }
+            try { localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile)); } catch(e) {}
           }
         }
         
