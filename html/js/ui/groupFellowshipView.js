@@ -93,6 +93,7 @@
         if (this.chatStore) {
           this.chatStore.enterChat();
         }
+        this.scrollToBottom_();
       }
     }
 
@@ -145,6 +146,7 @@
           if (!text) return;
           this.chatStore.sendMessage(this.currentPlayerId, text, this.currentUserName, this.postsColIndex);
           input.value = '';
+          this.scrollToBottom_();
         });
       }
     }
@@ -177,9 +179,17 @@
         return;
       }
 
+      // 依時間排序：由上至下為「由舊至新」（最上方為最早發布，最下方為最新發布）
+      const sortedMessages = [...(messages || [])].sort((a, b) => {
+        const timeA = this.getMessageTime_(a);
+        const timeB = this.getMessageTime_(b);
+        if (timeA !== timeB) return timeA - timeB;
+        return (a.seq || 0) - (b.seq || 0);
+      });
+
       const showPinBtn = Boolean(this.isLeader && this.isSelectingPin);
 
-      msgContainer.innerHTML = messages.map(msg => {
+      msgContainer.innerHTML = sortedMessages.map(msg => {
         const isOwn = msg.authorPlayerId === this.currentPlayerId;
         const authorText = isOwn ? '我' : (msg.authorName || '聖徒');
         const bg = isOwn ? '#e0f2fe' : '#ffffff';
@@ -242,6 +252,46 @@
             }
           });
         });
+      }
+
+      // 自動捲動至最底部（展示最新發布之留言）
+      this.scrollToBottom_();
+    }
+
+    getMessageTime_(msg) {
+      if (!msg) return 0;
+      if (msg.timestamp) {
+        const t = new Date(msg.timestamp).getTime();
+        if (!isNaN(t)) return t;
+      }
+      if (msg.createdAt) {
+        const t = new Date(msg.createdAt).getTime();
+        if (!isNaN(t)) return t;
+      }
+      if (msg.time) {
+        const t = new Date(msg.time).getTime();
+        if (!isNaN(t)) return t;
+      }
+      return 0;
+    }
+
+    scrollToBottom_() {
+      if (!this.container) return;
+      const msgContainer = this.container.querySelector('#chatMessagesContainer');
+      if (!msgContainer) return;
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => {
+          msgContainer.scrollTop = msgContainer.scrollHeight;
+        });
+      } else {
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+      }
+      if (typeof setTimeout === 'function') {
+        setTimeout(() => {
+          if (msgContainer) {
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+          }
+        }, 60);
       }
     }
 
