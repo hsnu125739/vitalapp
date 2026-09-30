@@ -265,6 +265,49 @@
     authView.showAuth();
   }
 
+  function updateUserGroupState(groupId, groupName = '', isLeader = false) {
+    if (!currentUserProfile) return;
+    currentUserProfile.groupId = groupId || '';
+    if (groupId) {
+      currentUserProfile.groupName = groupName;
+      currentUserProfile.isLeader = Boolean(isLeader);
+    } else {
+      delete currentUserProfile.groupName;
+      delete currentUserProfile.isLeader;
+      delete currentUserProfile.postsColIndex;
+      currentJourneyData = null;
+    }
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
+        if (!groupId) {
+          localStorage.removeItem('vital_current_group');
+        }
+      } catch (e) {}
+    }
+    if (profileView && typeof profileView.render === 'function') {
+      profileView.render(currentUserProfile, currentJourneyData);
+    }
+    if (dashboardView && typeof dashboardView.render === 'function') {
+      dashboardView.render(currentUserProfile, currentJourneyData);
+    }
+    if (fellowshipView) {
+      if (groupId) {
+        fellowshipView.currentPlayerId = currentUserProfile.playerId;
+        fellowshipView.currentUserName = currentUserProfile.name;
+        fellowshipView.isLeader = Boolean(currentUserProfile.isLeader);
+      } else {
+        fellowshipView.currentPlayerId = (currentUserProfile && currentUserProfile.playerId) || '';
+        fellowshipView.currentUserName = (currentUserProfile && currentUserProfile.name) || '';
+        fellowshipView.postsColIndex = null;
+        fellowshipView.isLeader = false;
+        if (typeof chatStore.leaveChat === 'function') {
+          chatStore.leaveChat();
+        }
+      }
+    }
+  }
+
   // 頁面就緒自動載入
   if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
@@ -277,7 +320,8 @@
   global.AppCoordinator = {
     initApp,
     loadUserData,
-    refreshUserData
+    refreshUserData,
+    updateUserGroupState
   };
 
 })(typeof window !== 'undefined' ? window : global);
