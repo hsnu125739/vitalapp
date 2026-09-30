@@ -157,16 +157,14 @@
           if (!isNaN(col) && col >= 2) return col;
         }
       } catch (e) {}
-      if (typeof localStorage !== 'undefined') {
-        try {
-          const groupStr = this.storage.getItem('vital_current_group');
-          if (groupStr) {
-            const g = JSON.parse(groupStr);
-            const col = Number(g.postsColIndex);
-            if (!isNaN(col) && col >= 2) return col;
-          }
-        } catch (e) {}
-      }
+      try {
+        const groupStr = this.storage.getItem('vital_current_group');
+        if (groupStr) {
+          const g = JSON.parse(groupStr);
+          const col = Number(g.postsColIndex);
+          if (!isNaN(col) && col >= 2) return col;
+        }
+      } catch (e) {}
       return null;
     }
 
