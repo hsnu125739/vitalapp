@@ -135,24 +135,86 @@
     }
   }
 
-  async function loadUserData() {
+  async function loadUserData(skipProfile = false) {
     try {
-      // 1. 取得使用者檔案
-      const profileRes = await apiClient.getProfile();
-      if (!profileRes || !profileRes.success) {
-        console.warn('[App] 取得遠端使用者檔案失敗，使用登入快照呈現', profileRes);
-        // 只有在完全無登入快照且無有效 Token 時，才跳轉登入
-        if (!currentUserProfile && !apiClient.getSessionToken()) {
-          handleLogout();
-          return;
+      // 0. 本地水合 (0ms rendering)
+      let cachedPlayer = null;
+      try {
+        const cachedStr = localStorage.getItem('vital_current_player');
+        if (cachedStr) {
+          cachedPlayer = JSON.parse(cachedStr);
+          if (cachedPlayer && cachedPlayer.playerId) {
+            currentUserProfile = { ...currentUserProfile, ...cachedPlayer };
+            const gId = cachedPlayer.groupId;
+            
+            let cachedGroupProgress = null;
+            if (gId) {
+              const cgStr = localStorage.getItem(`vital_group_progress_${gId}`);
+              if (cgStr) cachedGroupProgress = JSON.parse(cgStr);
+              currentJourneyData = deriveJourneyFromGroupProgress(cachedGroupProgress, currentUserProfile);
+            }
+            
+            let cachedAnnouncements = [];
+            const caStr = localStorage.getItem('vital_announcements');
+            if (caStr) cachedAnnouncements = JSON.parse(caStr);
+            
+            // 立即使用快取資料渲染 UI
+            dashboardView.render(currentUserProfile, currentJourneyData, cachedAnnouncements);
+            profileView.render(currentUserProfile, currentJourneyData);
+          }
         }
+      } catch (e) {}
+
+      // 如果既無 token 也無快取 profile，則退出
+      if (!currentUserProfile && !apiClient.getSessionToken()) {
+        handleLogout();
+        return;
+      }
+      
+      const pId = currentUserProfile?.playerId;
+      const gId = currentUserProfile?.groupId;
+      const matrixColIndex = currentUserProfile?.matrixColIndex;
+
+      const reqs = [];
+      reqs.push(skipProfile ? Promise.resolve({ success: true, player: currentUserProfile }) : apiClient.getBootstrap());
+      if (pId) {
+        reqs.push(apiClient.getProgressBundle(gId));
       } else {
-        const fetchedPlayer = profileRes.player || profileRes.data?.player || profileRes.data || {};
-        currentUserProfile = { ...currentUserProfile, ...fetchedPlayer };
-        if (typeof localStorage !== 'undefined') {
-          try {
-            localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
-          } catch (e) {}
+        reqs.push(Promise.resolve(null));
+      }
+      if (gId) {
+        reqs.push(apiClient.getGroupProfile(gId));
+      } else {
+        reqs.push(Promise.resolve(null));
+      }
+
+      const [bootstrapRes, bundleRes, profileRes] = await Promise.allSettled(reqs);
+
+      let announcements = [];
+      let dailyRecords = null;
+      let meetingRecords = null;
+      
+      // 2. 處理 Bootstrap 回應
+      if (bootstrapRes.status === 'fulfilled' && bootstrapRes.value) {
+        const res = bootstrapRes.value;
+        if (res && res.success) {
+          const fetchedPlayer = res.player || res.data?.player || res.data || {};
+          currentUserProfile = { ...currentUserProfile, ...fetchedPlayer };
+          
+          if (res.data?.dailyRecords) dailyRecords = res.data.dailyRecords;
+          if (res.data?.meetingRecords) meetingRecords = res.data.meetingRecords;
+          if (res.data?.announcements) announcements = res.data.announcements;
+
+          if (typeof localStorage !== 'undefined') {
+            try {
+              localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
+              if (dailyRecords) localStorage.setItem(`vital_daily_records_${currentUserProfile.playerId}`, JSON.stringify(dailyRecords));
+              if (meetingRecords) localStorage.setItem(`vital_meeting_records_${currentUserProfile.playerId}`, JSON.stringify(meetingRecords));
+              if (announcements.length > 0) localStorage.setItem('vital_announcements', JSON.stringify(announcements));
+            } catch (e) {}
+          }
+        } else if (!skipProfile) {
+          console.warn('[App] 取得遠端使用者檔案失敗', bootstrapRes.value);
         }
       }
 
@@ -165,133 +227,126 @@
         currentUserProfile.avatarUrl = `../${folder}/${prefix}-${no}.png`;
       }
 
-      const playerId = currentUserProfile?.playerId;
-      const groupId = currentUserProfile?.groupId;
+      const currentPId = currentUserProfile?.playerId;
+      const currentGId = currentUserProfile?.groupId;
 
-      // 1.5 取得個人成就進度 (PlayerProgress.milestones)
+      // 3. 處理 Progress Bundle 回應
       let playerMilestones = [];
-      if (playerId) {
-        try {
-          const ppRes = await apiClient.getPlayerProgress(playerId);
-          if (ppRes && (ppRes.success || ppRes.data)) {
-            const data = ppRes.data || ppRes;
-            playerMilestones = data.milestones || [];
-            if (typeof playerMilestones === 'string') {
-              try { playerMilestones = JSON.parse(playerMilestones); } catch (e) { playerMilestones = []; }
-            }
+      let groupMilestones = [];
+      let groupProgress = null;
+
+      if (bundleRes.status === 'fulfilled' && bundleRes.value && bundleRes.value.success) {
+        const data = bundleRes.value.data || bundleRes.value;
+        
+        if (data.playerProgress) {
+          playerMilestones = data.playerProgress.milestones || [];
+          if (typeof playerMilestones === 'string') {
+            try { playerMilestones = JSON.parse(playerMilestones); } catch(e) { playerMilestones = []; }
           }
-        } catch (pErr) {
-          console.warn('[App] 讀取個人成就進度失敗', pErr);
+          if (currentPId && typeof localStorage !== 'undefined') {
+            try { localStorage.setItem(`vital_player_milestones_${currentPId}`, JSON.stringify(playerMilestones)); } catch(e) {}
+          }
+        }
+        
+        if (data.groupProgress) {
+          groupProgress = data.groupProgress;
+          groupMilestones = groupProgress.milestones || [];
+          if (typeof groupMilestones === 'string') {
+            try { groupMilestones = JSON.parse(groupMilestones); } catch(e) { groupMilestones = []; }
+          }
+          if (currentGId && typeof localStorage !== 'undefined') {
+            try {
+              localStorage.setItem(`vital_group_progress_${currentGId}`, JSON.stringify(groupProgress));
+              localStorage.setItem(`vital_group_milestones_${currentGId}`, JSON.stringify(groupMilestones));
+            } catch(e) {}
+          }
+        }
+      } else {
+        if (currentPId && typeof localStorage !== 'undefined') {
+          try { playerMilestones = JSON.parse(localStorage.getItem(`vital_player_milestones_${currentPId}`) || '[]'); } catch(e) { playerMilestones = []; }
+        }
+        if (currentGId && typeof localStorage !== 'undefined') {
           try {
-            playerMilestones = JSON.parse(localStorage.getItem('vital_player_milestones') || '[]');
-          } catch (e) { playerMilestones = []; }
+            groupMilestones = JSON.parse(localStorage.getItem(`vital_group_milestones_${currentGId}`) || '[]');
+            groupProgress = JSON.parse(localStorage.getItem(`vital_group_progress_${currentGId}`) || 'null');
+          } catch(e) { groupMilestones = []; groupProgress = null; }
         }
       }
 
-      // 2. 取得小組進度與成就 (GroupProgress.milestones)
-      let groupMilestones = [];
-      let groupProgress = null;
-      if (groupId) {
-        try {
-          const gpRes = await apiClient.getGroupProgress(groupId);
-          if (gpRes && (gpRes.success || gpRes.data)) {
-            const data = gpRes.data || gpRes;
-            groupProgress = data;
-            groupMilestones = data.milestones || [];
-            if (typeof groupMilestones === 'string') {
-              try { groupMilestones = JSON.parse(groupMilestones); } catch (e) { groupMilestones = []; }
-            }
-            try {
-              localStorage.setItem('vital_group_progress', JSON.stringify(data));
-              localStorage.setItem('vital_group_milestones', JSON.stringify(groupMilestones));
-            } catch (e) {}
-          }
-        } catch (gpErr) {
-          console.warn('[App] 讀取小組進度失敗', gpErr);
+      if (currentGId && profileRes.status === 'fulfilled' && profileRes.value && profileRes.value.success) {
+        const groupProfileData = profileRes.value.data || profileRes.value;
+        if (typeof localStorage !== 'undefined') {
           try {
-            groupMilestones = JSON.parse(localStorage.getItem('vital_group_milestones') || '[]');
-            groupProgress = JSON.parse(localStorage.getItem('vital_group_progress') || 'null');
-          } catch (e) { groupMilestones = []; }
+            localStorage.setItem(`vital_group_profile_${currentGId}`, JSON.stringify(groupProfileData));
+          } catch(e) {}
         }
+      }
+
+      if (currentGId) {
         currentJourneyData = deriveJourneyFromGroupProgress(groupProgress, currentUserProfile);
       } else {
-        groupProgress = null;
         currentJourneyData = null;
         if (currentUserProfile) {
           currentUserProfile.groupId = '';
           delete currentUserProfile.groupName;
           delete currentUserProfile.isLeader;
           delete currentUserProfile.postsColIndex;
-          try {
-            localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
-            localStorage.removeItem('vital_group_progress');
-            localStorage.removeItem('vital_group_milestones');
-            localStorage.removeItem('vital_group_journey');
-          } catch (e) {}
+          if (typeof localStorage !== 'undefined') {
+            try { localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile)); } catch (e) {}
+          }
         }
       }
 
-      // 2.5 登入時核對新成就並覆蓋本地快取
-      checkMilestone(playerMilestones, groupMilestones);
+      // 4. checkMilestone
+      checkMilestone(playerMilestones, groupMilestones, currentPId, currentGId);
 
-      // 3. 取得有效系統公告
-      let announcements = [];
-      try {
-        const annRes = await apiClient.getAnnouncements();
-        if (annRes && annRes.success) {
-          announcements = annRes.announcements || annRes.data?.announcements || annRes.data || [];
-        }
-      } catch (aErr) {
-        console.warn('[App] 讀取公告失敗', aErr);
+      if (announcements.length === 0 && typeof localStorage !== 'undefined') {
+        try { announcements = JSON.parse(localStorage.getItem('vital_announcements') || '[]'); } catch(e) { announcements = []; }
       }
 
-      // 4. 渲染視圖
+      // 5. 差量更新視圖
       dashboardView.render(currentUserProfile, currentJourneyData, announcements);
       profileView.render(currentUserProfile, currentJourneyData);
 
-      // 4.5 水合當日操練與當週聚會狀態
-      try {
-        const homeDashRes = await apiClient.getHomeDashboard(currentUserProfile.playerId, currentUserProfile.matrixColIndex);
-        const dashData = (homeDashRes && homeDashRes.data) || homeDashRes || {};
-        if (dashData.dailyRecord) {
-          const today = dashboardView.currentDate || dashboardView.getTodayDateString();
-          practiceStore.dailyState[today] = {
-            morning: Boolean(dashData.dailyRecord.morningRevival || dashData.dailyRecord.morning),
-            morningRevival: Boolean(dashData.dailyRecord.morningRevival || dashData.dailyRecord.morning),
-            bible: Boolean(dashData.dailyRecord.bibleReading || dashData.dailyRecord.bible),
-            bibleReading: Boolean(dashData.dailyRecord.bibleReading || dashData.dailyRecord.bible),
-            prayer: Boolean(dashData.dailyRecord.prayer),
-            book: Boolean(dashData.dailyRecord.bookPursuit || dashData.dailyRecord.book),
-            bookPursuit: Boolean(dashData.dailyRecord.bookPursuit || dashData.dailyRecord.book),
-            syncStatus: 'synced',
-            hasAmberDot: false
-          };
-          dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
-        }
-        if (dashData.meetingRecord) {
-          const currentWeek = dashboardView.currentWeekKey || dashboardView.getCurrentWeekKey();
-          practiceStore.meetingState[currentWeek] = {
-            smallGroup: Boolean(dashData.meetingRecord.groupMeeting || dashData.meetingRecord.smallGroup || dashData.meetingRecord.group),
-            prayerMeeting: Boolean(dashData.meetingRecord.prayerMeeting || dashData.meetingRecord.prayerMtg),
-            lordDayMeeting: Boolean(dashData.meetingRecord.lordsDayMeeting || dashData.meetingRecord.lordDayMeeting || dashData.meetingRecord.lordDay),
-            outreachVisit: Boolean(dashData.meetingRecord.mutualPursuit || dashData.meetingRecord.outreachVisit || dashData.meetingRecord.outreach),
-            syncStatus: 'synced',
-            hasAmberDot: false
-          };
-          dashboardView.renderMeetingPracticeState(practiceStore.meetingState[currentWeek]);
-        }
-      } catch (dashErr) {
-        console.warn('[App] 讀取主頁打卡狀態失敗', dashErr);
+      // 6. 處理打卡狀態 (從 dailyRecords / meetingRecords 解析)
+      if (dailyRecords) {
+        const today = dashboardView.currentDate || dashboardView.getTodayDateString();
+        const todayRecord = dailyRecords[today] || {};
+        practiceStore.dailyState[today] = {
+          morning: Boolean(todayRecord.morning),
+          morningRevival: Boolean(todayRecord.morning),
+          bible: Boolean(todayRecord.bible),
+          bibleReading: Boolean(todayRecord.bible),
+          prayer: Boolean(todayRecord.prayer),
+          book: Boolean(todayRecord.book),
+          bookPursuit: Boolean(todayRecord.book),
+          syncStatus: 'synced',
+          hasAmberDot: false
+        };
+        dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
+      }
+      if (meetingRecords) {
+        const currentWeek = dashboardView.currentWeekKey || dashboardView.getCurrentWeekKey();
+        const currentMtg = meetingRecords[currentWeek] || {};
+        practiceStore.meetingState[currentWeek] = {
+          smallGroup: Boolean(currentMtg.group),
+          prayerMeeting: Boolean(currentMtg.prayerMtg),
+          lordDayMeeting: Boolean(currentMtg.lordDay),
+          outreachVisit: Boolean(currentMtg.mutual),
+          syncStatus: 'synced',
+          hasAmberDot: false
+        };
+        dashboardView.renderMeetingPracticeState(practiceStore.meetingState[currentWeek]);
       }
 
-      // 5. 初始化小組交流
-      if (groupId) {
+      // 7. 初始化小組交流
+      if (currentGId) {
         fellowshipView.currentPlayerId = currentUserProfile.playerId;
         fellowshipView.currentUserName = currentUserProfile.name;
         const pCol = currentUserProfile.postsColIndex || currentJourneyData?.postsColIndex || null;
         fellowshipView.postsColIndex = pCol;
         fellowshipView.isLeader = Boolean(currentUserProfile.isLeader);
-        chatStore.init(groupId, pCol);
+        chatStore.init(currentGId, pCol);
       } else {
         fellowshipView.currentPlayerId = (currentUserProfile && currentUserProfile.playerId) || '';
         fellowshipView.currentUserName = (currentUserProfile && currentUserProfile.name) || '';
@@ -307,7 +362,7 @@
     }
   }
 
-  function checkMilestone(playerMilestones, groupMilestones) {
+  function checkMilestone(playerMilestones, groupMilestones, pId = null, gId = null) {
     let lastLogin = '1970-01-01T00:00:00Z';
     try {
       lastLogin = localStorage.getItem('vital_last_login') || '1970-01-01T00:00:00Z';
@@ -325,8 +380,8 @@
 
     // 無論有無新成就，全覆蓋寫入 localStorage 確保一致性
     try {
-      localStorage.setItem('vital_player_milestones', JSON.stringify(pMs));
-      localStorage.setItem('vital_group_milestones', JSON.stringify(gMs));
+      if (pId) localStorage.setItem(`vital_player_milestones_${pId}`, JSON.stringify(pMs));
+      if (gId) localStorage.setItem(`vital_group_milestones_${gId}`, JSON.stringify(gMs));
       localStorage.setItem('vital_last_login', new Date().toISOString());
     } catch (e) {}
   }
@@ -410,7 +465,13 @@
 
   function openChests(selectedIdx = null) {
     const points = (currentUserProfile && (currentUserProfile.totalPoints !== undefined ? currentUserProfile.totalPoints : currentUserProfile.totalScore)) || 0;
-    chestView.openChestModal(points, selectedIdx);
+    let pMs = [];
+    if (currentUserProfile && currentUserProfile.playerId) {
+      try {
+        pMs = JSON.parse(localStorage.getItem(`vital_player_milestones_${currentUserProfile.playerId}`) || '[]');
+      } catch (e) {}
+    }
+    chestView.openChestModal(points, selectedIdx, pMs);
   }
 
   async function refreshUserData() {
@@ -424,7 +485,7 @@
         localStorage.setItem('vital_current_player', JSON.stringify(profile));
       } catch (e) {}
     }
-    loadUserData();
+    loadUserData(true);
   }
 
   function handleAvatarUpdated(newUrl) {
@@ -437,6 +498,25 @@
 
   function handleLogout() {
     apiClient.clearSessionToken();
+    const pid = currentUserProfile?.playerId;
+    const gid = currentUserProfile?.groupId;
+    
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.removeItem('vital_current_player');
+        if (pid) {
+          localStorage.removeItem(`vital_player_milestones_${pid}`);
+          localStorage.removeItem(`vital_daily_records_${pid}`);
+          localStorage.removeItem(`vital_meeting_records_${pid}`);
+        }
+        if (gid) {
+          localStorage.removeItem(`vital_group_progress_${gid}`);
+          localStorage.removeItem(`vital_group_milestones_${gid}`);
+          localStorage.removeItem(`vital_group_profile_${gid}`);
+        }
+      } catch (e) {}
+    }
+    
     currentUserProfile = null;
     currentJourneyData = null;
     authView.showAuth();
@@ -444,6 +524,7 @@
 
   async function updateUserGroupState(groupId, groupName = '', isLeader = false) {
     if (!currentUserProfile) return;
+    const pId = currentUserProfile.playerId;
     currentUserProfile.groupId = groupId || '';
     if (groupId) {
       currentUserProfile.groupName = groupName;
@@ -457,11 +538,6 @@
     if (typeof localStorage !== 'undefined') {
       try {
         localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
-        if (!groupId) {
-          localStorage.removeItem('vital_current_group');
-          localStorage.removeItem('vital_group_journey');
-          localStorage.removeItem('vital_group_milestones');
-        }
       } catch (e) {}
     }
 
@@ -476,14 +552,14 @@
           }
           currentJourneyData = deriveJourneyFromGroupProgress(data, currentUserProfile);
           try {
-            localStorage.setItem('vital_group_progress', JSON.stringify(data));
-            localStorage.setItem('vital_group_milestones', JSON.stringify(groupMilestones));
+            localStorage.setItem(`vital_group_progress_${groupId}`, JSON.stringify(data));
+            localStorage.setItem(`vital_group_milestones_${groupId}`, JSON.stringify(groupMilestones));
           } catch (e) {}
           let playerMilestones = [];
           try {
-            playerMilestones = JSON.parse(localStorage.getItem('vital_player_milestones') || '[]');
+            playerMilestones = JSON.parse(localStorage.getItem(`vital_player_milestones_${pId}`) || '[]');
           } catch (e) {}
-          checkMilestone(playerMilestones, groupMilestones);
+          checkMilestone(playerMilestones, groupMilestones, pId, groupId);
         }
       } catch (jErr) {
         console.warn('[App] 創組/加入小組後讀取小組進度失敗', jErr);
