@@ -1,18 +1,19 @@
-const CACHE_NAME = 'vital-cache-v1';
+const CACHE_NAME = 'vital-cache-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './css/styles.css',
-  './js/app.js',
-  './js/config.js',
+  './runtime-settings.js',
   './js/api/apiClient.js',
   './js/store/practiceStore.js',
   './js/store/chatStore.js',
+  './js/ui/authView.js',
   './js/ui/dashboardView.js',
-  './js/ui/profileView.js',
-  './js/ui/groupFellowshipView.js',
+  './js/ui/chestView.js',
   './js/ui/footprintsView.js',
-  './js/ui/chestView.js'
+  './js/ui/groupFellowshipView.js',
+  './js/ui/profileView.js',
+  './js/app.js'
 ];
 
 self.addEventListener('install', (event) => {
