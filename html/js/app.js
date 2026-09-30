@@ -144,6 +144,17 @@
         } catch (jErr) {
           console.warn('[App] 讀取小組歷程失敗', jErr);
         }
+      } else {
+        currentJourneyData = null;
+        if (currentUserProfile) {
+          currentUserProfile.groupId = '';
+          delete currentUserProfile.groupName;
+          delete currentUserProfile.isLeader;
+          delete currentUserProfile.postsColIndex;
+          try {
+            localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
+          } catch (e) {}
+        }
       }
 
       // 3. 取得有效系統公告
@@ -204,6 +215,14 @@
         fellowshipView.postsColIndex = pCol;
         fellowshipView.isLeader = Boolean(currentUserProfile.isLeader);
         chatStore.init(groupId, pCol);
+      } else {
+        fellowshipView.currentPlayerId = (currentUserProfile && currentUserProfile.playerId) || '';
+        fellowshipView.currentUserName = (currentUserProfile && currentUserProfile.name) || '';
+        fellowshipView.postsColIndex = null;
+        fellowshipView.isLeader = false;
+        if (typeof chatStore.leaveChat === 'function') {
+          chatStore.leaveChat();
+        }
       }
 
     } catch (err) {
