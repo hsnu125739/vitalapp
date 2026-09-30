@@ -456,6 +456,16 @@
       return res;
     }
 
+    async getBootstrap() {
+      return await this.request('getBootstrap');
+    }
+    
+    async getProgressBundle(groupId = null) {
+      const data = {};
+      if (groupId) data.groupId = groupId;
+      return await this.request('getProgressBundle', data, true); // true = call progression microservice
+    }
+
     async getProfile() {
       return await this.request('getProfile');
     }
@@ -495,19 +505,6 @@
     submitDailyPractice(data) { return this.request('submitDailyPractice', data); }
     submitMeetingPractice(data) { return this.request('submitMeetingPractice', data); }
 
-    getFootprints(playerId = null, matrixColIndex = null) {
-      const data = {};
-      if (playerId) data.playerId = playerId;
-      if (matrixColIndex) data.matrixColIndex = matrixColIndex;
-      return this.request('getFootprints', data);
-    }
-
-    getHomeDashboard(playerId = null, matrixColIndex = null) {
-      const data = {};
-      if (playerId) data.playerId = playerId;
-      if (matrixColIndex) data.matrixColIndex = matrixColIndex;
-      return this.request('getHomeDashboard', data);
-    }
 
     // 活力組與成長篇章
     createGroup(data) { return this.request('createGroup', data); }
@@ -524,12 +521,12 @@
       if (col) data.matrixColIndex = col;
       return this.request('leaveGroup', data);
     }
-    getGroupDashboard(groupId = null) {
+    getGroupProfile(groupId = null) {
       const data = {};
       if (groupId) data.groupId = groupId;
       const col = this.getMatrixColIndexFromStorage();
       if (col) data.matrixColIndex = col;
-      return this.request('getGroupDashboard', data);
+      return this.request('getGroupProfile', data);
     }
     transferGroupLeader(targetPlayerId, groupId = null) {
       const data = { targetPlayerId };
@@ -566,9 +563,10 @@
       if (postsColIndex) data.postsColIndex = postsColIndex;
       return this.request('clearGroupAnnouncement', data);
     }
-    getGroupPosts(groupId, limit = 30, postsColIndex = null) {
+    getGroupPosts(groupId, limit = 30, postsColIndex = null, clientCount = null) {
       const data = { groupId, limit };
       if (postsColIndex) data.postsColIndex = postsColIndex;
+      if (clientCount !== null) data.clientCount = clientCount;
       return this.request('getGroupPosts', data);
     }
     deleteGroupPost(postId) { return this.request('deleteGroupPost', { postId }); }
