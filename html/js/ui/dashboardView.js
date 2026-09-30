@@ -224,6 +224,12 @@
     }
 
     renderJourneyNodes_(journeyData) {
+      if (!journeyData && typeof localStorage !== 'undefined') {
+        try {
+          journeyData = JSON.parse(localStorage.getItem('vital_group_journey') || 'null');
+        } catch (e) {}
+      }
+
       const currentChapter = (journeyData && journeyData.currentChapter) || 1;
       const chapterIdx = Math.max(1, Math.min(8, Number(currentChapter))) - 1;
       const chapterName = CHAPTER_NAMES[chapterIdx] || '信心';
