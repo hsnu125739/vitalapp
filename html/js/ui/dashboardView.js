@@ -237,7 +237,10 @@
           const label1 = cards[0].querySelector('span');
           if (label1) label1.textContent = '個人';
           const strong1 = cards[0].querySelector('strong');
-          if (strong1) strong1.id = 'homePersonalScoreText';
+          if (strong1) {
+            strong1.id = 'homePersonalScoreText';
+            strong1.style.setProperty('font-size', '28px', 'important');
+          }
 
           // 第二張卡必為【貢獻】
           cards[1].className = 'hero-score-card hero-contribution';
@@ -245,7 +248,10 @@
           const label2 = cards[1].querySelector('span');
           if (label2) label2.textContent = '貢獻';
           const strong2 = cards[1].querySelector('strong');
-          if (strong2) strong2.id = 'homeContributionText';
+          if (strong2) {
+            strong2.id = 'homeContributionText';
+            strong2.style.setProperty('font-size', '28px', 'important');
+          }
         }
       }
 
