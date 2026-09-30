@@ -179,13 +179,8 @@
         return;
       }
 
-      // 依時間排序：由上至下為「由舊至新」（最上方為最早發布，最下方為最新發布）
-      const sortedMessages = [...(messages || [])].sort((a, b) => {
-        const timeA = this.getMessageTime_(a);
-        const timeB = this.getMessageTime_(b);
-        if (timeA !== timeB) return timeA - timeB;
-        return (a.seq || 0) - (b.seq || 0);
-      });
+      // 依時間由舊至新排序（最上方為最早發布，最下方為最新發布）
+      const sortedMessages = [...(messages || [])].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
       const showPinBtn = Boolean(this.isLeader && this.isSelectingPin);
 
@@ -258,40 +253,10 @@
       this.scrollToBottom_();
     }
 
-    getMessageTime_(msg) {
-      if (!msg) return 0;
-      if (msg.timestamp) {
-        const t = new Date(msg.timestamp).getTime();
-        if (!isNaN(t)) return t;
-      }
-      if (msg.createdAt) {
-        const t = new Date(msg.createdAt).getTime();
-        if (!isNaN(t)) return t;
-      }
-      if (msg.time) {
-        const t = new Date(msg.time).getTime();
-        if (!isNaN(t)) return t;
-      }
-      return 0;
-    }
-
     scrollToBottom_() {
-      if (!this.container) return;
-      const msgContainer = this.container.querySelector('#chatMessagesContainer');
-      if (!msgContainer) return;
-      if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(() => {
-          msgContainer.scrollTop = msgContainer.scrollHeight;
-        });
-      } else {
+      const msgContainer = this.container?.querySelector('#chatMessagesContainer');
+      if (msgContainer) {
         msgContainer.scrollTop = msgContainer.scrollHeight;
-      }
-      if (typeof setTimeout === 'function') {
-        setTimeout(() => {
-          if (msgContainer) {
-            msgContainer.scrollTop = msgContainer.scrollHeight;
-          }
-        }, 60);
       }
     }
 
