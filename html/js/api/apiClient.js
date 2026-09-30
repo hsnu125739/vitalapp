@@ -28,6 +28,7 @@
 
   const PROGRESSION_ACTIONS = new Set([
     'getPlayerProgress',
+    'getGroupProgress',
     'getGroupJourney',
     'getGroupJourneyList',
     'settleMemberDeparture',
@@ -549,6 +550,11 @@
       const data = {};
       if (playerId) data.playerId = playerId;
       return this.request('getPlayerProgress', data);
+    }
+    getGroupProgress(groupId = null) {
+      const data = {};
+      if (groupId) data.groupId = groupId;
+      return this.request('getGroupProgress', data);
     }
 
     // 小組交流板
