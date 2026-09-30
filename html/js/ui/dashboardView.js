@@ -148,7 +148,8 @@
       const avatarPlaceholder = document.getElementById('homeAvatarPlaceholder');
 
       if (nameEl) nameEl.textContent = userProfile.name || userProfile.username || '活力人';
-      if (groupEl) groupEl.textContent = userProfile.groupName || (userProfile.groupId ? `活力組 #${userProfile.groupId}` : '未加入活力組');
+      const hasGroup = Boolean(userProfile.groupId);
+      if (groupEl) groupEl.textContent = hasGroup ? (userProfile.groupName || `活力組 #${userProfile.groupId}`) : '未加入活力組';
 
       if (avatarImg && userProfile.avatarUrl) {
         avatarImg.src = userProfile.avatarUrl;
