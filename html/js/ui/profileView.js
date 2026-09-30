@@ -885,7 +885,7 @@
 
       const p = this.currentUserProfile || {};
       const groupId = p.groupId;
-      const myPoints = Number((p.totalPoints !== undefined ? p.totalPoints : p.totalScore) || 0);
+      const myPoints = Number((p.contributionPoints !== undefined ? p.contributionPoints : (p.contribution !== undefined ? p.contribution : (p.totalPoints || 0))) || 0);
 
       if (!groupId) {
         if (this.infoModalContent) {
