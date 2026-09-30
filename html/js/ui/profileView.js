@@ -279,15 +279,15 @@
                 </div>
                 <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
                   <button type="button" id="btnLeaveVitalGroup" class="danger-btn" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">${leaveBtnText}</button>
-                  ${canTransferLeader ? \`<button type="button" id="btnToggleTransferLeader" class="secondary-btn" style="background:#eff6ff;color:#2563eb;border:1px solid #93c5fd;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">轉讓組長</button>\` : ''}
+                  ${canTransferLeader ? '<button type="button" id="btnToggleTransferLeader" class="secondary-btn" style="background:#eff6ff;color:#2563eb;border:1px solid #93c5fd;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">轉讓組長</button>' : ''}
                 </div>
               </div>
-              ${canTransferLeader ? \`
+              ${canTransferLeader ? `
                 <div id="vitalGroupMembersPicker" style="display:none;margin-top:12px;padding-top:12px;border-top:1px dashed #cbd5e1;">
                   <div style="font-size:13px;font-weight:600;color:#334155;margin-bottom:8px;">請選擇欲交接組長之成員：</div>
                   <div id="membersPickerList" style="display:flex;flex-direction:column;gap:6px;"></div>
                 </div>
-              \` : ''}
+              ` : ''}
             </div>
           `;
 
@@ -794,6 +794,11 @@
       const navMy = document.getElementById('navMyBtn');
       if (navHome) navHome.classList.remove('active');
       if (navMy) navMy.classList.add('active');
+
+      // 背景預載聊天室
+      if (typeof chatStore !== 'undefined' && chatStore.prefetch) {
+        chatStore.prefetch();
+      }
     }
 
     render(userProfile, journeyData = null) {
