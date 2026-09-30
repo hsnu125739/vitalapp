@@ -7,9 +7,6 @@
 (function(global) {
   'use strict';
 
-  const MALE_AVATARS = Array.from({ length: 8 }, (_, i) => `../avatar-male/avatar-male-direct-${String(i + 1).padStart(3, '0')}.png`);
-  const FEMALE_AVATARS = Array.from({ length: 8 }, (_, i) => `../avatar-female/avatar-female-direct-${String(i + 1).padStart(3, '0')}.png`);
-
   class ProfileView {
     constructor({ apiClient, onAvatarUpdated, onLogout, onFootprintClick, onFellowshipClick, onContributionClick }) {
       this.apiClient = apiClient;
@@ -23,7 +20,6 @@
       this.myViewEl = document.getElementById('myView');
 
       this.avatarModal = document.getElementById('avatarModal');
-      this.avatarList = document.getElementById('avatarList');
       this.avatarPreview = document.getElementById('avatarModalPreview');
       this.avatarInfo = document.getElementById('avatarModalInfo');
       this.avatarSaveBtn = document.getElementById('avatarSaveBtn');
@@ -841,39 +837,6 @@
     openAvatarModal() {
       if (this.avatarModal) this.avatarModal.classList.remove('hidden');
       this.updateAvatarPreview_();
-      this.renderAvatarGrid_();
-    }
-
-    renderAvatarGrid_() {
-      if (!this.avatarList) return;
-
-      const allAvatars = [
-        ...MALE_AVATARS.map((url, i) => ({ url, label: `弟兄 ${i + 1}` })),
-        ...FEMALE_AVATARS.map((url, i) => ({ url, label: `姊妹 ${i + 1}` }))
-      ];
-
-      this.avatarList.innerHTML = allAvatars.map(av => `
-        <button class="avatar-option-btn" type="button" data-avatar-url="${av.url}" style="border:2px solid #e2e8f0; border-radius:12px; padding:6px; background:#fff; cursor:pointer;">
-          <img src="${av.url}" alt="${av.label}" style="width:56px; height:56px; object-fit:contain; border-radius:8px;">
-          <div style="font-size:11px; margin-top:4px; color:#475569;">${av.label}</div>
-        </button>
-      `).join('');
-
-      this.avatarList.querySelectorAll('.avatar-option-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          this.avatarList.querySelectorAll('.avatar-option-btn').forEach(b => b.style.borderColor = '#e2e8f0');
-          btn.style.borderColor = '#0284c7';
-          this.selectedAvatarUrl = btn.getAttribute('data-avatar-url');
-
-          if (this.avatarPreview) {
-            this.avatarPreview.src = this.selectedAvatarUrl;
-            this.avatarPreview.classList.remove('hidden');
-          }
-          if (this.avatarInfo) {
-            this.avatarInfo.textContent = '已選擇新頭像';
-          }
-        });
-      });
     }
 
     async openContributionModal() {
