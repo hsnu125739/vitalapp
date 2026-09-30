@@ -456,6 +456,10 @@
       return res;
     }
 
+    async getPractice() {
+      return await this.request('getPractice');
+    }
+
     async getBootstrap() {
       return await this.request('getBootstrap');
     }
