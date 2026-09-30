@@ -449,40 +449,49 @@ class OptimisticPracticeStore {
     if (queue.length === 0) return;
 
     const remaining = [];
-    for (const item of queue) {
-      try {
-        if (item.type === 'DAILY') {
-          const p = item.payload || {};
-          const res = await this.apiClient.submitDailyPractice({
-            date: item.key,
-            packedValue: p.packedValue
-          });
+    const promises = queue.map(item => {
+      if (item.type === 'DAILY') {
+        const p = item.payload || {};
+        return this.apiClient.submitDailyPractice({
+          date: item.key,
+          packedValue: p.packedValue
+        }).then(res => {
           if (res && res.success) {
             if (this.dailyState[item.key]) {
               this.dailyState[item.key].syncStatus = 'synced';
               this.dailyState[item.key].hasAmberDot = false;
               this.notify('DAILY', item.key, { ...this.dailyState[item.key] });
             }
-            continue;
+            return { item, success: true };
           }
-        } else if (item.type === 'MEETING') {
-          const p = item.payload || {};
-          const res = await this.apiClient.submitMeetingPractice({
-            weekKey: item.key,
-            packedValue: p.packedValue
-          });
+          return { item, success: false };
+        }).catch(() => ({ item, success: false }));
+      } else if (item.type === 'MEETING') {
+        const p = item.payload || {};
+        return this.apiClient.submitMeetingPractice({
+          weekKey: item.key,
+          packedValue: p.packedValue
+        }).then(res => {
           if (res && res.success) {
             if (this.meetingState[item.key]) {
               this.meetingState[item.key].syncStatus = 'synced';
               this.meetingState[item.key].hasAmberDot = false;
               this.notify('MEETING', item.key, { ...this.meetingState[item.key] });
             }
-            continue;
+            return { item, success: true };
           }
-        }
-        remaining.push(item);
-      } catch (err) {
-        remaining.push(item);
+          return { item, success: false };
+        }).catch(() => ({ item, success: false }));
+      }
+      return Promise.resolve({ item, success: false });
+    });
+
+    const results = await Promise.allSettled(promises);
+    for (const res of results) {
+      if (res.status === 'fulfilled') {
+        if (!res.value.success) remaining.push(res.value.item);
+      } else {
+        // Fallback (won't happen because we catch)
       }
     }
 
