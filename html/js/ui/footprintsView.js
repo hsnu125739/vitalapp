@@ -1,7 +1,7 @@
 /**
  * footprintsView.js
  * 同行足跡視圖深層模組 (Footprints View Deep Module)
- * 負責：最近 30 天每日操練歷程、累計完成天數與每日各項操練明細彈窗
+ * 負責：最近 30 天個人操練足跡、項目明細與每日加分統計
  */
 
 (function(global) {
@@ -16,67 +16,91 @@
       this.infoModalContent = document.getElementById('infoModalContent');
     }
 
-    async openFootprintsModal() {
-      if (this.infoModalTitle) this.infoModalTitle.textContent = '30 天同行足跡歷程';
+    openFootprintsModal() {
+      if (this.infoModalTitle) this.infoModalTitle.textContent = '👣 個人同行足跡（近 30 天）';
       if (this.infoModal) this.infoModal.classList.remove('hidden');
 
       if (this.infoModalContent) {
-        this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">讀取足跡中...</div>';
+        this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">讀取中...</div>';
       }
 
       try {
-        const res = await this.apiClient.getFootprints();
-        if (res && res.success && res.data) {
-          this.renderFootprints_(res.data);
+        let pId = null;
+        if (typeof window !== 'undefined' && window.AppCoordinator && window.AppCoordinator.currentUserProfile) {
+          pId = window.AppCoordinator.currentUserProfile.playerId;
         } else {
-          if (this.infoModalContent) {
-            this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#ef4444;">讀取足跡紀錄失敗</div>';
+          try { pId = JSON.parse(localStorage.getItem('vital_current_player')).playerId; } catch(e){}
+        }
+
+        let dailyRecords = {};
+        if (pId && typeof localStorage !== 'undefined') {
+          const stored = localStorage.getItem(`vital_daily_records_${pId}`);
+          if (stored) {
+            dailyRecords = JSON.parse(stored);
           }
         }
+
+        // 轉換為陣列並由新到舊排序
+        const list = [];
+        for (const [dateStr, unpacked] of Object.entries(dailyRecords)) {
+          list.push({
+            date: dateStr,
+            ...unpacked
+          });
+        }
+        list.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        this.renderFootprintsList_(list);
       } catch (err) {
-        console.warn('[FootprintsView] 讀取同行足跡失敗', err);
         if (this.infoModalContent) {
-          this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#ef4444;">連線異常，請稍後再試</div>';
+          this.infoModalContent.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444;">讀取失敗：${err.message}</div>`;
         }
       }
     }
 
-    renderFootprints_(data) {
+    renderFootprintsList_(list) {
       if (!this.infoModalContent) return;
 
-      const totalDays = data.totalDaysWithRecord || 0;
-      const details = data.dailyDetails || [];
+      if (!Array.isArray(list) || list.length === 0) {
+        this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;">最近 30 天尚無操練打卡紀錄，立即開啟今日晨興吧！</div>';
+        return;
+      }
 
       const html = `
-        <div style="padding: 12px;">
-          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px; margin-bottom: 16px; text-align: center;">
-            <div style="font-size: 13px; color: #166534;">最近 30 天內完成操練天數</div>
-            <div style="font-size: 28px; font-weight: 700; color: #15803d; margin-top: 4px;">${totalDays} <span style="font-size: 14px;">天</span></div>
-          </div>
+        <div style="max-height: 60vh; overflow-y: auto; padding: 10px;">
+          ${list.map(item => {
+            const badges = [];
+            if (item.completedPractices && Array.isArray(item.completedPractices)) {
+              badges.push(...item.completedPractices.map(p => {
+                if (p.includes('晨興')) return '🌅 晨興';
+                if (p.includes('讀經')) return '📖 讀經';
+                if (p.includes('禱告')) return '🙏 禱告';
+                if (p.includes('書報')) return '📚 書報';
+                return p;
+              }));
+            } else {
+              if (item.morningRevival || item.morning) badges.push('🌅 晨興');
+              if (item.bibleReading || item.bible) badges.push('📖 讀經');
+              if (item.prayer) badges.push('🙏 禱告');
+              if (item.bookPursuit || item.book) badges.push('📚 書報');
+            }
 
-          <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; color: #1e293b;">操練日誌</div>
+            const points = item.points || item.pointsEarned || 0;
 
-          ${details.length === 0 ? `
-            <div style="text-align: center; color: #94a3b8; padding: 20px; font-size: 13px;">
-              過去 30 天尚無操練紀錄，從今天開始同奔賽程吧！
-            </div>
-          ` : `
-            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 350px; overflow-y: auto;">
-              ${details.map(d => `
-                <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center;">
-                  <div>
-                    <div style="font-weight: 600; font-size: 13px; color: #1e293b;">${d.date}</div>
-                    <div style="display: flex; gap: 4px; margin-top: 4px;">
-                      ${(d.completedPractices || []).map(p => `
-                        <span style="background: #e0f2fe; color: #0369a1; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${p}</span>
-                      `).join('')}
-                    </div>
+            return `
+              <div style="border-bottom: 1px solid #e2e8f0; padding: 12px 6px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-weight: 700; font-size: 14px; color: #1e293b;">${item.date}</div>
+                  <div style="font-size: 12px; color: #64748b; margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap;">
+                    ${badges.map(b => `<span style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">${b}</span>`).join('') || '<span style="color:#94a3b8;">無操練項目</span>'}
                   </div>
-                  <div style="font-weight: 700; color: #0284c7; font-size: 14px;">+${d.points} 分</div>
                 </div>
-              `).join('')}
-            </div>
-          `}
+                <div style="font-weight: 700; color: #0284c7; font-size: 15px; white-space: nowrap; margin-left: 12px;">
+                  +${points} 分
+                </div>
+              </div>
+            `;
+          }).join('')}
         </div>
       `;
 
