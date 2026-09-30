@@ -110,19 +110,19 @@
             <div class="hero-announcement-item">尚無公告</div>
           </div>
 
-          <div class="hero-score-grid" aria-label="活力組積分">
+          <div class="hero-score-grid" aria-label="操練與同行積分">
+            <section class="hero-score-card hero-personal-score">
+              <span>個人</span>
+              <strong id="homePersonalScoreText">0</strong>
+              <small>點</small>
+              <em id="homePersonalSyncText" class="score-sync-badge" hidden></em>
+            </section>
+
             <section class="hero-score-card hero-contribution">
               <span>貢獻</span>
               <strong id="homeContributionText">0</strong>
               <small>點</small>
               <em id="homeContributionSyncText" class="score-sync-badge" hidden></em>
-            </section>
-
-            <section class="hero-score-card hero-group-score">
-              <span>小組</span>
-              <strong id="homeGroupScoreText">0</strong>
-              <small>點</small>
-              <em id="homeGroupSyncText" class="score-sync-badge" hidden></em>
             </section>
           </div>
 
@@ -755,16 +755,5 @@
   <script src="js/ui/profileView.js?v=20260929-v2"></script>
   <script src="js/ui/groupFellowshipView.js?v=20260929-v2"></script>
   <script src="js/app.js?v=20260929-v2"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then(reg => {
-          console.log('SW registered:', reg.scope);
-        }).catch(err => {
-          console.log('SW registration failed:', err);
-        });
-      });
-    }
-  </script>
 </body>
 </html>
