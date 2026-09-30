@@ -130,7 +130,7 @@
         const userStr = this.storage.getItem('vital_current_player');
         if (userStr) {
           const u = JSON.parse(userStr);
-          return u.playerId || u.id || u.username || '';
+          return u.playerId || '';
         }
       } catch (e) {}
       return '';
@@ -141,7 +141,7 @@
         const userStr = this.storage.getItem('vital_current_player');
         if (userStr) {
           const u = JSON.parse(userStr);
-          const col = Number(u.matrixColIndex || u.colIndex);
+          const col = Number(u.matrixColIndex);
           if (!isNaN(col) && col >= 2) return col;
         }
       } catch (e) {}
@@ -153,7 +153,7 @@
         const userStr = this.storage.getItem('vital_current_player');
         if (userStr) {
           const u = JSON.parse(userStr);
-          const col = Number(u.postsColIndex || u.groupPostsColIndex);
+          const col = Number(u.postsColIndex);
           if (!isNaN(col) && col >= 2) return col;
         }
       } catch (e) {}
@@ -303,7 +303,7 @@
       return channel.readyPromise;
     }
 
-    async invokeIframeRpc_(action, data) {
+    async invokeIframeRpc_(action, payload) {
       const serviceName = this.getTargetService_(action);
       const channel = this.channels[serviceName];
 
@@ -319,12 +319,6 @@
       }
 
       const reqId = 'req_' + serviceName.toLowerCase() + '_' + Date.now().toString(36) + '_' + (++this.requestSeq);
-      const payload = {
-        action,
-        token: this.token,
-        sessionToken: this.token,
-        ...data
-      };
 
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
@@ -335,23 +329,18 @@
         this.pendingRequests.set(reqId, { resolve, reject, timer });
 
         try {
-          const pId = (payload && payload.playerId) || (data && (data.playerId || data.targetId)) || this.getPlayerIdFromToken() || '';
-          const colIdx = (payload && payload.matrixColIndex) || (data && (data.matrixColIndex || data.colIndex)) || this.getMatrixColIndexFromStorage();
-          const grpId = (payload && payload.groupId) || (data && data.groupId) || this.getGroupIdFromStorage() || '';
-          const pColIdx = (payload && payload.postsColIndex) || (data && (data.postsColIndex || data.groupPostsColIndex)) || this.getPostsColIndexFromStorage();
           channel.source.postMessage({
             type: 'GAS_CALL',
             id: reqId,
             targetService: serviceName,
             action: action,
-            token: this.token,
-            sessionToken: this.token,
-            playerId: pId,
-            groupId: grpId,
-            matrixColIndex: colIdx,
-            postsColIndex: pColIdx,
-            args: [payload],
-            payload: payload
+            token: payload.token,
+            playerId: payload.playerId,
+            groupId: payload.groupId,
+            matrixColIndex: payload.matrixColIndex,
+            postsColIndex: payload.postsColIndex,
+            payload: payload,
+            args: [payload]
           }, '*');
         } catch (err) {
           clearTimeout(timer);
@@ -364,35 +353,16 @@
     // --- 統一 RPC 派發核心 (Request Core) ---
 
     async request(action, data = {}) {
-      const pId = (data && (data.playerId || data.targetId)) || this.getPlayerIdFromToken() || '';
-      const colIndex = (data && (data.matrixColIndex || data.colIndex)) || this.getMatrixColIndexFromStorage();
-      const grpId = (data && data.groupId) || this.getGroupIdFromStorage() || '';
-      const postsColIndex = (data && (data.postsColIndex || data.groupPostsColIndex)) || this.getPostsColIndexFromStorage();
       const payload = {
         action,
         token: this.token,
         sessionToken: this.token,
-        playerId: pId,
-        groupId: grpId,
-        matrixColIndex: colIndex,
-        postsColIndex: postsColIndex,
-        data: data || {}
+        playerId: (data && data.playerId) || this.getPlayerIdFromToken() || '',
+        groupId: (data && data.groupId) || this.getGroupIdFromStorage() || '',
+        matrixColIndex: (data && data.matrixColIndex) || this.getMatrixColIndexFromStorage(),
+        postsColIndex: (data && data.postsColIndex) || this.getPostsColIndexFromStorage(),
+        ...data
       };
-      if (typeof data === 'object' && data !== null) {
-        Object.assign(payload, data);
-        if (!payload.playerId && pId) {
-          payload.playerId = pId;
-        }
-        if (!payload.groupId && grpId) {
-          payload.groupId = grpId;
-        }
-        if (!payload.matrixColIndex && colIndex) {
-          payload.matrixColIndex = colIndex;
-        }
-        if (!payload.postsColIndex && postsColIndex) {
-          payload.postsColIndex = postsColIndex;
-        }
-      }
 
       // 照顧區特例：0ms SWR 秒開
       if (action === 'getRegistrationAreaOptions') {
@@ -524,25 +494,21 @@
     getRegistrationAreaOptions() { return this.request('getRegistrationAreaOptions'); }
 
     // 操練與聚會打卡
-    submitDailyPractice(data) {
-      const col = (data && (data.matrixColIndex || data.colIndex)) || this.getMatrixColIndexFromStorage();
-      return this.request('submitDailyPractice', { ...data, matrixColIndex: col });
-    }
-    submitMeetingPractice(data) {
-      const col = (data && (data.matrixColIndex || data.colIndex)) || this.getMatrixColIndexFromStorage();
-      return this.request('submitMeetingPractice', { ...data, matrixColIndex: col });
-    }
+    submitDailyPractice(data) { return this.request('submitDailyPractice', data); }
+    submitMeetingPractice(data) { return this.request('submitMeetingPractice', data); }
 
     getFootprints(playerId = null, matrixColIndex = null) {
-      const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
-      const col = matrixColIndex || this.getMatrixColIndexFromStorage();
-      return this.request('getFootprints', { playerId: resolvedPlayerId, matrixColIndex: col });
+      const data = {};
+      if (playerId) data.playerId = playerId;
+      if (matrixColIndex) data.matrixColIndex = matrixColIndex;
+      return this.request('getFootprints', data);
     }
 
     getHomeDashboard(playerId = null, matrixColIndex = null) {
-      const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
-      const col = matrixColIndex || this.getMatrixColIndexFromStorage();
-      return this.request('getHomeDashboard', { playerId: resolvedPlayerId, matrixColIndex: col });
+      const data = {};
+      if (playerId) data.playerId = playerId;
+      if (matrixColIndex) data.matrixColIndex = matrixColIndex;
+      return this.request('getHomeDashboard', data);
     }
 
     // 活力組與成長篇章
@@ -553,67 +519,52 @@
       }
       return this.request('joinGroup', { groupId, joinedDate });
     }
-    leaveGroup(groupId = null) { return this.request('leaveGroup', { groupId }); }
+    leaveGroup(groupId = null) {
+      const data = {};
+      if (groupId) data.groupId = groupId;
+      return this.request('leaveGroup', data);
+    }
     getGroupJourney(groupId = null) {
-      let resolvedGroupId = groupId;
-      if (!resolvedGroupId) {
-        try {
-          const userStr = this.storage.getItem('vital_current_player');
-          if (userStr) {
-            const u = JSON.parse(userStr);
-            resolvedGroupId = u.groupId || u.currentGroupId || '';
-          }
-        } catch (e) {}
-      }
-      const pId = this.getPlayerIdFromToken() || '';
-      return this.request('getGroupJourney', { groupId: resolvedGroupId, playerId: pId });
+      const data = {};
+      if (groupId) data.groupId = groupId;
+      return this.request('getGroupJourney', data);
     }
     getMyGroupContributionSummary(groupId = null, playerId = null) {
-      const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
-      return this.request('getMyGroupContributionSummary', { groupId, playerId: resolvedPlayerId });
+      const data = {};
+      if (groupId) data.groupId = groupId;
+      if (playerId) data.playerId = playerId;
+      return this.request('getMyGroupContributionSummary', data);
     }
 
     // 小組交流板
-    createGroupPost(data) {
-      const col = (data && data.postsColIndex) || this.getPostsColIndexFromStorage();
-      return this.request('createGroupPost', {
-        ...data,
-        postsColIndex: col
-      });
-    }
-    pinGroupPost(data) {
-      const col = (data && data.postsColIndex) || this.getPostsColIndexFromStorage();
-      return this.request('pinGroupPost', { ...data, postsColIndex: col });
-    }
-    setGroupAnnouncement(data) {
-      const col = (data && data.postsColIndex) || this.getPostsColIndexFromStorage();
-      return this.request('setGroupAnnouncement', { ...data, postsColIndex: col });
-    }
+    createGroupPost(data) { return this.request('createGroupPost', data); }
+    pinGroupPost(data) { return this.request('pinGroupPost', data); }
+    setGroupAnnouncement(data) { return this.request('setGroupAnnouncement', data); }
     clearGroupAnnouncement(groupId, postsColIndex = null) {
-      const col = postsColIndex || this.getPostsColIndexFromStorage();
-      return this.request('clearGroupAnnouncement', { groupId, postsColIndex: col });
+      const data = { groupId };
+      if (postsColIndex) data.postsColIndex = postsColIndex;
+      return this.request('clearGroupAnnouncement', data);
     }
     getGroupPosts(groupId, limit = 30, postsColIndex = null) {
-      const col = postsColIndex || this.getPostsColIndexFromStorage();
-      return this.request('getGroupPosts', { groupId, limit, postsColIndex: col });
+      const data = { groupId, limit };
+      if (postsColIndex) data.postsColIndex = postsColIndex;
+      return this.request('getGroupPosts', data);
     }
     deleteGroupPost(postId) { return this.request('deleteGroupPost', { postId }); }
 
     // 成就與寶箱
     claimChest(tierId, playerId = null) {
-      const resolvedPlayerId = playerId || this.getPlayerIdFromToken() || '';
-      return this.request('claimChest', {
-        tierId: tierId,
-        chestTier: tierId,
-        playerId: resolvedPlayerId,
-        targetId: resolvedPlayerId
-      });
+      const data = { tierId };
+      if (playerId) data.playerId = playerId;
+      return this.request('claimChest', data);
     }
     getPlayerChestCollection() { return this.request('getPlayerChestCollection'); }
 
     // 系統公告
     getAnnouncements(currentDate = null) {
-      return this.request('getAnnouncements', { currentDate });
+      const data = {};
+      if (currentDate) data.currentDate = currentDate;
+      return this.request('getAnnouncements', data);
     }
   }
 
