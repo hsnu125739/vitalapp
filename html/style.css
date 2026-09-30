@@ -4673,7 +4673,8 @@ body{
     text-align:left;
 }
 
-#homeView .home-hero-card .hero-score-grid .hero-contribution{
+#homeView .home-hero-card .hero-score-grid .hero-personal-score,
+#homeView .home-hero-card .hero-score-grid .hero-score-card:first-child{
   position:relative;
     inset:auto;
     display:block;
@@ -4696,9 +4697,11 @@ body{
     transform:none;
 }
 
+#homeView .home-hero-card .hero-score-grid .hero-contribution,
 #homeView .home-hero-card .hero-score-grid .hero-group-score{
   grid-row:2;
     order:initial;
+    border-bottom:0;
 }
 
 #homeView .home-hero-card .hero-score-grid .hero-score-card span{
@@ -4733,6 +4736,7 @@ body{
     text-shadow:0 2px 0 #fff;
 }
 
+#homeView .home-hero-card .hero-score-grid .hero-contribution strong,
 #homeView .home-hero-card .hero-score-grid .hero-group-score strong{
   color:#2f8f7e;
 }
