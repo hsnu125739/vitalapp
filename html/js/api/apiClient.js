@@ -27,17 +27,14 @@
   ]);
 
   const PROGRESSION_ACTIONS = new Set([
-    'getPlayerChestCollection',
-    'claimPlayerChestReward',
-    'claimChest',
-    'getMyGroupContributionSummary',
-    'getMilestonesConfig',
-    'getPointsConfig',
+    'getPlayerProgress',
     'getGroupJourney',
     'getGroupJourneyList',
     'settleMemberDeparture',
     'archiveAnnualGroupProgress',
-    'grantTargetedReward'
+    'grantTargetedReward',
+    'evaluateTargetMilestones',
+    'runDailyMilestoneSettlement'
   ]);
 
   const DEFAULT_DISTRICTS = [
@@ -548,11 +545,10 @@
     getGroupJourneyList() {
       return this.request('getGroupJourneyList');
     }
-    getMyGroupContributionSummary(groupId = null, playerId = null) {
+    getPlayerProgress(playerId = null) {
       const data = {};
-      if (groupId) data.groupId = groupId;
       if (playerId) data.playerId = playerId;
-      return this.request('getMyGroupContributionSummary', data);
+      return this.request('getPlayerProgress', data);
     }
 
     // 小組交流板
@@ -570,14 +566,6 @@
       return this.request('getGroupPosts', data);
     }
     deleteGroupPost(postId) { return this.request('deleteGroupPost', { postId }); }
-
-    // 成就與寶箱
-    claimChest(tierId, playerId = null) {
-      const data = { tierId };
-      if (playerId) data.playerId = playerId;
-      return this.request('claimChest', data);
-    }
-    getPlayerChestCollection() { return this.request('getPlayerChestCollection'); }
 
     // 系統公告
     getAnnouncements(currentDate = null) {
