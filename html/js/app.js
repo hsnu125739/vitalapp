@@ -68,7 +68,8 @@
       onFootprintClick: () => footprintsView.openFootprintsModal(),
       onChestClick: (selectedIdx) => openChests(selectedIdx),
       onRefresh: () => refreshUserData(),
-      onLogout: () => handleLogout()
+      onLogout: () => handleLogout(),
+      onGroupJourneyListClick: () => dashboardView.openGroupJourneyListModal()
     });
 
     profileView = new (global.ProfileView || window.ProfileView)({
