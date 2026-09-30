@@ -199,201 +199,257 @@
       const openVitalBtn = document.getElementById('openVitalGroupsBtn');
       const createGrpForm = document.getElementById('createVitalGroupForm');
       const joinGrpForm = document.getElementById('joinVitalGroupForm');
+
+      const renderVitalGroupsModal = async () => {
+        const listMount = document.getElementById('vitalGroupsList');
+        if (!listMount) return;
+
+        const hasGroup = Boolean(this.currentUserProfile && this.currentUserProfile.groupId);
+        if (createGrpForm) {
+          createGrpForm.classList.toggle('hidden', hasGroup);
+        }
+        if (joinGrpForm) {
+          joinGrpForm.classList.toggle('hidden', hasGroup);
+        }
+
+        if (!hasGroup) {
+          listMount.innerHTML = `<div class="empty-card" style="padding:16px;text-align:center;color:#64748b;">目前尚未加入任何活力組，可於下方建立新組或以邀請碼加入。</div>`;
+          return;
+        }
+
+        const groupId = this.currentUserProfile.groupId;
+        const fallbackGrpName = this.currentUserProfile.groupName || groupId;
+        listMount.innerHTML = `<div style="padding:16px;text-align:center;color:#64748b;">載入小組資訊中...</div>`;
+
+        let dashboard = null;
+        try {
+          if (this.apiClient && typeof this.apiClient.getGroupDashboard === 'function') {
+            const dashRes = await this.apiClient.getGroupDashboard(groupId);
+            if (dashRes && dashRes.success) {
+              dashboard = dashRes.data || dashRes;
+            }
+          }
+        } catch (e) {
+          console.warn('獲取活力組資訊失敗，使用快取個人資料: ', e);
+        }
+
+        // 關鍵防禦：若後端判定無小組或小組已解散，即刻清除前端快照
+        if (dashboard && dashboard.hasGroup === false) {
+          if (this.currentUserProfile) {
+            this.currentUserProfile.groupId = '';
+            delete this.currentUserProfile.groupName;
+            delete this.currentUserProfile.isLeader;
+          }
+          this.currentJourneyData = null;
+          this.render(this.currentUserProfile, null);
+          if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
+            window.AppCoordinator.updateUserGroupState('');
+          }
+          if (createGrpForm) createGrpForm.classList.remove('hidden');
+          if (joinGrpForm) joinGrpForm.classList.remove('hidden');
+          listMount.innerHTML = `<div class="empty-card" style="padding:16px;text-align:center;color:#64748b;">目前尚未加入任何活力組，可於下方建立新組或以邀請碼加入。</div>`;
+          return;
+        }
+
+        const grpName = (dashboard && dashboard.groupName) || fallbackGrpName;
+        const members = (dashboard && dashboard.members) || [];
+        const memberCount = (dashboard && typeof dashboard.memberCount === 'number')
+          ? dashboard.memberCount
+          : (members.length > 0 ? members.length : 1);
+        const isLeader = Boolean(
+          (dashboard && dashboard.isLeader !== undefined)
+            ? dashboard.isLeader
+            : (this.currentUserProfile.isLeader || (dashboard && dashboard.leaderPlayerId === this.currentUserProfile.playerId))
+        );
+
+        // 依人數判斷按鈕文字：只剩 1 人為「解散活力組」，2 人以上為「退出活力組」
+        const leaveBtnText = memberCount <= 1 ? '解散活力組' : '退出活力組';
+
+        // 若為隊長且人數 > 1，顯示「轉讓組長」按鈕
+        const canTransferLeader = isLeader && memberCount > 1;
+
+        listMount.innerHTML = `
+          <div class="vital-group-item active-group" style="padding:14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+              <div>
+                <strong style="color:#15803d;font-size:15px;">現屬活力組：${this.escapeHtml(grpName)}</strong>
+                <div style="font-size:13px;color:#475569;margin-top:4px;">組別代碼：${this.escapeHtml(groupId)}</div>
+                <div style="font-size:13px;color:#475569;margin-top:2px;">組員人數：${memberCount} 人 ${isLeader ? '<span style="color:#2563eb;font-weight:600;">(組長)</span>' : ''}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+                <button type="button" id="btnLeaveVitalGroup" class="danger-btn" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">${leaveBtnText}</button>
+                ${canTransferLeader ? `<button type="button" id="btnToggleTransferLeader" class="secondary-btn" style="background:#eff6ff;color:#2563eb;border:1px solid #93c5fd;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">轉讓組長</button>` : ''}
+              </div>
+            </div>
+            ${canTransferLeader ? `
+              <div id="vitalGroupMembersPicker" style="display:none;margin-top:12px;padding-top:12px;border-top:1px dashed #cbd5e1;">
+                <div style="font-size:13px;font-weight:600;color:#334155;margin-bottom:8px;">請選擇欲交接組長之成員：</div>
+                <div id="membersPickerList" style="display:flex;flex-direction:column;gap:6px;"></div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+        // 退出 / 解散 按鈕點擊處理
+        const leaveBtn = listMount.querySelector('#btnLeaveVitalGroup');
+        if (leaveBtn) {
+          leaveBtn.addEventListener('click', async () => {
+            if (memberCount <= 1) {
+              // 只剩最後 1 人：解散二次確認
+              const ok = confirm(`確定要解散「${grpName}」嗎？解散後，此活力組的所有紀錄將會全面刪除。您可自由加入新組。`);
+              if (!ok) return;
+
+              leaveBtn.disabled = true;
+              leaveBtn.textContent = '正在解散...';
+
+              try {
+                const res = await this.apiClient.leaveGroup(groupId);
+                if (res && res.success) {
+                  // 1. 立即樂觀清除所有前端狀態（零延遲）
+                  if (this.currentUserProfile) {
+                    this.currentUserProfile.groupId = '';
+                    delete this.currentUserProfile.groupName;
+                    delete this.currentUserProfile.isLeader;
+                  }
+                  this.currentJourneyData = null;
+                  this.render(this.currentUserProfile, null);
+                  if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
+                    window.AppCoordinator.updateUserGroupState('');
+                  }
+
+                  alert('活力組已成功解散！');
+                  if (vitalModal) vitalModal.classList.add('hidden');
+                  if (typeof window.AppCoordinator?.refreshUserData === 'function') {
+                    window.AppCoordinator.refreshUserData();
+                  }
+                } else {
+                  alert((res && (res.error || res.message)) || '解散活力組失敗');
+                  leaveBtn.disabled = false;
+                  leaveBtn.textContent = '解散活力組';
+                }
+              } catch (err) {
+                alert(err.message || '連線逾時，請稍後再試');
+                leaveBtn.disabled = false;
+                leaveBtn.textContent = '解散活力組';
+              }
+            } else {
+              // 多人小組：組長無法退組
+              if (isLeader) {
+                alert('請先指定新的組長才能退出');
+                return;
+              }
+
+              // 一般組員退出確認
+              const ok = confirm(`確定要退出「${grpName}」嗎？\n\n退出後，您在組期間的操練分數將保留沉澱於該小組，您可自由加入新組。`);
+              if (!ok) return;
+
+              leaveBtn.disabled = true;
+              leaveBtn.textContent = '正在退出...';
+
+              try {
+                const res = await this.apiClient.leaveGroup(groupId);
+                if (res && res.success) {
+                  // 1. 立即樂觀清除所有前端狀態（零延遲）
+                  if (this.currentUserProfile) {
+                    this.currentUserProfile.groupId = '';
+                    delete this.currentUserProfile.groupName;
+                    delete this.currentUserProfile.isLeader;
+                  }
+                  this.currentJourneyData = null;
+                  this.render(this.currentUserProfile, null);
+                  if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
+                    window.AppCoordinator.updateUserGroupState('');
+                  }
+
+                  alert('已成功退出活力組！');
+                  if (vitalModal) vitalModal.classList.add('hidden');
+                  if (typeof window.AppCoordinator?.refreshUserData === 'function') {
+                    window.AppCoordinator.refreshUserData();
+                  }
+                } else {
+                  alert((res && (res.error || res.message)) || '退出活力組失敗');
+                  leaveBtn.disabled = false;
+                  leaveBtn.textContent = '退出活力組';
+                }
+              } catch (err) {
+                alert(err.message || '連線逾時，請稍後再試');
+                leaveBtn.disabled = false;
+                leaveBtn.textContent = '退出活力組';
+              }
+            }
+          });
+        }
+
+        // 轉讓組長按鈕與成員選取處理
+        const transferToggleBtn = listMount.querySelector('#btnToggleTransferLeader');
+        const picker = listMount.querySelector('#vitalGroupMembersPicker');
+        const pickerList = listMount.querySelector('#membersPickerList');
+
+        if (transferToggleBtn && picker && pickerList) {
+          const currentUserId = (this.currentUserProfile && this.currentUserProfile.playerId) || '';
+          const otherMembers = members.filter(m => m.playerId !== currentUserId);
+
+          if (otherMembers.length === 0) {
+            pickerList.innerHTML = `<div style="font-size:12px;color:#94a3b8;padding:4px 0;">無其他成員可轉讓</div>`;
+          } else {
+            pickerList.innerHTML = otherMembers.map(m => `
+              <button type="button" class="btn-select-new-leader" data-player-id="${this.escapeHtml(m.playerId)}" data-player-name="${this.escapeHtml(m.name || m.playerId)}" style="display:flex;justify-content:space-between;align-items:center;background:#ffffff;border:1px solid #cbd5e1;padding:8px 12px;border-radius:6px;cursor:pointer;text-align:left;font-size:13px;color:#1e293b;">
+                <span style="font-weight:600;">${this.escapeHtml(m.name || m.playerId)}</span>
+                <span style="color:#2563eb;font-size:12px;">指定為組長 →</span>
+              </button>
+            `).join('');
+
+            pickerList.querySelectorAll('.btn-select-new-leader').forEach(btn => {
+              btn.addEventListener('click', async () => {
+                const targetId = btn.getAttribute('data-player-id');
+                const targetName = btn.getAttribute('data-player-name') || targetId;
+                const ok = confirm(`確定要將組長職責轉讓給「${targetName}」嗎？\n\n轉讓後您將成為組員，該成員將擁有小組管理權限。`);
+                if (!ok) return;
+
+                btn.disabled = true;
+                btn.textContent = '移交中...';
+
+                try {
+                  const res = await this.apiClient.transferGroupLeader(targetId, groupId);
+                  if (res && res.success) {
+                    if (this.currentUserProfile) {
+                      this.currentUserProfile.isLeader = false;
+                    }
+                    if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
+                      window.AppCoordinator.updateUserGroupState(groupId, grpName, false);
+                    }
+
+                    alert(`組長職責已成功移交給「${targetName}」！`);
+                    if (vitalModal) vitalModal.classList.add('hidden');
+                    if (typeof window.AppCoordinator?.refreshUserData === 'function') {
+                      window.AppCoordinator.refreshUserData();
+                    }
+                  } else {
+                    alert((res && (res.error || res.message)) || '轉讓組長失敗');
+                    btn.disabled = false;
+                    btn.textContent = '指定為組長 →';
+                  }
+                } catch (err) {
+                  alert(err.message || '連線逾時，請稍後再試');
+                  btn.disabled = false;
+                  btn.textContent = '指定為組長 →';
+                }
+              });
+            });
+          }
+
+          transferToggleBtn.addEventListener('click', () => {
+            const isHidden = (picker.style.display === 'none' || !picker.style.display);
+            picker.style.display = isHidden ? 'block' : 'none';
+            transferToggleBtn.textContent = isHidden ? '收起名單' : '轉讓組長';
+          });
+        }
+      };
+
       if (openVitalBtn && vitalModal) {
         openVitalBtn.addEventListener('click', async () => {
           vitalModal.classList.remove('hidden');
-          const hasGroup = Boolean(this.currentUserProfile && this.currentUserProfile.groupId);
-          if (createGrpForm) {
-            createGrpForm.classList.toggle('hidden', hasGroup);
-          }
-          if (joinGrpForm) {
-            joinGrpForm.classList.toggle('hidden', hasGroup);
-          }
-          const listMount = document.getElementById('vitalGroupsList');
-          if (listMount) {
-            if (hasGroup) {
-              const groupId = this.currentUserProfile.groupId;
-              const fallbackGrpName = this.currentUserProfile.groupName || groupId;
-              listMount.innerHTML = `<div style="padding:16px;text-align:center;color:#64748b;">載入小組資訊中...</div>`;
-
-              let dashboard = null;
-              try {
-                if (this.apiClient && typeof this.apiClient.getGroupDashboard === 'function') {
-                  const dashRes = await this.apiClient.getGroupDashboard(groupId);
-                  if (dashRes && dashRes.success) {
-                    dashboard = dashRes.data || dashRes;
-                  }
-                }
-              } catch (e) {
-                console.warn('獲取活力組資訊失敗，使用快取個人資料: ', e);
-              }
-
-              const grpName = (dashboard && dashboard.groupName) || fallbackGrpName;
-              const members = (dashboard && dashboard.members) || [];
-              const memberCount = (dashboard && typeof dashboard.memberCount === 'number')
-                ? dashboard.memberCount
-                : (members.length > 0 ? members.length : 1);
-              const isLeader = Boolean(
-                (dashboard && dashboard.isLeader !== undefined)
-                  ? dashboard.isLeader
-                  : (this.currentUserProfile.isLeader || (dashboard && dashboard.leaderPlayerId === this.currentUserProfile.playerId))
-              );
-
-              // 依人數判斷按鈕文字：只剩 1 人為「解散活力組」，2 人以上為「退出活力組」
-              const leaveBtnText = memberCount <= 1 ? '解散活力組' : '退出活力組';
-
-              // 若為隊長且人數 > 1，顯示「轉讓組長」按鈕
-              const canTransferLeader = isLeader && memberCount > 1;
-
-              listMount.innerHTML = `
-                <div class="vital-group-item active-group" style="padding:14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin-bottom:8px;">
-                  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-                    <div>
-                      <strong style="color:#15803d;font-size:15px;">現屬活力組：${this.escapeHtml(grpName)}</strong>
-                      <div style="font-size:13px;color:#475569;margin-top:4px;">組別代碼：${this.escapeHtml(groupId)}</div>
-                      <div style="font-size:13px;color:#475569;margin-top:2px;">組員人數：${memberCount} 人 ${isLeader ? '<span style="color:#2563eb;font-weight:600;">(組長)</span>' : ''}</div>
-                    </div>
-                    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
-                      <button type="button" id="btnLeaveVitalGroup" class="danger-btn" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">${leaveBtnText}</button>
-                      ${canTransferLeader ? `<button type="button" id="btnToggleTransferLeader" class="secondary-btn" style="background:#eff6ff;color:#2563eb;border:1px solid #93c5fd;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">轉讓組長</button>` : ''}
-                    </div>
-                  </div>
-                  ${canTransferLeader ? `
-                    <div id="vitalGroupMembersPicker" style="display:none;margin-top:12px;padding-top:12px;border-top:1px dashed #cbd5e1;">
-                      <div style="font-size:13px;font-weight:600;color:#334155;margin-bottom:8px;">請選擇欲交接組長之成員：</div>
-                      <div id="membersPickerList" style="display:flex;flex-direction:column;gap:6px;"></div>
-                    </div>
-                  ` : ''}
-                </div>
-              `;
-
-              // 退出 / 解散 按鈕點擊處理
-              const leaveBtn = listMount.querySelector('#btnLeaveVitalGroup');
-              if (leaveBtn) {
-                leaveBtn.addEventListener('click', async () => {
-                  if (memberCount <= 1) {
-                    // 只剩最後 1 人：解散二次確認
-                    const ok = confirm(`確定要解散「${grpName}」嗎？解散後，此活力組的所有紀錄將會全面刪除。您可自由加入新組。`);
-                    if (!ok) return;
-
-                    leaveBtn.disabled = true;
-                    leaveBtn.textContent = '正在解散...';
-
-                    try {
-                      const res = await this.apiClient.leaveGroup(groupId);
-                      if (res && res.success) {
-                        alert('活力組已成功解散！');
-                        if (vitalModal) vitalModal.classList.add('hidden');
-                        if (typeof window.AppCoordinator?.refreshUserData === 'function') {
-                          await window.AppCoordinator.refreshUserData();
-                        }
-                      } else {
-                        alert((res && (res.error || res.message)) || '解散活力組失敗');
-                        leaveBtn.disabled = false;
-                        leaveBtn.textContent = '解散活力組';
-                      }
-                    } catch (err) {
-                      alert(err.message || '連線逾時，請稍後再試');
-                      leaveBtn.disabled = false;
-                      leaveBtn.textContent = '解散活力組';
-                    }
-                  } else {
-                    // 多人小組：組長無法退組
-                    if (isLeader) {
-                      alert('請先指定新的組長才能退出');
-                      return;
-                    }
-
-                    // 一般組員退出確認
-                    const ok = confirm(`確定要退出「${grpName}」嗎？\n\n退出後，您在組期間的操練分數將保留沉澱於該小組，您可自由加入新組。`);
-                    if (!ok) return;
-
-                    leaveBtn.disabled = true;
-                    leaveBtn.textContent = '正在退出...';
-
-                    try {
-                      const res = await this.apiClient.leaveGroup(groupId);
-                      if (res && res.success) {
-                        alert('已成功退出活力組！');
-                        if (vitalModal) vitalModal.classList.add('hidden');
-                        if (typeof window.AppCoordinator?.refreshUserData === 'function') {
-                          await window.AppCoordinator.refreshUserData();
-                        }
-                      } else {
-                        alert((res && (res.error || res.message)) || '退出活力組失敗');
-                        leaveBtn.disabled = false;
-                        leaveBtn.textContent = '退出活力組';
-                      }
-                    } catch (err) {
-                      alert(err.message || '連線逾時，請稍後再試');
-                      leaveBtn.disabled = false;
-                      leaveBtn.textContent = '退出活力組';
-                    }
-                  }
-                });
-              }
-
-              // 轉讓組長按鈕與成員選取處理
-              const transferToggleBtn = listMount.querySelector('#btnToggleTransferLeader');
-              const picker = listMount.querySelector('#vitalGroupMembersPicker');
-              const pickerList = listMount.querySelector('#membersPickerList');
-
-              if (transferToggleBtn && picker && pickerList) {
-                const currentUserId = (this.currentUserProfile && this.currentUserProfile.playerId) || '';
-                const otherMembers = members.filter(m => m.playerId !== currentUserId);
-
-                if (otherMembers.length === 0) {
-                  pickerList.innerHTML = `<div style="font-size:12px;color:#94a3b8;padding:4px 0;">無其他成員可轉讓</div>`;
-                } else {
-                  pickerList.innerHTML = otherMembers.map(m => `
-                    <button type="button" class="btn-select-new-leader" data-player-id="${this.escapeHtml(m.playerId)}" data-player-name="${this.escapeHtml(m.name || m.playerId)}" style="display:flex;justify-content:space-between;align-items:center;background:#ffffff;border:1px solid #cbd5e1;padding:8px 12px;border-radius:6px;cursor:pointer;text-align:left;font-size:13px;color:#1e293b;">
-                      <span style="font-weight:600;">${this.escapeHtml(m.name || m.playerId)}</span>
-                      <span style="color:#2563eb;font-size:12px;">指定為組長 →</span>
-                    </button>
-                  `).join('');
-
-                  pickerList.querySelectorAll('.btn-select-new-leader').forEach(btn => {
-                    btn.addEventListener('click', async () => {
-                      const targetId = btn.getAttribute('data-player-id');
-                      const targetName = btn.getAttribute('data-player-name') || targetId;
-                      const ok = confirm(`確定要將組長職責轉讓給「${targetName}」嗎？\n\n轉讓後您將成為組員，該成員將擁有小組管理權限。`);
-                      if (!ok) return;
-
-                      btn.disabled = true;
-                      btn.textContent = '移交中...';
-
-                      try {
-                        const res = await this.apiClient.transferGroupLeader(targetId, groupId);
-                        if (res && res.success) {
-                          alert(`組長職責已成功移交給「${targetName}」！`);
-                          if (vitalModal) vitalModal.classList.add('hidden');
-                          if (typeof window.AppCoordinator?.refreshUserData === 'function') {
-                            await window.AppCoordinator.refreshUserData();
-                          }
-                        } else {
-                          alert((res && (res.error || res.message)) || '轉讓組長失敗');
-                          btn.disabled = false;
-                          btn.textContent = '指定為組長 →';
-                        }
-                      } catch (err) {
-                        alert(err.message || '連線逾時，請稍後再試');
-                        btn.disabled = false;
-                        btn.textContent = '指定為組長 →';
-                      }
-                    });
-                  });
-                }
-
-                transferToggleBtn.addEventListener('click', () => {
-                  const isHidden = (picker.style.display === 'none' || !picker.style.display);
-                  picker.style.display = isHidden ? 'block' : 'none';
-                  transferToggleBtn.textContent = isHidden ? '收起名單' : '轉讓組長';
-                });
-              }
-            } else {
-              listMount.innerHTML = `<div class="empty-card" style="padding:16px;text-align:center;color:#64748b;">目前尚未加入任何活力組，可於下方建立新組或以邀請碼加入。</div>`;
-            }
-          }
+          await renderVitalGroupsModal();
         });
       }
 
@@ -420,6 +476,18 @@
           try {
             const res = await this.apiClient.createGroup({ groupName });
             if (res && res.success) {
+              const createdGId = res.groupId || (res.group && res.group.groupId) || (res.data && res.data.groupId) || '';
+              // 1. 立即樂觀更新為組長身分（零延遲）
+              if (this.currentUserProfile) {
+                this.currentUserProfile.groupId = createdGId;
+                this.currentUserProfile.groupName = groupName;
+                this.currentUserProfile.isLeader = true;
+              }
+              this.render(this.currentUserProfile, null);
+              if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
+                window.AppCoordinator.updateUserGroupState(createdGId, groupName, true);
+              }
+
               alert(`恭喜！活力組【${groupName}】建立成功！`);
               if (vitalModal) vitalModal.classList.add('hidden');
               if (nameInput) nameInput.value = '';
@@ -452,6 +520,21 @@
           try {
             const res = await this.apiClient.joinGroup({ inviteCode });
             if (res && res.success) {
+              const joinedGroup = res.group || (res.data && res.data.group) || {};
+              const newGId = joinedGroup.groupId || res.groupId || (res.data && res.data.groupId) || '';
+              const newGName = joinedGroup.groupName || res.groupName || (res.data && res.data.groupName) || '';
+
+              // 1. 立即樂觀更新為組員身分（零延遲）
+              if (this.currentUserProfile) {
+                this.currentUserProfile.groupId = newGId;
+                this.currentUserProfile.groupName = newGName;
+                this.currentUserProfile.isLeader = false;
+              }
+              this.render(this.currentUserProfile, null);
+              if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
+                window.AppCoordinator.updateUserGroupState(newGId, newGName, false);
+              }
+
               alert('成功加入活力組！歡迎一同在主裡奔跑！');
               if (vitalModal) vitalModal.classList.add('hidden');
               if (codeInput) codeInput.value = '';
