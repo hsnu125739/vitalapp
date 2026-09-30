@@ -163,9 +163,11 @@ class ChatStore {
         // 替換暫存留言為正式權威物件
         const idx = this.messages.findIndex(m => m.id === tempId);
         if (idx !== -1) {
+          const ts = confirmedPost.timestamp || (confirmedPost.createdAt ? new Date(confirmedPost.createdAt).toISOString() : this.messages[idx].timestamp);
           this.messages[idx] = {
             ...confirmedPost,
             id: confirmedPost.id || confirmedPost.postId || tempId,
+            timestamp: ts,
             authorPlayerId: confirmedPost.authorPlayerId || confirmedPost.authorId || authorPlayerId,
             authorName: confirmedPost.authorName || authorName || '聖徒',
             isPending: false
@@ -245,11 +247,13 @@ class ChatStore {
     const map = new Map();
     for (const p of this.messages) {
       const pid = p.id || p.postId;
-      map.set(pid, { ...p, id: pid, authorPlayerId: p.authorPlayerId || p.authorId || '' });
+      const ts = p.timestamp || (p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString());
+      map.set(pid, { ...p, id: pid, timestamp: ts, authorPlayerId: p.authorPlayerId || p.authorId || '' });
     }
     for (const p of regular) {
       const pid = p.id || p.postId;
-      map.set(pid, { ...p, id: pid, authorPlayerId: p.authorPlayerId || p.authorId || '' });
+      const ts = p.timestamp || (p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString());
+      map.set(pid, { ...p, id: pid, timestamp: ts, authorPlayerId: p.authorPlayerId || p.authorId || '' });
     }
 
     this.messages = Array.from(map.values())
