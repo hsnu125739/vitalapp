@@ -488,7 +488,7 @@
         localStorage.setItem('vital_current_player', JSON.stringify(profile));
       } catch (e) {}
     }
-    loadUserData(true);
+    loadUserData(false);
   }
 
   function handleAvatarUpdated(newUrl) {
