@@ -197,12 +197,21 @@
       // 活力組管理彈窗與操作
       const vitalModal = document.getElementById('vitalGroupsModal');
       const openVitalBtn = document.getElementById('openVitalGroupsBtn');
+      const createGrpForm = document.getElementById('createVitalGroupForm');
+      const joinGrpForm = document.getElementById('joinVitalGroupForm');
       if (openVitalBtn && vitalModal) {
         openVitalBtn.addEventListener('click', () => {
           vitalModal.classList.remove('hidden');
+          const hasGroup = Boolean(this.currentUserProfile && this.currentUserProfile.groupId);
+          if (createGrpForm) {
+            createGrpForm.classList.toggle('hidden', hasGroup);
+          }
+          if (joinGrpForm) {
+            joinGrpForm.classList.toggle('hidden', hasGroup);
+          }
           const listMount = document.getElementById('vitalGroupsList');
           if (listMount) {
-            if (this.currentUserProfile && this.currentUserProfile.groupId) {
+            if (hasGroup) {
               listMount.innerHTML = `
                 <div class="vital-group-item active-group" style="padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin-bottom:8px;">
                   <strong style="color:#15803d;font-size:15px;">現屬活力組：${this.currentUserProfile.groupName || this.currentUserProfile.groupId}</strong>
@@ -222,10 +231,13 @@
         });
       });
 
-      const createGrpForm = document.getElementById('createVitalGroupForm');
       if (createGrpForm) {
         createGrpForm.addEventListener('submit', async (e) => {
           e.preventDefault();
+          if (this.currentUserProfile && this.currentUserProfile.groupId) {
+            alert('您目前已在活力組中，無法重複建立小組。若需換組請先退出原小組。');
+            return;
+          }
           const nameInput = document.getElementById('createVitalGroupName');
           const groupName = nameInput ? nameInput.value.trim() : '';
           if (!groupName) {
@@ -251,10 +263,13 @@
         });
       }
 
-      const joinGrpForm = document.getElementById('joinVitalGroupForm');
       if (joinGrpForm) {
         joinGrpForm.addEventListener('submit', async (e) => {
           e.preventDefault();
+          if (this.currentUserProfile && this.currentUserProfile.groupId) {
+            alert('您目前已在活力組中，無法重複加入小組。若需換組請先退出原小組。');
+            return;
+          }
           const codeInput = document.getElementById('joinVitalGroupCode');
           const inviteCode = codeInput ? codeInput.value.trim() : '';
           if (!inviteCode) {
