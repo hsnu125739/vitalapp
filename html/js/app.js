@@ -182,6 +182,43 @@
         dashboardView.setSyncLock(true);
       }
 
+      // 平行發起極速 getPractice，專供首頁儀表板 2 個單元格更新與解鎖
+      apiClient.getPractice().then(pRes => {
+        if (pRes && pRes.success && pRes.data) {
+          const today = dashboardView.currentDate || dashboardView.getTodayDateString();
+          const curWeek = dashboardView.currentWeekKey || dashboardView.getCurrentWeekKey();
+          const dRec = pRes.data.daily || {};
+          const mRec = pRes.data.meeting || {};
+          
+          practiceStore.dailyState[today] = {
+            morning: Boolean(dRec.morning || dRec.morningRevival),
+            morningRevival: Boolean(dRec.morning || dRec.morningRevival),
+            bible: Boolean(dRec.bible || dRec.bibleReading),
+            bibleReading: Boolean(dRec.bible || dRec.bibleReading),
+            prayer: Boolean(dRec.prayer),
+            book: Boolean(dRec.book || dRec.bookPursuit),
+            bookPursuit: Boolean(dRec.book || dRec.bookPursuit),
+            syncStatus: 'synced',
+            hasAmberDot: false
+          };
+          practiceStore.meetingState[curWeek] = {
+            smallGroup: Boolean(mRec.group || mRec.smallGroup),
+            prayerMeeting: Boolean(mRec.prayerMtg || mRec.prayerMeeting),
+            lordDayMeeting: Boolean(mRec.lordDay || mRec.lordDayMeeting),
+            outreachVisit: Boolean(mRec.outreach || mRec.outreachVisit || mRec.blend || mRec.mutual),
+            syncStatus: 'synced',
+            hasAmberDot: false
+          };
+          if (dashboardView) {
+            dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
+            dashboardView.renderMeetingPracticeState(practiceStore.meetingState[curWeek]);
+            dashboardView.setSyncLock(false);
+          }
+        }
+      }).catch(err => {
+        console.warn('[App] getPractice 快速載入略過:', err);
+      });
+
       const reqs = [];
       reqs.push(skipProfile ? Promise.resolve({ success: true, player: currentUserProfile }) : apiClient.getBootstrap());
       if (pId) {
