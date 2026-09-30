@@ -106,9 +106,15 @@ class ChatStore {
 
     // 背景抓取最新狀態
     try {
-      const res = await this.apiClient.getGroupPosts(this.groupId, 20, this.postsColIndex);
+      const res = await this.apiClient.getGroupPosts(this.groupId, 20, this.postsColIndex, this.lastMessageCount || null);
       if (res && res.success) {
+        if (res.status === 304 || (res.data && res.data.status === 304)) {
+          return;
+        }
         if (res.postsColIndex) this.postsColIndex = Number(res.postsColIndex);
+        if (res.data && res.data.messageCount !== undefined) this.lastMessageCount = res.data.messageCount;
+        else if (res.messageCount !== undefined) this.lastMessageCount = res.messageCount;
+
         const incomingPosts = Array.isArray(res.data) ? res.data : (res.posts || (res.data && res.data.posts) || []);
         let ann = undefined;
         if (res.announcement !== undefined) ann = res.announcement;
@@ -302,9 +308,16 @@ class ChatStore {
       if (typeof document !== 'undefined' && document.hidden) return;
 
       try {
-        const res = await this.apiClient.getGroupPosts(this.groupId, 20, this.postsColIndex);
+        const res = await this.apiClient.getGroupPosts(this.groupId, 20, this.postsColIndex, this.lastMessageCount || null);
         if (res && res.success) {
+          if (res.status === 304 || (res.data && res.data.status === 304)) {
+            // Nothing changed in posts, but maybe announcement did? Actually we can skip merge.
+            return;
+          }
           if (res.postsColIndex) this.postsColIndex = Number(res.postsColIndex);
+          if (res.data && res.data.messageCount !== undefined) this.lastMessageCount = res.data.messageCount;
+          else if (res.messageCount !== undefined) this.lastMessageCount = res.messageCount;
+
           const incomingPosts = Array.isArray(res.data) ? res.data : (res.posts || (res.data && res.data.posts) || []);
           let ann = undefined;
           if (res.announcement !== undefined) ann = res.announcement;
