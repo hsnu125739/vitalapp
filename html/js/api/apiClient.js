@@ -545,6 +545,9 @@
       if (groupId) data.groupId = groupId;
       return this.request('getGroupJourney', data);
     }
+    getGroupJourneyList() {
+      return this.request('getGroupJourneyList');
+    }
     getMyGroupContributionSummary(groupId = null, playerId = null) {
       const data = {};
       if (groupId) data.groupId = groupId;
