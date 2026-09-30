@@ -4741,7 +4741,7 @@ body{
     display:block;
     margin:0;
     color:#d66b91 !important;
-    font-size:28px;
+    font-size:28px !important;
     font-weight:1000;
     line-height:1;
     letter-spacing:-.04em;
@@ -4753,6 +4753,7 @@ body{
 #homeView .home-hero-card .hero-score-grid .hero-score-card:nth-child(2) strong,
 #homeView .home-hero-card .hero-score-grid .hero-group-score strong{
   color:#2f8f7e !important;
+  font-size:28px !important;
 }
 
 #homeView .home-hero-card .hero-score-grid .hero-score-card small{
@@ -5283,7 +5284,7 @@ body{
   }
 
   #homeView .home-hero-card .hero-score-grid .hero-score-card strong{
-    font-size:33px;
+    font-size:28px;
   }
 
   #myView .my-menu-list{
