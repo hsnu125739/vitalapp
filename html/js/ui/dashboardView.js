@@ -43,6 +43,12 @@
       this.currentDate = this.getTodayDateString();
       this.currentWeekKey = this.getCurrentWeekKey();
 
+      this.currentAnnouncements = [];
+      try {
+        const storedAnn = localStorage.getItem('vital_announcements');
+        if (storedAnn) this.currentAnnouncements = JSON.parse(storedAnn);
+      } catch (e) {}
+
       this.infoModal = document.getElementById('infoModal');
       this.infoModalTitle = document.getElementById('infoModalTitle');
       this.infoModalContent = document.getElementById('infoModalContent');
@@ -182,7 +188,7 @@
       };
     }
 
-    render(userProfile, journeyData, announcements = []) {
+    render(userProfile, journeyData, announcements = null) {
       if (!userProfile) return;
       this.currentUserProfile = userProfile;
 
@@ -225,8 +231,16 @@
       // 3. 八大篇章成長旅程
       this.renderJourneyNodes_(journeyData);
 
-      // 4. 公告呈現
-      this.renderAnnouncements_(announcements);
+      // 4. 公告呈現 (若未傳入 announcements 則維持現有快取，絕不誤清空)
+      if (Array.isArray(announcements) && announcements.length > 0) {
+        this.currentAnnouncements = announcements;
+      } else if (!this.currentAnnouncements || this.currentAnnouncements.length === 0) {
+        try {
+          const storedAnn = localStorage.getItem('vital_announcements');
+          if (storedAnn) this.currentAnnouncements = JSON.parse(storedAnn);
+        } catch (e) {}
+      }
+      this.renderAnnouncements_(this.currentAnnouncements);
 
       // 5. 本週任務週次與日期標籤
       const weekDateEl = document.getElementById('homeWeeklyDateText');
