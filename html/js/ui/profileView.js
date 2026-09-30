@@ -212,12 +212,47 @@
           const listMount = document.getElementById('vitalGroupsList');
           if (listMount) {
             if (hasGroup) {
+              const grpName = this.currentUserProfile.groupName || this.currentUserProfile.groupId;
               listMount.innerHTML = `
-                <div class="vital-group-item active-group" style="padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin-bottom:8px;">
-                  <strong style="color:#15803d;font-size:15px;">現屬活力組：${this.currentUserProfile.groupName || this.currentUserProfile.groupId}</strong>
-                  <div style="font-size:13px;color:#475569;margin-top:4px;">組別代碼：${this.currentUserProfile.groupId}</div>
+                <div class="vital-group-item active-group" style="padding:14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin-bottom:8px;">
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+                    <div>
+                      <strong style="color:#15803d;font-size:15px;">現屬活力組：${this.escapeHtml(grpName)}</strong>
+                      <div style="font-size:13px;color:#475569;margin-top:4px;">組別代碼：${this.escapeHtml(this.currentUserProfile.groupId)}</div>
+                    </div>
+                    <button type="button" id="btnLeaveVitalGroup" class="danger-btn" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">退出活力組</button>
+                  </div>
                 </div>
               `;
+              const leaveBtn = listMount.querySelector('#btnLeaveVitalGroup');
+              if (leaveBtn) {
+                leaveBtn.addEventListener('click', async () => {
+                  const ok = confirm(`確定要退出「${grpName}」嗎？\n\n退出後，您在組期間的操練分數將保留沉澱於該小組，您可自由加入新組。`);
+                  if (!ok) return;
+
+                  leaveBtn.disabled = true;
+                  leaveBtn.textContent = '正在退出...';
+
+                  try {
+                    const res = await this.apiClient.leaveGroup(this.currentUserProfile.groupId);
+                    if (res && res.success) {
+                      alert('已成功退出活力組！');
+                      if (vitalModal) vitalModal.classList.add('hidden');
+                      if (typeof window.AppCoordinator?.refreshUserData === 'function') {
+                        await window.AppCoordinator.refreshUserData();
+                      }
+                    } else {
+                      alert((res && (res.error || res.message)) || '退出活力組失敗');
+                      leaveBtn.disabled = false;
+                      leaveBtn.textContent = '退出活力組';
+                    }
+                  } catch (err) {
+                    alert(err.message || '連線逾時，請稍後再試');
+                    leaveBtn.disabled = false;
+                    leaveBtn.textContent = '退出活力組';
+                  }
+                });
+              }
             } else {
               listMount.innerHTML = `<div class="empty-card" style="padding:16px;text-align:center;color:#64748b;">目前尚未加入任何活力組，可於下方建立新組或以邀請碼加入。</div>`;
             }
@@ -358,7 +393,7 @@
     render(userProfile, journeyData = null) {
       if (!userProfile) return;
       this.currentUserProfile = userProfile;
-      if (journeyData) this.currentJourneyData = journeyData;
+      this.currentJourneyData = journeyData || null;
 
       const myNameEl = document.getElementById('myPlayerName');
       const myGroupEl = document.getElementById('myGroupName');
@@ -366,7 +401,8 @@
       const myAvatarPlaceholder = document.getElementById('myAvatarPlaceholder');
 
       if (myNameEl) myNameEl.textContent = userProfile.name || userProfile.username || '活力人';
-      if (myGroupEl) myGroupEl.textContent = userProfile.groupName || (userProfile.groupId ? `活力組 #${userProfile.groupId}` : '未加入活力組');
+      const hasGroup = Boolean(userProfile.groupId);
+      if (myGroupEl) myGroupEl.textContent = hasGroup ? (userProfile.groupName || `活力組 #${userProfile.groupId}`) : '未加入活力組';
 
       if (myAvatarImg && userProfile.avatarUrl) {
         myAvatarImg.src = userProfile.avatarUrl;
@@ -541,6 +577,15 @@
           this.infoModalContent.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444;">讀取同行貢獻失敗：${err.message}</div>`;
         }
       }
+    }
+    
+    escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }
   }
 
