@@ -30,16 +30,22 @@
   ];
 
   class DashboardView {
-    constructor({ practiceStore, apiClient, onFootprintClick, onChestClick, onRefresh, onLogout }) {
+    constructor({ practiceStore, apiClient, onFootprintClick, onChestClick, onRefresh, onLogout, onGroupJourneyListClick }) {
       this.practiceStore = practiceStore;
       this.apiClient = apiClient;
       this.onFootprintClick = onFootprintClick;
       this.onChestClick = onChestClick;
       this.onRefresh = onRefresh;
       this.onLogout = onLogout;
+      this.onGroupJourneyListClick = onGroupJourneyListClick;
 
+      this.currentUserProfile = null;
       this.currentDate = this.getTodayDateString();
       this.currentWeekKey = this.getCurrentWeekKey();
+
+      this.infoModal = document.getElementById('infoModal');
+      this.infoModalTitle = document.getElementById('infoModalTitle');
+      this.infoModalContent = document.getElementById('infoModalContent');
 
       this.initEvents_();
       this.subscribeStore_();
@@ -133,6 +139,25 @@
           if (typeof this.onLogout === 'function') this.onLogout();
         });
       }
+
+      // 查看各組旅程清單
+      const openGroupJourneyBtn = document.getElementById('openGroupJourneyBtn');
+      if (openGroupJourneyBtn) {
+        openGroupJourneyBtn.addEventListener('click', () => {
+          if (typeof this.onGroupJourneyListClick === 'function') {
+            this.onGroupJourneyListClick();
+          } else {
+            this.openGroupJourneyListModal();
+          }
+        });
+      }
+
+      // 關閉通用彈窗
+      document.querySelectorAll('[data-close-modal="infoModal"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (this.infoModal) this.infoModal.classList.add('hidden');
+        });
+      });
     }
 
     subscribeStore_() {
@@ -147,6 +172,7 @@
 
     render(userProfile, journeyData, announcements = []) {
       if (!userProfile) return;
+      this.currentUserProfile = userProfile;
 
       // 1. 頂部資訊
       const nameEl = document.getElementById('homePlayerName');
@@ -289,6 +315,89 @@
           status.textContent = done ? '已完成' : '未完成';
         }
       });
+    }
+
+    async openGroupJourneyListModal() {
+      if (this.infoModalTitle) this.infoModalTitle.textContent = '全召會活力組旅程榜';
+      if (this.infoModal) this.infoModal.classList.remove('hidden');
+
+      if (this.infoModalContent) {
+        this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">讀取全召會活力組旅程中...</div>';
+      }
+
+      try {
+        const res = await this.apiClient.getGroupJourneyList();
+        const data = (res && res.data) || res || {};
+        const groups = (data && data.groups) || (res && res.groups) || [];
+        this.renderGroupJourneyList_(groups);
+      } catch (err) {
+        if (this.infoModalContent) {
+          this.infoModalContent.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444;">讀取失敗：${this.escapeHtml_(err.message || '網路異常')}</div>`;
+        }
+      }
+    }
+
+    renderGroupJourneyList_(groups) {
+      if (!this.infoModalContent) return;
+
+      if (!Array.isArray(groups) || groups.length === 0) {
+        this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;">目前尚無已建立的活力組</div>';
+        return;
+      }
+
+      // 依總分由高至低排序
+      const sorted = [...groups].sort((a, b) => {
+        const scoreA = Number(a.totalScore || a.totalPoints || 0);
+        const scoreB = Number(b.totalScore || b.totalPoints || 0);
+        return scoreB - scoreA;
+      });
+
+      const currentGroupId = this.currentUserProfile && this.currentUserProfile.groupId;
+      const rankIcons = ['🥇', '🥈', '🥉'];
+
+      const html = `
+        <div style="display:flex; flex-direction:column; gap:12px; max-height:60vh; overflow-y:auto; padding:4px;">
+          ${sorted.map((grp, idx) => {
+            const isMyGroup = Boolean(currentGroupId && grp.groupId === currentGroupId);
+            const rankBadge = idx < 3 ? rankIcons[idx] : `<span style="font-size:0.95rem;color:#64748b;font-weight:700;">#${idx + 1}</span>`;
+            const score = Number(grp.totalScore || grp.totalPoints || 0);
+            const chapter = grp.currentChapter || {};
+            const chapterName = chapter.title || chapter.name || CHAPTER_NAMES[chapter.index || 0] || '信心';
+            const progressPercent = Math.min(100, Math.round(grp.progressPercent || (grp.journey && grp.journey.progressPercent) || 0));
+
+            return `
+              <div style="background:${isMyGroup ? '#ecfdf5' : '#ffffff'}; border:2px solid ${isMyGroup ? '#10b981' : '#e2e8f0'}; border-radius:14px; padding:12px 16px; box-shadow:0 2px 4px rgba(0,0,0,0.04); display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <div style="font-size:1.25rem; font-weight:700; width:30px; text-align:center; display:flex; align-items:center; justify-content:center;">${rankBadge}</div>
+                    <strong style="font-size:1.05rem; color:#1e293b;">${this.escapeHtml_(grp.groupName || '未命名小組')}</strong>
+                    ${isMyGroup ? '<span style="font-size:0.75rem; background:#10b981; color:#ffffff; padding:2px 8px; border-radius:12px; font-weight:600;">您的小組</span>' : ''}
+                  </div>
+                  <div style="font-weight:700; color:#d97706; font-size:1.1rem;">
+                    ${score.toLocaleString()} <span style="font-size:0.8rem; font-weight:normal; color:#64748b;">點</span>
+                  </div>
+                </div>
+                
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.85rem; color:#475569;">
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <span style="background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:6px; font-weight:600; font-size:0.8rem;">篇章</span>
+                    <span style="font-weight:600;">【${this.escapeHtml_(chapterName)}】</span>
+                  </div>
+                  <div>
+                    <span>進度 ${progressPercent}%</span>
+                  </div>
+                </div>
+
+                <div style="width:100%; height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden;">
+                  <div style="width:${progressPercent}%; height:100%; background:linear-gradient(90deg, #f59e0b, #10b981); border-radius:4px; transition:width 0.3s ease;"></div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+
+      this.infoModalContent.innerHTML = html;
     }
 
     escapeHtml_(str) {
