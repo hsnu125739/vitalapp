@@ -41,23 +41,19 @@
   ]);
 
   const DEFAULT_DISTRICTS = [
-    {
-      careDistrict: '西照顧區',
+    {\n      careDistrict: '西照顧區',
       districtSortOrder: 1,
       careAreas: [{ careArea: '西一區' }, { careArea: '西二區' }, { careArea: '鼓山大區' }]
     },
-    {
-      careDistrict: '東照顧區',
+    {\n      careDistrict: '東照顧區',
       districtSortOrder: 2,
       careAreas: [{ careArea: '東一區' }, { careArea: '東二區' }, { careArea: '鳳山大區' }]
     },
-    {
-      careDistrict: '北照顧區',
+    {\n      careDistrict: '北照顧區',
       districtSortOrder: 3,
       careAreas: [{ careArea: '北一區' }, { careArea: '北二區' }, { careArea: '三民大區' }]
     },
-    {
-      careDistrict: '南照顧區',
+    {\n      careDistrict: '南照顧區',
       districtSortOrder: 4,
       careAreas: [{ careArea: '南一區' }, { careArea: '南二區' }, { careArea: '前鎮大區' }]
     }
@@ -522,6 +518,8 @@
     leaveGroup(groupId = null) {
       const data = {};
       if (groupId) data.groupId = groupId;
+      const col = this.getMatrixColIndexFromStorage();
+      if (col) data.matrixColIndex = col;
       return this.request('leaveGroup', data);
     }
     getGroupJourney(groupId = null) {
