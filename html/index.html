@@ -12,9 +12,16 @@
   <meta name="apple-mobile-web-app-title" content="高雄青職｜活力同行">
   <meta name="application-name" content="高雄青職｜活力同行">
   <meta name="theme-color" content="#8fd3ff">
-  <title>高雄青職｜活力同行</title>
-  <link rel="stylesheet" href="style.css?v=20260909-migration-rc1">
-  <link rel="stylesheet" href="login-webp-perf.css?v=20260909-migration-rc1">
+  <link rel="stylesheet" href="style.css?v=20261001-v18">
+  <link rel="stylesheet" href="login-webp-perf.css?v=20261001-v18">
+  <style id="hero-score-override">
+    #homeView .home-hero-card .hero-score-grid .hero-score-card strong,
+    #homeView .home-hero-card .hero-score-grid .hero-personal-score strong,
+    #homeView .home-hero-card .hero-score-grid .hero-contribution strong,
+    #homeView .home-hero-card .hero-score-grid .hero-group-score strong {
+      font-size: 28px !important;
+    }
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -744,17 +751,17 @@
     </div>
   </div>
 
-  <script src="runtime-settings.js?v=20260929-v2"></script>
-  <script src="js/api/apiClient.js?v=20260929-v2"></script>
-  <script src="js/store/practiceStore.js?v=20260929-v2"></script>
-  <script src="js/store/chatStore.js?v=20260929-v2"></script>
-  <script src="js/ui/authView.js?v=20260929-v2"></script>
-  <script src="js/ui/dashboardView.js?v=20260929-v2"></script>
-  <script src="js/ui/chestView.js?v=20260929-v2"></script>
-  <script src="js/ui/footprintsView.js?v=20260929-v2"></script>
-  <script src="js/ui/profileView.js?v=20260929-v2"></script>
-  <script src="js/ui/groupFellowshipView.js?v=20260929-v2"></script>
-  <script src="js/app.js?v=20260929-v2"></script>
+  <script src="runtime-settings.js?v=20261001-v18"></script>
+  <script src="js/api/apiClient.js?v=20261001-v18"></script>
+  <script src="js/store/practiceStore.js?v=20261001-v18"></script>
+  <script src="js/store/chatStore.js?v=20261001-v18"></script>
+  <script src="js/ui/authView.js?v=20261001-v18"></script>
+  <script src="js/ui/dashboardView.js?v=20261001-v18"></script>
+  <script src="js/ui/chestView.js?v=20261001-v18"></script>
+  <script src="js/ui/footprintsView.js?v=20261001-v18"></script>
+  <script src="js/ui/profileView.js?v=20261001-v18"></script>
+  <script src="js/ui/groupFellowshipView.js?v=20261001-v18"></script>
+  <script src="js/app.js?v=20261001-v18"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
