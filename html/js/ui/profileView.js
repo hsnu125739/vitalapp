@@ -877,15 +877,16 @@
     }
 
     async openContributionModal() {
-      if (this.infoModalTitle) this.infoModalTitle.textContent = '同行貢獻總覽';
+      if (this.infoModalTitle) this.infoModalTitle.textContent = '當年度同行貢獻總覽';
       if (this.infoModal) this.infoModal.classList.remove('hidden');
       if (this.infoModalContent) {
-        this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">讀取同行貢獻資料中...</div>';
+        this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">讀取當年度同行貢獻資料中...</div>';
       }
 
       const p = this.currentUserProfile || {};
       const groupId = p.groupId;
-      const myPoints = Number((p.contributionPoints !== undefined ? p.contributionPoints : (p.contribution !== undefined ? p.contribution : (p.totalPoints || 0))) || 0);
+      const myPersonalPoints = Number(p.personalPoints !== undefined ? p.personalPoints : (p.totalPoints !== undefined ? p.totalPoints : (p.totalScore || 0)));
+      const myContribPoints = Number(p.contributionPoints !== undefined ? p.contributionPoints : (p.contribution || 0));
 
       if (!groupId) {
         if (this.infoModalContent) {
@@ -895,7 +896,7 @@
               <h4 style="font-size:16px; font-weight:700; color:#1e293b; margin-bottom:8px;">尚未加入活力組</h4>
               <p style="font-size:13px; color:#64748b; line-height:1.6; margin-bottom:20px;">
                 同行貢獻記錄您與活力組同伴共同奔跑的點數與篇章進度。<br>
-                您目前累積個人操練分為 <strong>${myPoints.toLocaleString()}</strong> 點。<br>
+                您目前累積個人點數為 <strong>${myPersonalPoints.toLocaleString()}</strong> 點。<br>
                 請先至「活力組管理」建立小組或以邀請碼加入，開始與同伴同心建造！
               </p>
               <button id="contribGoVitalBtn" class="primary-btn" style="display:inline-block; padding:8px 20px; font-size:13px; font-weight:600; border-radius:8px; background:#2563eb; color:#fff; border:none; cursor:pointer;">
@@ -916,6 +917,14 @@
       }
 
       try {
+        let summary = null;
+        if (this.apiClient && typeof this.apiClient.getMyGroupContributionSummary === 'function') {
+          const res = await this.apiClient.getMyGroupContributionSummary(groupId);
+          if (res && res.success) {
+            summary = res.data || res;
+          }
+        }
+
         let journeyData = this.currentJourneyData;
         if (!journeyData && typeof localStorage !== 'undefined') {
           try {
@@ -924,31 +933,41 @@
         }
 
         const groupName = (journeyData && journeyData.groupName) || p.groupName || groupId;
-        const totalGroupScore = Number((journeyData && journeyData.totalScore) || myPoints);
-        const chapterTitle = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.title || journeyData.currentChapter.name)) || '起步啟航';
-        const chapterIndex = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.index || journeyData.currentChapter.chapterIndex)) || 1;
-        const percent = totalGroupScore > 0 ? Math.min(100, Math.round((myPoints / totalGroupScore) * 100)) : 100;
-        const coScore = Math.max(0, totalGroupScore - myPoints);
+        const totalGroupScore = Number((summary && summary.groupTotalPoints) || (journeyData && (journeyData.totalPoints || journeyData.totalScore)) || 0);
+        const myContribScore = Number(summary && summary.individualPoints !== undefined ? summary.individualPoints : myContribPoints);
+        
+        let percent = (summary && summary.contributionPercent);
+        if (typeof percent === 'string') {
+          percent = parseInt(percent, 10) || 0;
+        } else if (typeof percent === 'number') {
+          percent = Math.round(percent);
+        } else {
+          percent = totalGroupScore > 0 ? Math.min(100, Math.round((myContribScore / totalGroupScore) * 100)) : (myContribScore > 0 ? 100 : 0);
+        }
+        const coScore = Math.max(0, totalGroupScore - myContribScore);
+
+        const chapterTitle = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.title || journeyData.currentChapter.name)) || (journeyData && journeyData.chapterTitle) || '起步啟航';
+        const chapterIndex = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.index || journeyData.currentChapter.chapterIndex)) || (journeyData && journeyData.currentChapter) || 1;
 
         if (this.infoModalContent) {
           this.infoModalContent.innerHTML = `
             <div style="padding:16px;">
               <div style="background:linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%); border:1px solid #bae6fd; border-radius:14px; padding:16px; margin-bottom:16px; text-align:center;">
                 <div style="font-size:12px; font-weight:700; color:#0284c7; text-transform:uppercase; letter-spacing:0.5px;">VITAL GROUP JOURNEY</div>
-                <h3 style="font-size:18px; font-weight:800; color:#0f172a; margin:4px 0 8px 0;">${groupName}</h3>
+                <h3 style="font-size:18px; font-weight:800; color:#0f172a; margin:4px 0 8px 0;">${this.escapeHtml(groupName)}</h3>
                 <div style="display:inline-flex; align-items:center; gap:6px; background:#fff; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; color:#16a34a; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-                  <span>🏆 當前篇章：第 ${chapterIndex} 篇【${chapterTitle}】</span>
+                  <span>🏆 當前篇章：第 ${chapterIndex} 篇【${this.escapeHtml(chapterTitle)}】</span>
                 </div>
               </div>
 
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
                 <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; text-align:center;">
-                  <div style="font-size:12px; color:#64748b; font-weight:600;">小組總累積點數</div>
+                  <div style="font-size:12px; color:#64748b; font-weight:600;">小組當年度累積點數</div>
                   <div style="font-size:24px; font-weight:800; color:#2563eb; margin-top:4px;">${totalGroupScore.toLocaleString()}<small style="font-size:12px; font-weight:600; margin-left:2px;">分</small></div>
                 </div>
                 <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; text-align:center;">
-                  <div style="font-size:12px; color:#64748b; font-weight:600;">我的個人奉獻點數</div>
-                  <div style="font-size:24px; font-weight:800; color:#16a34a; margin-top:4px;">${myPoints.toLocaleString()}<small style="font-size:12px; font-weight:600; margin-left:2px;">分</small></div>
+                  <div style="font-size:12px; color:#64748b; font-weight:600;">個人當年度貢獻點數</div>
+                  <div style="font-size:24px; font-weight:800; color:#16a34a; margin-top:4px;">${myContribScore.toLocaleString()}<small style="font-size:12px; font-weight:600; margin-left:2px;">分</small></div>
                 </div>
               </div>
 
@@ -961,7 +980,7 @@
                   <div style="height:100%; width:${percent}%; background:linear-gradient(90deg, #3b82f6, #10b981); border-radius:4px; transition:width 0.3s ease;"></div>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#64748b;">
-                  <span>我的操練：${myPoints.toLocaleString()} 分</span>
+                  <span>我的貢獻：${myContribScore.toLocaleString()} 分</span>
                   <span>組員同心同行：${coScore.toLocaleString()} 分</span>
                 </div>
               </div>
@@ -974,7 +993,7 @@
         }
       } catch (err) {
         if (this.infoModalContent) {
-          this.infoModalContent.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444;">讀取同行貢獻失敗：${err.message}</div>`;
+          this.infoModalContent.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444;">讀取同行貢獻失敗：${this.escapeHtml(err.message || '連線逾時')}</div>`;
         }
       }
     }
