@@ -196,54 +196,6 @@
     }
 
     /**
-     * 計算當月全勤天數的防禦性回退（若後端或舊快取未帶 fullAttendanceDays）
-     */
-    calculateFullAttendanceDaysFallback_(monthKey) {
-      if (!this.currentData || !monthKey) return 0;
-      let count = 0;
-      if (this.currentData.dailyRecords && typeof this.currentData.dailyRecords === 'object') {
-        Object.keys(this.currentData.dailyRecords).forEach(dStr => {
-          if (dStr.startsWith(monthKey)) {
-            const r = this.currentData.dailyRecords[dStr];
-            if (r && r.morning && r.bible && r.prayer && r.book) count++;
-          }
-        });
-        return count;
-      }
-      if (Array.isArray(this.currentData.daily)) {
-        this.currentData.daily.forEach(d => {
-          const dStr = String(d.date || d.recordDate || '');
-          if (dStr.startsWith(monthKey)) {
-            const isFull = (d.morningCompleted || d.morningRevival || d.morning) &&
-              (d.bibleCompleted || d.bibleReading || d.bible) &&
-              (d.prayerCompleted || d.prayer) &&
-              (d.readingCompleted || d.bookCompleted || d.bookPursuit || d.book);
-            if (isFull) count++;
-          }
-        });
-        return count;
-      }
-      if (Array.isArray(this.currentData.weeks)) {
-        this.currentData.weeks.forEach(w => {
-          if (Array.isArray(w.days)) {
-            w.days.forEach(d => {
-              const dStr = String(d.date || d.recordDate || '');
-              if (dStr.startsWith(monthKey)) {
-                const isFull = (d.morningCompleted || d.morningRevival || d.morning) &&
-                  (d.bibleCompleted || d.bibleReading || d.bible) &&
-                  (d.prayerCompleted || d.prayer) &&
-                  (d.readingCompleted || d.bookCompleted || d.bookPursuit || d.book);
-                if (isFull) count++;
-              }
-            });
-          }
-        });
-        return count;
-      }
-      return 0;
-    }
-
-    /**
      * 本月 8 大成果指標卡區塊
      */
     renderMonthSection_(month) {
@@ -253,17 +205,8 @@
       // 動態轉換月份中文名稱 (例如 '2026-10' -> '十月成果卡')
       const monthName = getChineseMonthName(monthKey);
 
-      // 計算當月全勤天數 (四項每日操練皆完成)
-      let fullAttendanceDays = 0;
-      if (month.fullAttendanceDays !== undefined && month.fullAttendanceDays !== null) {
-        fullAttendanceDays = Number(month.fullAttendanceDays || 0);
-      } else if (month.perfectDays !== undefined && month.perfectDays !== null) {
-        fullAttendanceDays = Number(month.perfectDays || 0);
-      } else if (month.fullDays !== undefined && month.fullDays !== null) {
-        fullAttendanceDays = Number(month.fullDays || 0);
-      } else {
-        fullAttendanceDays = this.calculateFullAttendanceDaysFallback_(monthKey);
-      }
+      // 當月全勤天數 (四項每日操練皆完成，由後端與快取統一維護)
+      const fullAttendanceDays = Number(month.fullAttendanceDays ?? month.perfectDays ?? month.fullDays ?? 0);
 
       // 8 大成果項目定義 (4 每日操練天數 + 4 每週聚會次數)
       const statsList = [
