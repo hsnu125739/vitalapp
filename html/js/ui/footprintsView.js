@@ -277,7 +277,7 @@
         { label: '讀經天數', value: month.bibleDays || 0, icon: '📖', unit: '天' },
         { label: '禱告天數', value: month.prayerDays || 0, icon: '🙏', unit: '天' },
         { label: '書報天數', value: month.bookDays || month.readingDays || 0, icon: '📚', unit: '天' },
-        { label: '小組聚會', value: month.groupMeetingCount || month.groupDays || 0, icon: '👥', unit: '次' },
+        { label: '小排聚會', value: month.groupMeetingCount || month.groupDays || 0, icon: '👥', unit: '次' },
         { label: '禱告聚會', value: month.prayerMeetingCount || month.prayerMeetingDays || 0, icon: '🔥', unit: '次' },
         { label: '主日聚會', value: month.lordDayMeetingCount || month.lordDayDays || 0, icon: '🍞', unit: '次' },
         { label: '相調探訪', value: month.visitCount || 0, icon: '🤝', unit: '次' }
@@ -340,7 +340,7 @@
         const visitDone = Boolean(w.visitCompleted || (w.meeting && (w.meeting.outreachVisit || w.meeting.outreach || w.meeting.mutual)));
 
         const meetingSummaryParts = [
-          groupDone ? '✅ 小組' : '▫️ 小組',
+          groupDone ? '✅ 小排' : '▫️ 小排',
           prayerDone ? '✅ 禱會' : '▫️ 禱會',
           lordDayDone ? '✅ 主日' : '▫️ 主日',
           visitDone ? '✅ 探訪' : '▫️ 探訪'
