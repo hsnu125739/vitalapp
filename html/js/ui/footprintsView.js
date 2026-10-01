@@ -27,6 +27,19 @@
   }
 
   const DAY_NAMES = ['', '週一', '週二', '週三', '週四', '週五', '週六', '主日'];
+  const CHINESE_MONTHS = ['', '一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+
+  function getChineseMonthName(monthKey) {
+    if (!monthKey || typeof monthKey !== 'string') return '本月';
+    const parts = monthKey.split('-');
+    if (parts.length >= 2) {
+      const mNum = parseInt(parts[1], 10);
+      if (mNum >= 1 && mNum <= 12) {
+        return CHINESE_MONTHS[mNum];
+      }
+    }
+    return '本月';
+  }
 
   class FootprintsView {
     constructor({ apiClient } = {}) {
@@ -189,12 +202,74 @@
     }
 
     /**
+     * 計算當月全勤天數的防禦性回退（若後端或舊快取未帶 fullAttendanceDays）
+     */
+    calculateFullAttendanceDaysFallback_(monthKey) {
+      if (!this.currentData || !monthKey) return 0;
+      let count = 0;
+      if (this.currentData.dailyRecords && typeof this.currentData.dailyRecords === 'object') {
+        Object.keys(this.currentData.dailyRecords).forEach(dStr => {
+          if (dStr.startsWith(monthKey)) {
+            const r = this.currentData.dailyRecords[dStr];
+            if (r && r.morning && r.bible && r.prayer && r.book) count++;
+          }
+        });
+        return count;
+      }
+      if (Array.isArray(this.currentData.daily)) {
+        this.currentData.daily.forEach(d => {
+          const dStr = String(d.date || d.recordDate || '');
+          if (dStr.startsWith(monthKey)) {
+            const isFull = (d.morningCompleted || d.morningRevival || d.morning) &&
+              (d.bibleCompleted || d.bibleReading || d.bible) &&
+              (d.prayerCompleted || d.prayer) &&
+              (d.readingCompleted || d.bookCompleted || d.bookPursuit || d.book);
+            if (isFull) count++;
+          }
+        });
+        return count;
+      }
+      if (Array.isArray(this.currentData.weeks)) {
+        this.currentData.weeks.forEach(w => {
+          if (Array.isArray(w.days)) {
+            w.days.forEach(d => {
+              const dStr = String(d.date || d.recordDate || '');
+              if (dStr.startsWith(monthKey)) {
+                const isFull = (d.morningCompleted || d.morningRevival || d.morning) &&
+                  (d.bibleCompleted || d.bibleReading || d.bible) &&
+                  (d.prayerCompleted || d.prayer) &&
+                  (d.readingCompleted || d.bookCompleted || d.bookPursuit || d.book);
+                if (isFull) count++;
+              }
+            });
+          }
+        });
+        return count;
+      }
+      return 0;
+    }
+
+    /**
      * 本月 8 大成果指標卡區塊
      */
     renderMonthSection_(month) {
       const monthKey = month.monthKey || new Date().toISOString().slice(0, 7);
       const totalScore = Number(month.totalScore || month.totalPoints || 0);
-      const streak = Number(month.longestStreak || 0);
+
+      // 動態轉換月份中文名稱 (例如 '2026-10' -> '十月成果卡')
+      const monthName = getChineseMonthName(monthKey);
+
+      // 計算當月全勤天數 (四項每日操練皆完成)
+      let fullAttendanceDays = 0;
+      if (month.fullAttendanceDays !== undefined && month.fullAttendanceDays !== null) {
+        fullAttendanceDays = Number(month.fullAttendanceDays || 0);
+      } else if (month.perfectDays !== undefined && month.perfectDays !== null) {
+        fullAttendanceDays = Number(month.perfectDays || 0);
+      } else if (month.fullDays !== undefined && month.fullDays !== null) {
+        fullAttendanceDays = Number(month.fullDays || 0);
+      } else {
+        fullAttendanceDays = this.calculateFullAttendanceDaysFallback_(monthKey);
+      }
 
       // 8 大成果項目定義 (4 每日操練天數 + 4 每週聚會次數)
       const statsList = [
@@ -219,8 +294,8 @@
       return `
         <section class="footprint-section">
           <div class="footprint-heading">
-            <h3>🏆 本月成果卡 <span>(${escapeHtml(monthKey)})</span></h3>
-            <span>累計 ⭐ <strong>${formatNumber(totalScore)}</strong> 點${streak > 0 ? ` · 連續 🔥 ${streak} 天` : ''}</span>
+            <h3>🏆 ${monthName}成果卡 <span>(${escapeHtml(monthKey)})</span></h3>
+            <span>累計 ⭐ <strong>${formatNumber(totalScore)}</strong> 點 · 全勤 🔥 ${formatNumber(fullAttendanceDays)} 天</span>
           </div>
           <div class="footprint-stats">
             ${statsCards}
@@ -370,6 +445,8 @@
       });
     }
   }
+
+  FootprintsView.getChineseMonthName = getChineseMonthName;
 
   // 模組與全域導出
   if (typeof module !== 'undefined' && module.exports) {

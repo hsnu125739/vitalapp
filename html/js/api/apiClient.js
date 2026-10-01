@@ -608,6 +608,15 @@
             if (oldAny !== newAny) {
               cache.monthSummary.completedDays = Math.max(0, (cache.monthSummary.completedDays || 0) + (newAny ? 1 : -1));
             }
+
+            const oldFull = Boolean(oldRec.morning && oldRec.bible && oldRec.prayer && oldRec.book);
+            const newFull = Boolean(morningVal && bibleVal && prayerVal && bookVal);
+            if (oldFull !== newFull) {
+              const delta = newFull ? 1 : -1;
+              cache.monthSummary.fullAttendanceDays = Math.max(0, (cache.monthSummary.fullAttendanceDays || 0) + delta);
+              cache.monthSummary.perfectDays = cache.monthSummary.fullAttendanceDays;
+              cache.monthSummary.fullDays = cache.monthSummary.fullAttendanceDays;
+            }
           }
         }
 
