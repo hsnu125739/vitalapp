@@ -921,10 +921,10 @@
     }
 
     escapeHtml_(str) {
-      return String(str || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+      if (typeof VitalUtils !== 'undefined' && VitalUtils.escapeHtml) {
+        return VitalUtils.escapeHtml(str);
+      }
+      return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
   }
 

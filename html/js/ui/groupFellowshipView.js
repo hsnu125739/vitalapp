@@ -307,19 +307,17 @@
     }
 
     escapeHtml(str) {
-      return String(str || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+      if (typeof VitalUtils !== 'undefined' && VitalUtils.escapeHtml) {
+        return VitalUtils.escapeHtml(str);
+      }
+      return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
 
     escapeAttr(str) {
-      return String(str || '')
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+      if (typeof VitalUtils !== 'undefined' && VitalUtils.escapeAttr) {
+        return VitalUtils.escapeAttr(str);
+      }
+      return this.escapeHtml(str);
     }
   }
 

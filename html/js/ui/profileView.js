@@ -1102,12 +1102,10 @@
     }
     
     escapeHtml(str) {
-      return String(str || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+      if (typeof VitalUtils !== 'undefined' && VitalUtils.escapeHtml) {
+        return VitalUtils.escapeHtml(str);
+      }
+      return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
   }
 
