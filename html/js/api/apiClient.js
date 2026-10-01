@@ -513,7 +513,7 @@
         throw err;
       }
     }
-    updateAvatar(avatarUrl) { return this.request('updatePlayerAvatar', { avatarUrl }); }
+    updateAvatar(avatarUrl) { return this.request('updatePlayerAvatar', { avatarKey: avatarUrl }); }
 
     getRegistrationAreaOptions() { return this.request('getRegistrationAreaOptions'); }
 
