@@ -98,11 +98,10 @@ class ChatStore {
   }
 
   /**
-   * 背景預載聊天室最新狀態 (供首頁切換時呼叫)
+   * 背景抓取最新貼文與置頂公告（共用核心）
    */
-  async prefetch() {
+  async fetchLatestPosts_() {
     if (!this.groupId) return;
-    this.loadFromCache();
     try {
       const res = await this.apiClient.getGroupPosts(this.groupId, 20, this.postsColIndex, this.lastMessageCount || null);
       if (res && res.success) {
@@ -112,14 +111,20 @@ class ChatStore {
         else if (res.messageCount !== undefined) this.lastMessageCount = res.messageCount;
 
         const incomingPosts = Array.isArray(res.data) ? res.data : (res.posts || (res.data && res.data.posts) || []);
-        let ann = undefined;
-        if (res.announcement !== undefined) ann = res.announcement;
-        else if (res.data && res.data.announcement !== undefined) ann = res.data.announcement;
-        else if (res.pinnedPost !== undefined) ann = res.pinnedPost;
-        else if (res.data && res.data.pinnedPost !== undefined) ann = res.data.pinnedPost;
+        let ann = res.announcement !== undefined ? res.announcement : (res.data?.announcement !== undefined ? res.data.announcement : (res.pinnedPost !== undefined ? res.pinnedPost : res.data?.pinnedPost));
         this.mergeIncomingPosts(incomingPosts, ann);
       }
-    } catch (err) {}
+    } catch (err) {
+      // 網路異常維持展示快取
+    }
+  }
+
+  /**
+   * 背景預載聊天室最新狀態 (供首頁切換時呼叫)
+   */
+  async prefetch() {
+    this.loadFromCache();
+    await this.fetchLatestPosts_();
   }
 
   /**
@@ -128,29 +133,7 @@ class ChatStore {
   async enterChat() {
     this.loadFromCache();
     this.startSmartPolling();
-
-    // 背景抓取最新狀態
-    try {
-      const res = await this.apiClient.getGroupPosts(this.groupId, 20, this.postsColIndex, this.lastMessageCount || null);
-      if (res && res.success) {
-        if (res.status === 304 || (res.data && res.data.status === 304)) {
-          return;
-        }
-        if (res.postsColIndex) this.postsColIndex = Number(res.postsColIndex);
-        if (res.data && res.data.messageCount !== undefined) this.lastMessageCount = res.data.messageCount;
-        else if (res.messageCount !== undefined) this.lastMessageCount = res.messageCount;
-
-        const incomingPosts = Array.isArray(res.data) ? res.data : (res.posts || (res.data && res.data.posts) || []);
-        let ann = undefined;
-        if (res.announcement !== undefined) ann = res.announcement;
-        else if (res.data && res.data.announcement !== undefined) ann = res.data.announcement;
-        else if (res.pinnedPost !== undefined) ann = res.pinnedPost;
-        else if (res.data && res.data.pinnedPost !== undefined) ann = res.data.pinnedPost;
-        this.mergeIncomingPosts(incomingPosts, ann);
-      }
-    } catch (err) {
-      // 網路異常維持展示快取
-    }
+    await this.fetchLatestPosts_();
   }
 
   /**

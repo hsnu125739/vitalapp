@@ -54,28 +54,15 @@
       }
 
       // 開啟更換頭像彈窗
-      const openAvatarBtns = [
-        document.getElementById('openAvatarBtn'),
-        document.getElementById('myAvatarBtn'),
-        document.getElementById('homeAvatarBtn')
-      ];
-
-      openAvatarBtns.forEach(btn => {
-        if (btn) {
-          btn.addEventListener('click', () => this.openAvatarModal());
-        }
+      document.querySelectorAll('#openAvatarBtn, #myAvatarBtn, #homeAvatarBtn').forEach(btn => {
+        btn.addEventListener('click', () => this.openAvatarModal());
       });
 
       // 關閉 Modal 按鈕
-      document.querySelectorAll('[data-close-modal="avatarModal"]').forEach(btn => {
+      document.querySelectorAll('[data-close-modal="avatarModal"], [data-close-modal="accountSettingsModal"]').forEach(btn => {
         btn.addEventListener('click', () => {
-          if (this.avatarModal) this.avatarModal.classList.add('hidden');
-        });
-      });
-
-      document.querySelectorAll('[data-close-modal="accountSettingsModal"]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          if (this.accountSettingsModal) this.accountSettingsModal.classList.add('hidden');
+          const modal = document.getElementById(btn.getAttribute('data-close-modal'));
+          if (modal) modal.classList.add('hidden');
         });
       });
 

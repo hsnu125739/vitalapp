@@ -23,6 +23,15 @@
 
   const CHAPTER_NAMES = ['信心', '美德', '知識', '節制', '忍耐', '敬虔', '弟兄相愛', '愛'];
 
+  function resolveAvatarUrl(gender, avatarKey) {
+    const isFemale = gender === 'SISTER' || gender === 'female';
+    const folder = isFemale ? 'avatar-female' : 'avatar-male';
+    const prefix = isFemale ? 'avatar-female-direct' : 'avatar-male-direct';
+    const match = String(avatarKey || '').match(/\d+/);
+    const no = match ? String(match[0]).padStart(3, '0') : '001';
+    return `../${folder}/${prefix}-${no}.png`;
+  }
+
   function deriveJourneyFromGroupProgress(groupProgress, fallbackProfile = null) {
     if (!groupProgress) return null;
     let milestones = groupProgress.milestones || [];
@@ -278,20 +287,11 @@
         console.warn('[App] getPractice 快速載入略過:', err);
       });
 
-      const reqs = [];
-      reqs.push(apiClient.getBootstrap());
-      if (pId) {
-        reqs.push(apiClient.getProgressBundle(gId));
-      } else {
-        reqs.push(Promise.resolve(null));
-      }
-      if (gId) {
-        reqs.push(apiClient.getGroupProfile(gId));
-      } else {
-        reqs.push(Promise.resolve(null));
-      }
-
-      const [bootstrapRes, bundleRes, profileRes] = await Promise.allSettled(reqs);
+      const [bootstrapRes, bundleRes, profileRes] = await Promise.allSettled([
+        apiClient.getBootstrap(),
+        pId ? apiClient.getProgressBundle(gId) : Promise.resolve(null),
+        gId ? apiClient.getGroupProfile(gId) : Promise.resolve(null)
+      ]);
 
       let announcements = [];
       let dailyRecords = null;
@@ -322,12 +322,7 @@
       }
 
       if (currentUserProfile && !currentUserProfile.avatarUrl && currentUserProfile.avatarKey) {
-        const isFemale = currentUserProfile.gender === 'SISTER' || currentUserProfile.gender === 'female';
-        const folder = isFemale ? 'avatar-female' : 'avatar-male';
-        const prefix = isFemale ? 'avatar-female-direct' : 'avatar-male-direct';
-        const match = String(currentUserProfile.avatarKey).match(/\d+/);
-        const no = match ? String(match[0]).padStart(3, '0') : '001';
-        currentUserProfile.avatarUrl = `../${folder}/${prefix}-${no}.png`;
+        currentUserProfile.avatarUrl = resolveAvatarUrl(currentUserProfile.gender, currentUserProfile.avatarKey);
       }
 
       const currentPId = currentUserProfile?.playerId;

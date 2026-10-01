@@ -32,6 +32,20 @@ function normalizeMeetingKey(k) {
   return k;
 }
 
+function packBase100(a, b, c, d) {
+  return ((d ? 1 : 0) * 1000000) + ((c ? 1 : 0) * 10000) + ((b ? 1 : 0) * 100) + (a ? 1 : 0);
+}
+
+function unpackBase100(val) {
+  const n = Number(val) || 0;
+  return {
+    a: (n % 100) > 0,
+    b: (Math.floor(n / 100) % 100) > 0,
+    c: (Math.floor(n / 10000) % 100) > 0,
+    d: (Math.floor(n / 1000000) % 100) > 0
+  };
+}
+
 class OptimisticPracticeStore {
   constructor({ apiClient, storage = null, onStateChange = null, retryDelayMs = 2000 }) {
     this.apiClient = apiClient;
@@ -104,10 +118,7 @@ class OptimisticPracticeStore {
     current.syncStatus = 'pending';
 
     // 重新計算 Base-100 打包值
-    current.packedValue = ((current.book ? 1 : 0) * 1000000) +
-                          ((current.prayer ? 1 : 0) * 10000) +
-                          ((current.bible ? 1 : 0) * 100) +
-                          (current.morning ? 1 : 0);
+    current.packedValue = packBase100(current.morning, current.bible, current.prayer, current.book);
 
     // 10ms 立即通知 UI 更新（零卡頓）
     this.notify('DAILY', date, { ...current });
@@ -232,10 +243,7 @@ class OptimisticPracticeStore {
     current[normKey] = nextVal;
     current.syncStatus = 'pending';
 
-    current.packedValue = ((current.outreachVisit ? 1 : 0) * 1000000) +
-                          ((current.lordDayMeeting ? 1 : 0) * 10000) +
-                          ((current.prayerMeeting ? 1 : 0) * 100) +
-                          (current.smallGroup ? 1 : 0);
+    current.packedValue = packBase100(current.smallGroup, current.prayerMeeting, current.lordDayMeeting, current.outreachVisit);
 
     this.notify('MEETING', weekKey, { ...current });
 
@@ -346,69 +354,34 @@ class OptimisticPracticeStore {
     if (!Array.isArray(queue)) return;
 
     for (const item of queue) {
-      if (item.type === 'DAILY' && item.key) {
-        if (!this.dailyState[item.key]) {
-          const p = item.payload || {};
-          let packed = Number(p.packedValue);
-          let morning = false;
-          let bible = false;
-          let prayer = false;
-          let book = false;
-          if (!isNaN(packed) && packed > 0) {
-            book = Math.floor(packed / 1000000) % 100 > 0;
-            prayer = Math.floor(packed / 10000) % 100 > 0;
-            bible = Math.floor(packed / 100) % 100 > 0;
-            morning = packed % 100 > 0;
-          } else {
-            morning = Boolean(p.morning || p.morningRevival);
-            bible = Boolean(p.bible || p.bibleReading);
-            prayer = Boolean(p.prayer);
-            book = Boolean(p.book || p.bookPursuit);
-            packed = ((book ? 1 : 0) * 1000000) + ((prayer ? 1 : 0) * 10000) + ((bible ? 1 : 0) * 100) + (morning ? 1 : 0);
-          }
-          this.dailyState[item.key] = {
-            morning,
-            morningRevival: morning,
-            bible,
-            bibleReading: bible,
-            prayer,
-            book,
-            bookPursuit: book,
-            packedValue: packed,
-            syncStatus: 'error',
-            hasAmberDot: true
-          };
-        }
-      } else if (item.type === 'MEETING' && item.key) {
-        if (!this.meetingState[item.key]) {
-          const p = item.payload || {};
-          let packed = Number(p.packedValue);
-          let smallGroup = false;
-          let prayerMeeting = false;
-          let lordDayMeeting = false;
-          let outreachVisit = false;
-          if (!isNaN(packed) && packed > 0) {
-            outreachVisit = Math.floor(packed / 1000000) % 100 > 0;
-            lordDayMeeting = Math.floor(packed / 10000) % 100 > 0;
-            prayerMeeting = Math.floor(packed / 100) % 100 > 0;
-            smallGroup = packed % 100 > 0;
-          } else {
-            smallGroup = Boolean(p.smallGroup || p.group);
-            prayerMeeting = Boolean(p.prayerMeeting || p.prayerMtg);
-            lordDayMeeting = Boolean(p.lordDayMeeting || p.lordDay);
-            outreachVisit = Boolean(p.outreachVisit || p.outreach);
-            packed = ((outreachVisit ? 1 : 0) * 1000000) + ((lordDayMeeting ? 1 : 0) * 10000) + ((prayerMeeting ? 1 : 0) * 100) + (smallGroup ? 1 : 0);
-          }
-          this.meetingState[item.key] = {
-            smallGroup,
-            prayerMeeting,
-            lordDayMeeting,
-            outreachVisit,
-            packedValue: packed,
-            syncStatus: 'error',
-            hasAmberDot: true
-          };
-        }
+      if (item.type === 'DAILY' && item.key && !this.dailyState[item.key]) {
+        const p = item.payload || {};
+        const unp = unpackBase100(p.packedValue);
+        const morning = p.packedValue !== undefined ? unp.a : Boolean(p.morning || p.morningRevival);
+        const bible = p.packedValue !== undefined ? unp.b : Boolean(p.bible || p.bibleReading);
+        const prayer = p.packedValue !== undefined ? unp.c : Boolean(p.prayer);
+        const book = p.packedValue !== undefined ? unp.d : Boolean(p.book || p.bookPursuit);
+        this.dailyState[item.key] = {
+          morning, morningRevival: morning,
+          bible, bibleReading: bible,
+          prayer, book, bookPursuit: book,
+          packedValue: packBase100(morning, bible, prayer, book),
+          syncStatus: 'error',
+          hasAmberDot: true
+        };
+      } else if (item.type === 'MEETING' && item.key && !this.meetingState[item.key]) {
+        const p = item.payload || {};
+        const unp = unpackBase100(p.packedValue);
+        const smallGroup = p.packedValue !== undefined ? unp.a : Boolean(p.smallGroup || p.group);
+        const prayerMeeting = p.packedValue !== undefined ? unp.b : Boolean(p.prayerMeeting || p.prayerMtg);
+        const lordDayMeeting = p.packedValue !== undefined ? unp.c : Boolean(p.lordDayMeeting || p.lordDay);
+        const outreachVisit = p.packedValue !== undefined ? unp.d : Boolean(p.outreachVisit || p.outreach);
+        this.meetingState[item.key] = {
+          smallGroup, prayerMeeting, lordDayMeeting, outreachVisit,
+          packedValue: packBase100(smallGroup, prayerMeeting, lordDayMeeting, outreachVisit),
+          syncStatus: 'error',
+          hasAmberDot: true
+        };
       }
     }
   }
@@ -448,7 +421,6 @@ class OptimisticPracticeStore {
 
     if (queue.length === 0) return;
 
-    const remaining = [];
     const promises = queue.map(item => {
       if (item.type === 'DAILY') {
         const p = item.payload || {};
@@ -487,13 +459,9 @@ class OptimisticPracticeStore {
     });
 
     const results = await Promise.allSettled(promises);
-    for (const res of results) {
-      if (res.status === 'fulfilled') {
-        if (!res.value.success) remaining.push(res.value.item);
-      } else {
-        // Fallback (won't happen because we catch)
-      }
-    }
+    const remaining = results
+      .filter(r => r.status === 'fulfilled' && !r.value?.success)
+      .map(r => r.value.item);
 
     if (remaining.length > 0) {
       this.storage.setItem('vital_offline_queue', JSON.stringify(remaining));

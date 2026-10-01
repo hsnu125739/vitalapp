@@ -459,12 +459,12 @@
       return res;
     }
 
-    async getPractice() {
-      return await this.request('getPractice');
+    getPractice() {
+      return this.request('getPractice');
     }
 
-    async getBootstrap() {
-      return await this.request('getBootstrap');
+    getBootstrap() {
+      return this.request('getBootstrap');
     }
 
     async getFootprints(options = {}) {
