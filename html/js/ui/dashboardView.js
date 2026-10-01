@@ -29,6 +29,17 @@
     '愛'
   ];
 
+  const DEFAULT_POINTS_CONFIG = Object.freeze({
+    morning: 50,
+    bible: 30,
+    prayer: 30,
+    book: 30,
+    group: 30,
+    prayerMtg: 50,
+    lordDay: 50,
+    outreach: 100
+  });
+
   class DashboardView {
     constructor({ practiceStore, apiClient, onFootprintClick, onChestClick, onRefresh, onLogout, onGroupJourneyListClick, onContributionClick }) {
       this.practiceStore = practiceStore;
@@ -50,12 +61,24 @@
         if (storedAnn) this.currentAnnouncements = JSON.parse(storedAnn);
       } catch (e) {}
 
+      this.pointsConfig = { ...DEFAULT_POINTS_CONFIG };
+      try {
+        const storedPoints = localStorage.getItem('vital_points_config');
+        if (storedPoints) {
+          const parsed = JSON.parse(storedPoints);
+          if (parsed && typeof parsed === 'object') {
+            this.pointsConfig = { ...DEFAULT_POINTS_CONFIG, ...parsed };
+          }
+        }
+      } catch (e) {}
+
       this.infoModal = document.getElementById('infoModal');
       this.infoModalTitle = document.getElementById('infoModalTitle');
       this.infoModalContent = document.getElementById('infoModalContent');
 
       this.initEvents_();
       this.subscribeStore_();
+      this.renderTaskCards(this.pointsConfig);
     }
 
     getTodayDateString() {
@@ -292,7 +315,7 @@
       // 5. 本週任務週次與日期標籤
       const weekDateEl = document.getElementById('homeWeeklyDateText');
       if (weekDateEl) {
-        weekDateEl.textContent = `週次：${this.currentWeekKey}`;
+        weekDateEl.textContent = this.getWeeklyDateRangeText_();
       }
     }
 
@@ -331,6 +354,9 @@
           node.classList.remove('active');
         }
       });
+
+      // 5. 渲染操練卡說明與點數
+      this.renderTaskCards(this.pointsConfig);
     }
 
     renderAnnouncements_(announcements) {
@@ -439,6 +465,84 @@
           status.textContent = done ? '已完成' : '未完成';
         }
       });
+    }
+
+    getWeeklyDateRangeText_() {
+      const now = new Date();
+      const day = now.getDay(); // 0 is Sun, 1 is Mon, ..., 6 is Sat
+      const diffToMonday = day === 0 ? -6 : 1 - day;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + diffToMonday);
+
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+
+      const m1 = monday.getMonth() + 1;
+      const d1 = monday.getDate();
+      const m2 = sunday.getMonth() + 1;
+      const d2 = sunday.getDate();
+
+      return `日期：${m1}/${d1}(一)~${m2}/${d2}(日)`;
+    }
+
+    renderTaskCards(pointsConfig = null) {
+      if (pointsConfig && typeof pointsConfig === 'object') {
+        this.pointsConfig = { ...DEFAULT_POINTS_CONFIG, ...pointsConfig };
+      }
+      const cfg = this.pointsConfig || DEFAULT_POINTS_CONFIG;
+
+      const morningPts = cfg.morning !== undefined ? cfg.morning : 50;
+      const biblePts = cfg.bible !== undefined ? cfg.bible : 30;
+      const prayerPts = cfg.prayer !== undefined ? cfg.prayer : 30;
+      const bookPts = cfg.book !== undefined ? cfg.book : 30;
+      const outreachPts = cfg.outreach !== undefined ? cfg.outreach : (cfg.outreachVisit !== undefined ? cfg.outreachVisit : 100);
+      const groupPts = cfg.group !== undefined ? cfg.group : (cfg.smallGroup !== undefined ? cfg.smallGroup : 30);
+      const prayerMtgPts = cfg.prayerMtg !== undefined ? cfg.prayerMtg : (cfg.prayerMeeting !== undefined ? cfg.prayerMeeting : 50);
+      const lordDayPts = cfg.lordDay !== undefined ? cfg.lordDay : (cfg.lordDayMeeting !== undefined ? cfg.lordDayMeeting : 50);
+
+      // 更新日期範圍
+      const dateTextEl = document.getElementById('homeWeeklyDateText');
+      if (dateTextEl) {
+        dateTextEl.textContent = this.getWeeklyDateRangeText_();
+      }
+
+      // 今日操練四項
+      this.updateTaskCard_('homeMorningBtn', '晨', '小組晨興', `合作取得 +${morningPts}`);
+      this.updateTaskCard_('homeBibleBtn', '讀', '個人讀經', `個人貢獻 +${biblePts}`);
+      this.updateTaskCard_('homePrayerPracticeBtn', '禱', '個人禱告', `個人貢獻 +${prayerPts}`);
+      this.updateTaskCard_('homeBookBtn', '書', '個人書報', `個人貢獻 +${bookPts}`);
+
+      // 每週操練四項
+      this.updateTaskCard_('homeOutreachVisitBtn', '訪', '外出探訪', `合作取得 +${outreachPts}`);
+      this.updateTaskCard_('homeWeeklySmallGroupBtn', '小', '小排聚會', `個人貢獻 +${groupPts}`);
+      this.updateTaskCard_('homeWeeklyPrayerMeetingBtn', '禱', '禱告聚會', `個人貢獻 +${prayerMtgPts}`);
+      this.updateTaskCard_('homeWeeklyLordDayBtn', '主', '主日聚會', `個人貢獻 +${lordDayPts}`);
+    }
+
+    updateTaskCard_(btnId, icon, title, desc) {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      let iconEl = btn.querySelector('.quest-icon');
+      if (!iconEl && icon) {
+        iconEl = document.createElement('span');
+        iconEl.className = 'quest-icon';
+        btn.prepend(iconEl);
+      }
+      if (iconEl && icon) iconEl.textContent = icon;
+
+      let strong = btn.querySelector('strong');
+      if (!strong) {
+        strong = document.createElement('strong');
+        btn.appendChild(strong);
+      }
+      strong.textContent = title;
+
+      let small = btn.querySelector('small');
+      if (!small) {
+        small = document.createElement('small');
+        btn.appendChild(small);
+      }
+      small.textContent = desc;
     }
 
     async openGroupJourneyListModal() {

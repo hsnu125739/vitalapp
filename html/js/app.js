@@ -114,6 +114,7 @@
       onGroupJourneyListClick: () => dashboardView.openGroupJourneyListModal(),
       onContributionClick: () => profileView && profileView.openContributionModal()
     });
+    global.dashboardView = dashboardView;
 
     profileView = new (global.ProfileView || window.ProfileView)({
       apiClient: apiClient,
@@ -315,6 +316,15 @@
             } catch(e) {}
           }
         }
+
+        if (data.pointsConfig) {
+          try {
+            localStorage.setItem('vital_points_config', JSON.stringify(data.pointsConfig));
+          } catch (e) {}
+          if (dashboardView && typeof dashboardView.renderTaskCards === 'function') {
+            dashboardView.renderTaskCards(data.pointsConfig);
+          }
+        }
       } else {
         if (currentPId && typeof localStorage !== 'undefined') {
           try { playerMilestones = JSON.parse(localStorage.getItem(`vital_player_milestones_${currentPId}`) || '[]'); } catch(e) { playerMilestones = []; }
@@ -325,6 +335,22 @@
             groupProgress = JSON.parse(localStorage.getItem(`vital_group_progress_${currentGId}`) || 'null');
           } catch(e) { groupMilestones = []; groupProgress = null; }
         }
+      }
+
+      // 若 ProgressBundle 未包含 pointsConfig（如未入組/離線），發起 getPointsConfig 補充拉取
+      const hasPointsConfig = Boolean(bundleRes?.value?.data?.pointsConfig || bundleRes?.value?.pointsConfig);
+      if (!hasPointsConfig) {
+        apiClient.getPointsConfig().then(pcRes => {
+          const cfg = (pcRes && (pcRes.pointsConfig || pcRes.data || pcRes.configs)) || null;
+          if (cfg) {
+            try { localStorage.setItem('vital_points_config', JSON.stringify(cfg)); } catch (e) {}
+            if (dashboardView && typeof dashboardView.renderTaskCards === 'function') {
+              dashboardView.renderTaskCards(cfg);
+            }
+          }
+        }).catch(err => {
+          console.warn('[App] getPointsConfig 補充拉取跳過:', err);
+        });
       }
 
       if (currentGId && profileRes.status === 'fulfilled' && profileRes.value && profileRes.value.success) {

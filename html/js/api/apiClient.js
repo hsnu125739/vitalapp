@@ -27,6 +27,7 @@
   ]);
 
   const PROGRESSION_ACTIONS = new Set([
+    'getPointsConfig',
     'getPlayerProgress',
     'getGroupProgress',
     'getProgressBundle',
@@ -470,6 +471,10 @@
       const data = {};
       if (groupId) data.groupId = groupId;
       return await this.request('getProgressBundle', data, true); // true = call progression microservice
+    }
+
+    async getPointsConfig(date = '') {
+      return await this.request('getPointsConfig', { date: date || '' }, true);
     }
 
     async getMyGroupContributionSummary(groupId = null) {
