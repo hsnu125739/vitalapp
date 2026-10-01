@@ -984,12 +984,17 @@
           // 解析頭像
           let avatarUrl = m.avatarUrl;
           if (!avatarUrl && m.avatarKey) {
-            const isFemale = m.gender === 'SISTER' || m.gender === 'female';
-            const folder = isFemale ? 'avatar-female' : 'avatar-male';
-            const prefix = isFemale ? 'avatar-female-direct' : 'avatar-male-direct';
-            const match = String(m.avatarKey).match(/\d+/);
-            const no = match ? String(match[0]).padStart(3, '0') : '001';
-            avatarUrl = `../${folder}/${prefix}-${no}.png`;
+            if (String(m.avatarKey).includes('.png')) {
+              avatarUrl = m.avatarKey;
+            } else {
+              const currentGender = String(m.gender).toUpperCase();
+              const isFemale = currentGender === 'SISTER' || currentGender === 'FEMALE';
+              const folder = isFemale ? 'avatar-female' : 'avatar-male';
+              const prefix = isFemale ? 'avatar-female-direct' : 'avatar-male-direct';
+              const match = String(m.avatarKey).match(/\d+/);
+              const no = match ? String(match[0]).padStart(3, '0') : '001';
+              avatarUrl = `../${folder}/${prefix}-${no}.png`;
+            }
           }
           if (isMe && this.currentUserProfile?.avatarUrl) {
             avatarUrl = this.currentUserProfile.avatarUrl;
