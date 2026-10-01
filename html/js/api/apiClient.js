@@ -466,6 +466,226 @@
     async getBootstrap() {
       return await this.request('getBootstrap');
     }
+
+    async getFootprints(options = {}) {
+      const pId = options.playerId || this.getPlayerIdFromToken();
+      const weeks = options.weeks || 10;
+      const forceRefresh = Boolean(options.forceRefresh);
+
+      const cacheKey = `vital_footprints_cache_${pId || 'guest'}`;
+      let cached = null;
+      if (!forceRefresh && this.storage) {
+        try {
+          const raw = this.storage.getItem(cacheKey);
+          if (raw) cached = JSON.parse(raw);
+        } catch (e) {
+          console.warn('[ApiClient] 足跡快取解析失敗，自動清除損毀快取:', e);
+          try { this.storage.removeItem(cacheKey); } catch (_) {}
+          cached = null;
+        }
+      }
+
+      // SWR: 背景發起真實網路請求
+      const fetchPromise = this.request('getFootprints', {
+        playerId: pId,
+        weeks: weeks,
+        matrixColIndex: options.matrixColIndex || this.getMatrixColIndexFromStorage()
+      }).then((res) => {
+        if (res && res.success) {
+          const data = res.data || res;
+          if (this.storage) {
+            try {
+              this.storage.setItem(cacheKey, JSON.stringify({
+                ...data,
+                _cachedAt: Date.now()
+              }));
+            } catch (e) {
+              console.warn('[ApiClient] 寫入足跡快取失敗 (可能配額已滿):', e);
+            }
+          }
+          return res;
+        }
+        return res;
+      }).catch((err) => {
+        console.warn('[ApiClient] getFootprints 背景非同步更新失敗:', err && err.message ? err.message : err);
+        return { success: false, error: (err && err.message) || '背景更新失敗', isBackgroundError: true };
+      });
+
+      // SWR: 若本地有快取，立即秒開回傳 (0ms)
+      if (cached) {
+        return {
+          success: true,
+          fromCache: true,
+          data: cached,
+          ...cached,
+          revalidatePromise: fetchPromise
+        };
+      }
+
+      // 無快取則等待網路回傳
+      return await fetchPromise;
+    }
+
+    getCachedFootprints(playerId = null) {
+      const pId = playerId || this.getPlayerIdFromToken();
+      const cacheKey = `vital_footprints_cache_${pId || 'guest'}`;
+      if (!this.storage) return null;
+      try {
+        const raw = this.storage.getItem(cacheKey);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        try { this.storage.removeItem(cacheKey); } catch (_) {}
+        return null;
+      }
+    }
+
+    updateFootprintDailyCache(dateStr, practices = {}, playerId = null) {
+      const pId = playerId || this.getPlayerIdFromToken();
+      const cacheKey = `vital_footprints_cache_${pId || 'guest'}`;
+      if (!this.storage || !dateStr) return false;
+      try {
+        const raw = this.storage.getItem(cacheKey);
+        if (!raw) return false;
+        const cache = JSON.parse(raw);
+        if (!cache.dailyRecords) cache.dailyRecords = {};
+        const oldRec = cache.dailyRecords[dateStr] || {};
+
+        const morningVal = practices.morningRevival !== undefined ? Boolean(practices.morningRevival) : (practices.morning !== undefined ? Boolean(practices.morning) : Boolean(oldRec.morning));
+        const bibleVal = practices.bibleReading !== undefined ? Boolean(practices.bibleReading) : (practices.bible !== undefined ? Boolean(practices.bible) : Boolean(oldRec.bible));
+        const prayerVal = practices.prayer !== undefined ? Boolean(practices.prayer) : Boolean(oldRec.prayer);
+        const bookVal = practices.bookPursuit !== undefined ? Boolean(practices.bookPursuit) : (practices.book !== undefined ? Boolean(practices.book) : Boolean(oldRec.book));
+
+        cache.dailyRecords[dateStr] = {
+          ...oldRec,
+          morning: morningVal,
+          bible: bibleVal,
+          prayer: prayerVal,
+          book: bookVal
+        };
+
+        const updateDayInList = (daysList) => {
+          if (!Array.isArray(daysList)) return;
+          const targetDay = daysList.find(d => d.date === dateStr || d.recordDate === dateStr);
+          if (targetDay) {
+            targetDay.morningCompleted = morningVal;
+            targetDay.bibleCompleted = bibleVal;
+            targetDay.prayerCompleted = prayerVal;
+            targetDay.readingCompleted = bookVal;
+            targetDay.completedCount = (morningVal ? 1 : 0) + (bibleVal ? 1 : 0) + (prayerVal ? 1 : 0) + (bookVal ? 1 : 0);
+            targetDay.hasRecord = targetDay.completedCount > 0;
+          }
+        };
+
+        if (Array.isArray(cache.weeks)) {
+          cache.weeks.forEach(w => updateDayInList(w.days));
+        }
+        if (Array.isArray(cache.weekly)) {
+          cache.weekly.forEach(w => updateDayInList(w.days));
+        }
+        if (Array.isArray(cache.daily)) {
+          updateDayInList(cache.daily);
+        }
+
+        // 即時增量更新本月成果卡 (monthSummary)
+        if (cache.monthSummary) {
+          const mKey = cache.monthSummary.monthKey || new Date().toISOString().slice(0, 7);
+          if (dateStr.startsWith(mKey)) {
+            if (morningVal !== Boolean(oldRec.morning)) {
+              cache.monthSummary.morningDays = Math.max(0, (cache.monthSummary.morningDays || 0) + (morningVal ? 1 : -1));
+            }
+            if (bibleVal !== Boolean(oldRec.bible)) {
+              cache.monthSummary.bibleDays = Math.max(0, (cache.monthSummary.bibleDays || 0) + (bibleVal ? 1 : -1));
+            }
+            if (prayerVal !== Boolean(oldRec.prayer)) {
+              cache.monthSummary.prayerDays = Math.max(0, (cache.monthSummary.prayerDays || 0) + (prayerVal ? 1 : -1));
+            }
+            if (bookVal !== Boolean(oldRec.book)) {
+              cache.monthSummary.bookDays = Math.max(0, (cache.monthSummary.bookDays || 0) + (bookVal ? 1 : -1));
+              cache.monthSummary.readingDays = cache.monthSummary.bookDays;
+            }
+            const oldAny = Boolean(oldRec.morning || oldRec.bible || oldRec.prayer || oldRec.book);
+            const newAny = Boolean(morningVal || bibleVal || prayerVal || bookVal);
+            if (oldAny !== newAny) {
+              cache.monthSummary.completedDays = Math.max(0, (cache.monthSummary.completedDays || 0) + (newAny ? 1 : -1));
+            }
+          }
+        }
+
+        cache._cachedAt = Date.now();
+        this.storage.setItem(cacheKey, JSON.stringify(cache));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    updateFootprintMeetingCache(weekKey, meetings = {}, playerId = null) {
+      const pId = playerId || this.getPlayerIdFromToken();
+      const cacheKey = `vital_footprints_cache_${pId || 'guest'}`;
+      if (!this.storage || !weekKey) return false;
+      try {
+        const raw = this.storage.getItem(cacheKey);
+        if (!raw) return false;
+        const cache = JSON.parse(raw);
+        if (!cache.meetingRecords) cache.meetingRecords = {};
+        const oldRec = cache.meetingRecords[weekKey] || {};
+
+        const groupVal = meetings.group !== undefined ? Boolean(meetings.group) : (meetings.smallGroup !== undefined ? Boolean(meetings.smallGroup) : Boolean(oldRec.group));
+        const prayerVal = meetings.prayerMtg !== undefined ? Boolean(meetings.prayerMtg) : (meetings.prayerMeeting !== undefined ? Boolean(meetings.prayerMeeting) : Boolean(oldRec.prayerMtg));
+        const lordDayVal = meetings.lordDay !== undefined ? Boolean(meetings.lordDay) : (meetings.lordDayMeeting !== undefined ? Boolean(meetings.lordDayMeeting) : Boolean(oldRec.lordDay));
+        const outreachVal = meetings.outreach !== undefined ? Boolean(meetings.outreach) : (meetings.outreachVisit !== undefined ? Boolean(meetings.outreachVisit) : Boolean(oldRec.outreach));
+
+        cache.meetingRecords[weekKey] = {
+          ...oldRec,
+          group: groupVal,
+          prayerMtg: prayerVal,
+          lordDay: lordDayVal,
+          outreach: outreachVal
+        };
+
+        const updateWeekInList = (weekList) => {
+          if (!Array.isArray(weekList)) return;
+          const targetWeek = weekList.find(w => w.weekKey === weekKey);
+          if (targetWeek) {
+            targetWeek.groupMeetingCompleted = groupVal;
+            targetWeek.prayerMeetingCompleted = prayerVal;
+            targetWeek.lordDayCompleted = lordDayVal;
+            targetWeek.visitCompleted = outreachVal;
+            if (targetWeek.meeting) {
+              targetWeek.meeting.smallGroup = groupVal;
+              targetWeek.meeting.prayerMeeting = prayerVal;
+              targetWeek.meeting.lordDayMeeting = lordDayVal;
+              targetWeek.meeting.outreachVisit = outreachVal;
+            }
+          }
+        };
+
+        if (Array.isArray(cache.weeks)) updateWeekInList(cache.weeks);
+        if (Array.isArray(cache.weekly)) updateWeekInList(cache.weekly);
+
+        // 即時增量更新本月成果卡 (聚會次數)
+        if (cache.monthSummary) {
+          if (groupVal !== Boolean(oldRec.group)) {
+            cache.monthSummary.groupMeetingCount = Math.max(0, (cache.monthSummary.groupMeetingCount || 0) + (groupVal ? 1 : -1));
+          }
+          if (prayerVal !== Boolean(oldRec.prayerMtg)) {
+            cache.monthSummary.prayerMeetingCount = Math.max(0, (cache.monthSummary.prayerMeetingCount || 0) + (prayerVal ? 1 : -1));
+          }
+          if (lordDayVal !== Boolean(oldRec.lordDay)) {
+            cache.monthSummary.lordDayMeetingCount = Math.max(0, (cache.monthSummary.lordDayMeetingCount || 0) + (lordDayVal ? 1 : -1));
+          }
+          if (outreachVal !== Boolean(oldRec.outreach)) {
+            cache.monthSummary.visitCount = Math.max(0, (cache.monthSummary.visitCount || 0) + (outreachVal ? 1 : -1));
+          }
+        }
+
+        cache._cachedAt = Date.now();
+        this.storage.setItem(cacheKey, JSON.stringify(cache));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
     
     async getProgressBundle(groupId = null) {
       const data = {};

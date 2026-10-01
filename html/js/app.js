@@ -79,8 +79,13 @@
   }
 
   async function initApp() {
+    const _W = typeof window !== 'undefined' ? window : {};
+
     // 1. 初始化 API 客戶端
-    apiClient = new (global.ApiClient || window.ApiClient)({
+    const ApiClientClass = global.ApiClient || _W.ApiClient;
+    if (!ApiClientClass) return;
+
+    apiClient = new ApiClientClass({
       baseUrl: (typeof window !== 'undefined' && window.VITAL_API_URL) || '/api',
       onSessionExpired: () => handleLogout()
     });
@@ -89,59 +94,87 @@
     }
 
     // 2. 初始化狀態庫
-    practiceStore = new (global.OptimisticPracticeStore || window.OptimisticPracticeStore)({
-      apiClient: apiClient
-    });
+    const PracticeStoreClass = global.OptimisticPracticeStore || _W.OptimisticPracticeStore;
+    if (PracticeStoreClass) {
+      practiceStore = new PracticeStoreClass({
+        apiClient: apiClient
+      });
+    }
 
-    chatStore = new (global.ChatStore || window.ChatStore)({
-      apiClient: apiClient
-    });
+    const ChatStoreClass = global.ChatStore || _W.ChatStore;
+    if (ChatStoreClass) {
+      chatStore = new ChatStoreClass({
+        apiClient: apiClient
+      });
+    }
 
     // 3. 初始化視圖模組
-    authView = new (global.AuthView || window.AuthView)({
-      apiClient: apiClient,
-      onLoginSuccess: (profile) => handleLoginSuccess(profile)
-    });
+    const AuthViewClass = global.AuthView || _W.AuthView;
+    if (AuthViewClass) {
+      authView = new AuthViewClass({
+        apiClient: apiClient,
+        onLoginSuccess: (profile) => handleLoginSuccess(profile)
+      });
+    }
 
-    chestView = new (global.ChestView || window.ChestView)({
-      apiClient: apiClient
-    });
+    const ChestViewClass = global.ChestView || _W.ChestView;
+    if (ChestViewClass) {
+      chestView = new ChestViewClass({
+        apiClient: apiClient
+      });
+    }
 
-    footprintsView = new (global.FootprintsView || window.FootprintsView)({
-      apiClient: apiClient
-    });
-
-    fellowshipView = new (global.GroupFellowshipView || window.GroupFellowshipView)({
-      chatStore: chatStore,
-      currentPlayerId: '',
-      currentUserName: ''
-    });
-
-    dashboardView = new (global.DashboardView || window.DashboardView)({
-      practiceStore: practiceStore,
-      apiClient: apiClient,
-      onFootprintClick: () => footprintsView.openFootprintsModal(),
-      onChestClick: (selectedIdx) => openChests(selectedIdx),
-      onRefresh: () => refreshUserData(),
-      onLogout: () => handleLogout(),
-      onGroupJourneyListClick: () => dashboardView.openGroupJourneyListModal(),
-      onContributionClick: () => profileView && profileView.openContributionModal()
-    });
-    global.dashboardView = dashboardView;
-
-    profileView = new (global.ProfileView || window.ProfileView)({
-      apiClient: apiClient,
-      onAvatarUpdated: (url) => handleAvatarUpdated(url),
-      onLogout: () => handleLogout(),
-      onFootprintClick: () => footprintsView.openFootprintsModal(),
-      onFellowshipClick: () => {
-        if (!currentUserProfile || !currentUserProfile.groupId) {
-          alert('您尚未加入任何活力組！請先於首頁或個人手冊中加入或建立活力組，才能使用小組公告與交通功能。');
-          return;
-        }
-        fellowshipView.openModal();
+    const FootprintsViewClass = global.FootprintsView || _W.FootprintsView;
+    if (FootprintsViewClass) {
+      footprintsView = new FootprintsViewClass({
+        apiClient: apiClient
+      });
+      global.footprintsView = footprintsView;
+      if (typeof window !== 'undefined') {
+        window.footprintsView = footprintsView;
       }
-    });
+    }
+
+    const FellowshipViewClass = global.GroupFellowshipView || _W.GroupFellowshipView;
+    if (FellowshipViewClass) {
+      fellowshipView = new FellowshipViewClass({
+        chatStore: chatStore,
+        currentPlayerId: '',
+        currentUserName: ''
+      });
+    }
+
+    const DashboardViewClass = global.DashboardView || _W.DashboardView;
+    if (DashboardViewClass) {
+      dashboardView = new DashboardViewClass({
+        practiceStore: practiceStore,
+        apiClient: apiClient,
+        onFootprintClick: () => footprintsView && footprintsView.openFootprintsModal(),
+        onChestClick: (selectedIdx) => openChests(selectedIdx),
+        onRefresh: () => refreshUserData(),
+        onLogout: () => handleLogout(),
+        onGroupJourneyListClick: () => dashboardView && dashboardView.openGroupJourneyListModal(),
+        onContributionClick: () => profileView && profileView.openContributionModal()
+      });
+      global.dashboardView = dashboardView;
+    }
+
+    const ProfileViewClass = global.ProfileView || _W.ProfileView;
+    if (ProfileViewClass) {
+      profileView = new ProfileViewClass({
+        apiClient: apiClient,
+        onAvatarUpdated: (url) => handleAvatarUpdated(url),
+        onLogout: () => handleLogout(),
+        onFootprintClick: () => footprintsView && footprintsView.openFootprintsModal(),
+        onFellowshipClick: () => {
+          if (!currentUserProfile || !currentUserProfile.groupId) {
+            alert('您尚未加入任何活力組！請先於首頁或個人手冊中加入或建立活力組，才能使用小組公告與交通功能。');
+            return;
+          }
+          if (fellowshipView) fellowshipView.openModal();
+        }
+      });
+    }
 
     // 4. 驗證現有 Session
     const token = apiClient.getSessionToken();
@@ -493,6 +526,15 @@
         }
       }
 
+      // 9. 背景預熱同行足跡快取 (SWR 預載，100% 零阻塞登入與首屏)
+      if (currentPId && typeof setTimeout !== 'undefined') {
+        setTimeout(() => {
+          if (apiClient && apiClient.getSessionToken() && typeof apiClient.getFootprints === 'function') {
+            apiClient.getFootprints({ playerId: currentPId, weeks: 10 }).catch(() => {});
+          }
+        }, 1500);
+      }
+
     } catch (err) {
       console.error('[App] 載入使用者資料發生異常', err);
     } finally {
@@ -648,7 +690,9 @@
           localStorage.removeItem(`vital_player_milestones_${pid}`);
           localStorage.removeItem(`vital_daily_records_${pid}`);
           localStorage.removeItem(`vital_meeting_records_${pid}`);
+          localStorage.removeItem(`vital_footprints_cache_${pid}`);
         }
+        localStorage.removeItem('vital_footprints_cache_guest');
         if (gid) {
           localStorage.removeItem(`vital_group_progress_${gid}`);
           localStorage.removeItem(`vital_group_milestones_${gid}`);
@@ -748,7 +792,18 @@
     refreshUserData,
     updateUserGroupState,
     checkMilestone,
-    showMilestonesCelebration
+    showMilestonesCelebration,
+    get currentUserProfile() { return currentUserProfile; },
+    get currentJourneyData() { return currentJourneyData; },
+    get apiClient() { return apiClient; },
+    get practiceStore() { return practiceStore; },
+    get chatStore() { return chatStore; },
+    get authView() { return authView; },
+    get dashboardView() { return dashboardView; },
+    get chestView() { return chestView; },
+    get footprintsView() { return footprintsView; },
+    get profileView() { return profileView; },
+    get fellowshipView() { return fellowshipView; }
   };
 
 })(typeof window !== 'undefined' ? window : global);

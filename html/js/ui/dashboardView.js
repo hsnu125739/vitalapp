@@ -250,11 +250,28 @@
     }
 
     subscribeStore_() {
+      const originalHandler = this.practiceStore && this.practiceStore.onStateChange;
+      if (!this.practiceStore) return;
       this.practiceStore.onStateChange = ({ type, key, state }) => {
-        if (type === 'DAILY' && key === this.currentDate) {
-          this.renderDailyPracticeState(state);
-        } else if (type === 'MEETING' && key === this.currentWeekKey) {
-          this.renderMeetingPracticeState(state);
+        if (typeof originalHandler === 'function') {
+          originalHandler({ type, key, state });
+        }
+        if (type === 'DAILY') {
+          if (key === this.currentDate) {
+            this.renderDailyPracticeState(state);
+          }
+          if (this.apiClient && typeof this.apiClient.updateFootprintDailyCache === 'function') {
+            const playerId = (this.currentUserProfile && this.currentUserProfile.playerId) || null;
+            this.apiClient.updateFootprintDailyCache(key, state, playerId);
+          }
+        } else if (type === 'MEETING') {
+          if (key === this.currentWeekKey) {
+            this.renderMeetingPracticeState(state);
+          }
+          if (this.apiClient && typeof this.apiClient.updateFootprintMeetingCache === 'function') {
+            const playerId = (this.currentUserProfile && this.currentUserProfile.playerId) || null;
+            this.apiClient.updateFootprintMeetingCache(key, state, playerId);
+          }
         }
       };
     }
