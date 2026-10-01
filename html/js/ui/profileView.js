@@ -492,11 +492,12 @@
                     this.currentUserProfile.groupId = '';
                     delete this.currentUserProfile.groupName;
                     delete this.currentUserProfile.isLeader;
+                    this.currentUserProfile.memberCount = 0;
                   }
                   this.currentJourneyData = null;
                   this.render(this.currentUserProfile, null);
                   if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
-                    window.AppCoordinator.updateUserGroupState('');
+                    window.AppCoordinator.updateUserGroupState('', '', false, 0);
                   }
 
                   alert('活力組已成功解散！');
@@ -536,11 +537,12 @@
                     this.currentUserProfile.groupId = '';
                     delete this.currentUserProfile.groupName;
                     delete this.currentUserProfile.isLeader;
+                    this.currentUserProfile.memberCount = 0;
                   }
                   this.currentJourneyData = null;
                   this.render(this.currentUserProfile, null);
                   if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
-                    window.AppCoordinator.updateUserGroupState('');
+                    window.AppCoordinator.updateUserGroupState('', '', false, 0);
                   }
 
                   alert('已成功退出活力組！');
@@ -664,10 +666,11 @@
                 this.currentUserProfile.groupId = createdGId;
                 this.currentUserProfile.groupName = groupName;
                 this.currentUserProfile.isLeader = true;
+                this.currentUserProfile.memberCount = 1;
               }
               this.render(this.currentUserProfile, null);
               if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
-                window.AppCoordinator.updateUserGroupState(createdGId, groupName, true);
+                window.AppCoordinator.updateUserGroupState(createdGId, groupName, true, 1);
               }
 
               alert(`恭喜！活力組【${groupName}】建立成功！`);
@@ -705,16 +708,20 @@
               const joinedGroup = res.group || (res.data && res.data.group) || {};
               const newGId = joinedGroup.groupId || res.groupId || (res.data && res.data.groupId) || '';
               const newGName = joinedGroup.groupName || res.groupName || (res.data && res.data.groupName) || '';
+              const mCount = typeof joinedGroup.memberCount === 'number'
+                ? joinedGroup.memberCount
+                : (this.currentUserProfile?.memberCount ? this.currentUserProfile.memberCount + 1 : 2);
 
               // 1. 立即樂觀更新為組員身分（零延遲）
               if (this.currentUserProfile) {
                 this.currentUserProfile.groupId = newGId;
                 this.currentUserProfile.groupName = newGName;
                 this.currentUserProfile.isLeader = false;
+                this.currentUserProfile.memberCount = mCount;
               }
               this.render(this.currentUserProfile, null);
               if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
-                window.AppCoordinator.updateUserGroupState(newGId, newGName, false);
+                window.AppCoordinator.updateUserGroupState(newGId, newGName, false, mCount);
               }
 
               alert('成功加入活力組！歡迎一同在主裡奔跑！');

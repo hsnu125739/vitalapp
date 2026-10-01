@@ -304,7 +304,28 @@
       if (streakEl) streakEl.textContent = `${userProfile.streakDays || 0} 天`;
 
       const memberCountEl = document.getElementById('homeMemberCountText');
-      if (memberCountEl) memberCountEl.textContent = String(userProfile.memberCount || (journeyData && journeyData.memberCount) || 1);
+      if (memberCountEl) {
+        const hasGroup = Boolean(userProfile && userProfile.groupId);
+        let mCount = 0;
+        if (hasGroup) {
+          if (typeof userProfile.memberCount === 'number' && userProfile.memberCount > 0) {
+            mCount = userProfile.memberCount;
+          } else if (typeof journeyData?.memberCount === 'number' && journeyData.memberCount > 0) {
+            mCount = journeyData.memberCount;
+          } else {
+            try {
+              const gp = JSON.parse(localStorage.getItem(`vital_group_profile_${userProfile.groupId}`) || 'null');
+              if (gp && typeof gp.memberCount === 'number' && gp.memberCount > 0) {
+                mCount = gp.memberCount;
+              } else if (gp && Array.isArray(gp.members) && gp.members.length > 0) {
+                mCount = gp.members.length;
+              }
+            } catch (e) {}
+          }
+          if (mCount === 0) mCount = 1; // 至少本人在組內
+        }
+        memberCountEl.textContent = String(mCount);
+      }
 
       // 3. 八大篇章成長旅程
       this.renderJourneyNodes_(journeyData);

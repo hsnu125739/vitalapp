@@ -53,8 +53,20 @@
       totalScore = Number(hs[currYear] || hs.totalScore || 0);
     }
 
+    let mCount = groupProgress.memberCount;
+    if (typeof mCount !== 'number' && groupProgress.memberContribution && typeof groupProgress.memberContribution === 'object') {
+      mCount = Object.keys(groupProgress.memberContribution).length;
+    }
+    if (typeof mCount !== 'number' && fallbackProfile && typeof fallbackProfile.memberCount === 'number') {
+      mCount = fallbackProfile.memberCount;
+    }
+    if (typeof mCount === 'number' && fallbackProfile && fallbackProfile.groupId) {
+      fallbackProfile.memberCount = mCount;
+    }
+
     return {
       ...groupProgress,
+      memberCount: typeof mCount === 'number' ? mCount : undefined,
       currentChapter: chapterIndex,
       chapterTitle: chapterTitle,
       chapterName: chapterTitle,
@@ -153,6 +165,17 @@
             currentUserProfile = { ...currentUserProfile, ...cachedPlayer };
             const gId = cachedPlayer.groupId;
             
+            // 嘗試從本地小組快取補全 memberCount
+            if (gId && (currentUserProfile.memberCount === undefined || currentUserProfile.memberCount === null)) {
+              try {
+                const cgp = JSON.parse(localStorage.getItem(`vital_group_profile_${gId}`) || 'null');
+                if (cgp) {
+                  if (typeof cgp.memberCount === 'number') currentUserProfile.memberCount = cgp.memberCount;
+                  else if (Array.isArray(cgp.members)) currentUserProfile.memberCount = cgp.members.length;
+                }
+              } catch (e) {}
+            }
+
             let cachedGroupProgress = null;
             if (gId) {
               const cgStr = localStorage.getItem(`vital_group_progress_${gId}`);
@@ -361,6 +384,14 @@
             localStorage.setItem(`vital_group_profile_${currentGId}`, JSON.stringify(groupProfileData));
           } catch(e) {}
         }
+        if (groupProfileData && currentUserProfile) {
+          const count = typeof groupProfileData.memberCount === 'number'
+            ? groupProfileData.memberCount
+            : (Array.isArray(groupProfileData.members) ? groupProfileData.members.length : undefined);
+          if (count !== undefined) {
+            currentUserProfile.memberCount = count;
+          }
+        }
       }
 
       if (currentGId) {
@@ -372,10 +403,17 @@
           delete currentUserProfile.groupName;
           delete currentUserProfile.isLeader;
           delete currentUserProfile.postsColIndex;
+          currentUserProfile.memberCount = 0;
           if (typeof localStorage !== 'undefined') {
             try { localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile)); } catch (e) {}
           }
         }
+      }
+
+      if (currentUserProfile && typeof localStorage !== 'undefined') {
+        try {
+          localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
+        } catch (e) {}
       }
 
       // 4. checkMilestone
@@ -624,17 +662,21 @@
     authView.showAuth();
   }
 
-  async function updateUserGroupState(groupId, groupName = '', isLeader = false) {
+  async function updateUserGroupState(groupId, groupName = '', isLeader = false, memberCount = null) {
     if (!currentUserProfile) return;
     const pId = currentUserProfile.playerId;
     currentUserProfile.groupId = groupId || '';
     if (groupId) {
       currentUserProfile.groupName = groupName;
       currentUserProfile.isLeader = Boolean(isLeader);
+      if (typeof memberCount === 'number') {
+        currentUserProfile.memberCount = memberCount;
+      }
     } else {
       delete currentUserProfile.groupName;
       delete currentUserProfile.isLeader;
       delete currentUserProfile.postsColIndex;
+      currentUserProfile.memberCount = 0;
       currentJourneyData = null;
     }
     if (typeof localStorage !== 'undefined') {
