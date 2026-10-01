@@ -576,7 +576,11 @@ button.player-stat-card{
     display:block;
     width:40px;
     height:40px;
-    background:var(--asset-chest-hero) center / contain no-repeat;
+    background-image:url("../Chest_Assets/Chest_01.png");
+    background-image:var(--asset-chest-hero);
+    background-position:center;
+    background-size:contain;
+    background-repeat:no-repeat;
     filter:drop-shadow(0 6px 10px rgba(118,91,71,.22)) drop-shadow(0 0 10px rgba(255,210,110,.30));
     transform:translateY(1px) scale(1.02);
 }
@@ -2951,7 +2955,7 @@ body[data-theme="night"] .auth-hero{
     --asset-journey-desktop:url("../UI/journey-map-cute-v4.png?v=20260813-stableasset1");
     --asset-game-camp:url("../UI/board-panel-cute-v4.png?v=20260813-stableasset1");
     --asset-game-panel:url("../UI/quest-panel-cute-v4.png?v=20260813-stableasset1");
-    --asset-chest-hero:url("../Chest_Assets/Chest_01.png?v=20260813-stableasset1");
+    --asset-chest-hero:url("../Chest_Assets/Chest_01.webp");
     --cute-ink:#6b514d;
     --cute-line:#a8877b;
     --cute-panel:#fff9ef;
@@ -5345,7 +5349,11 @@ body{
     width:40px;
     height:40px;
     margin:0;
-    background:var(--asset-chest-hero) center / contain no-repeat;
+    background-image:url("../Chest_Assets/Chest_01.png");
+    background-image:var(--asset-chest-hero);
+    background-position:center;
+    background-size:contain;
+    background-repeat:no-repeat;
     filter:drop-shadow(0 4px 4px rgba(64,37,98,.36));
     transform:translateY(0);
 }

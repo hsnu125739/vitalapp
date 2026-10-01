@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vital-cache-v28';
+const CACHE_NAME = 'vital-cache-v29';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -14,13 +14,57 @@ const ASSETS_TO_CACHE = [
   './js/ui/footprintsView.js',
   './js/ui/groupFellowshipView.js',
   './js/ui/profileView.js',
-  './js/app.js'
+  './js/app.js',
+  // Chest Assets (WebP & PNG)
+  '../Chest_Assets/Chest_01.webp',
+  '../Chest_Assets/Chest_02.webp',
+  '../Chest_Assets/Chest_03.webp',
+  '../Chest_Assets/Chest_04.webp',
+  '../Chest_Assets/Chest_05.webp',
+  '../Chest_Assets/Chest_06.webp',
+  '../Chest_Assets/Chest_07.webp',
+  '../Chest_Assets/Chest_08.webp',
+  '../Chest_Assets/Chest_01.png',
+  '../Chest_Assets/Chest_02.png',
+  '../Chest_Assets/Chest_03.png',
+  '../Chest_Assets/Chest_04.png',
+  '../Chest_Assets/Chest_05.png',
+  '../Chest_Assets/Chest_06.png',
+  '../Chest_Assets/Chest_07.png',
+  '../Chest_Assets/Chest_08.png',
+  './Chest_Assets/Chest_01.webp',
+  './Chest_Assets/Chest_02.webp',
+  './Chest_Assets/Chest_03.webp',
+  './Chest_Assets/Chest_04.webp',
+  './Chest_Assets/Chest_05.webp',
+  './Chest_Assets/Chest_06.webp',
+  './Chest_Assets/Chest_07.webp',
+  './Chest_Assets/Chest_08.webp',
+  './Chest_Assets/Chest_01.png',
+  './Chest_Assets/Chest_02.png',
+  './Chest_Assets/Chest_03.png',
+  './Chest_Assets/Chest_04.png',
+  './Chest_Assets/Chest_05.png',
+  './Chest_Assets/Chest_06.png',
+  './Chest_Assets/Chest_07.png',
+  './Chest_Assets/Chest_08.png'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      await Promise.allSettled(
+        ASSETS_TO_CACHE.map(async (url) => {
+          try {
+            const response = await fetch(url);
+            if (response.ok) {
+              await cache.put(url, response);
+            }
+          } catch (e) {
+            // Ignore individual fetch errors during precache
+          }
+        })
+      );
     })
   );
   self.skipWaiting();
@@ -46,19 +90,35 @@ self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('script.google.com') || event.request.url.includes('script.googleusercontent.com')) return;
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
+    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
       if (cachedResponse) {
         // Stale-while-revalidate for assets
         event.waitUntil(
           fetch(event.request).then((networkResponse) => {
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, networkResponse);
-            });
+            if (networkResponse && networkResponse.status === 200) {
+              const resClone = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, resClone);
+              });
+            }
           }).catch(() => {})
         );
         return cachedResponse;
       }
-      return fetch(event.request);
+
+      // Cache miss: fetch from network and store in cache for subsequent requests
+      return fetch(event.request).then((networkResponse) => {
+        if (!networkResponse || networkResponse.status !== 200 || (networkResponse.type !== 'basic' && networkResponse.type !== 'cors')) {
+          return networkResponse;
+        }
+        const responseToCache = networkResponse.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseToCache);
+        });
+        return networkResponse;
+      }).catch(() => {
+        return caches.match(event.request, { ignoreSearch: true });
+      });
     })
   );
 });
