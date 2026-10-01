@@ -478,9 +478,8 @@
     }
 
     async getMyGroupContributionSummary(groupId = null) {
-      const data = {};
-      if (groupId) data.groupId = groupId;
-      return await this.request('getMyGroupContributionSummary', data);
+      // 合併至 getGroupProgress，維持相容性
+      return await this.getGroupProgress(groupId);
     }
 
     async getProfile() {
@@ -544,6 +543,9 @@
       const col = this.getMatrixColIndexFromStorage();
       if (col) data.matrixColIndex = col;
       return this.request('getGroupProfile', data);
+    }
+    getGroupDashboard(groupId = null) {
+      return this.getGroupProfile(groupId);
     }
     transferGroupLeader(targetPlayerId, groupId = null) {
       const data = { targetPlayerId };

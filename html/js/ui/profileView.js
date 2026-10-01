@@ -879,27 +879,41 @@
         return;
       }
 
-      try {
-        let summary = null;
-        if (this.apiClient && typeof this.apiClient.getMyGroupContributionSummary === 'function') {
-          const res = await this.apiClient.getMyGroupContributionSummary(groupId);
-          if (res && res.success) {
-            summary = res.data || res;
-          }
-        }
+      // 先嘗試讀取本地快取（SWR 策略：先展示快取資料，隨後背景拉取最新並更新）
+      let cachedSummary = null;
+      if (typeof localStorage !== 'undefined') {
+        try {
+          cachedSummary = JSON.parse(localStorage.getItem(`vital_group_progress_${groupId}`) || 'null');
+        } catch (e) {}
+      }
 
-        let journeyData = this.currentJourneyData;
-        if (!journeyData && typeof localStorage !== 'undefined') {
-          try {
-            journeyData = JSON.parse(localStorage.getItem('vital_group_journey') || 'null');
-          } catch (e) {}
-        }
+      let journeyData = this.currentJourneyData;
+      if (!journeyData && typeof localStorage !== 'undefined') {
+        try {
+          journeyData = JSON.parse(localStorage.getItem('vital_group_journey') || 'null');
+        } catch (e) {}
+      }
 
-        const groupName = (journeyData && journeyData.groupName) || p.groupName || groupId;
-        const totalGroupScore = Number((summary && summary.groupTotalPoints) || (journeyData && (journeyData.totalPoints || journeyData.totalScore)) || 0);
-        const myContribScore = Number(summary && summary.individualPoints !== undefined ? summary.individualPoints : myContribPoints);
-        
-        let percent = (summary && summary.contributionPercent);
+      const groupName = (journeyData && journeyData.groupName) || p.groupName || groupId;
+      const chapterTitle = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.title || journeyData.currentChapter.name)) || (journeyData && journeyData.chapterTitle) || '起步啟航';
+      const chapterIndex = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.index || journeyData.currentChapter.chapterIndex)) || (journeyData && journeyData.currentChapter) || 1;
+
+      // 內部渲染輔助函式
+      const renderModalContent = (summaryData, isRefreshing = false) => {
+        if (!this.infoModalContent) return;
+
+        const totalGroupScore = Number(
+          (summaryData && (summaryData.groupTotalPoints || summaryData.totalPoints)) ||
+          (journeyData && (journeyData.totalPoints || journeyData.totalScore)) ||
+          0
+        );
+        const myContribScore = Number(
+          (summaryData && summaryData.individualPoints !== undefined)
+            ? summaryData.individualPoints
+            : myContribPoints
+        );
+
+        let percent = summaryData && summaryData.contributionPercent;
         if (typeof percent === 'string') {
           percent = parseInt(percent, 10) || 0;
         } else if (typeof percent === 'number') {
@@ -909,54 +923,81 @@
         }
         const coScore = Math.max(0, totalGroupScore - myContribScore);
 
-        const chapterTitle = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.title || journeyData.currentChapter.name)) || (journeyData && journeyData.chapterTitle) || '起步啟航';
-        const chapterIndex = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.index || journeyData.currentChapter.chapterIndex)) || (journeyData && journeyData.currentChapter) || 1;
-
-        if (this.infoModalContent) {
-          this.infoModalContent.innerHTML = `
-            <div style="padding:16px;">
-              <div style="background:linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%); border:1px solid #bae6fd; border-radius:14px; padding:16px; margin-bottom:16px; text-align:center;">
-                <div style="font-size:12px; font-weight:700; color:#0284c7; text-transform:uppercase; letter-spacing:0.5px;">VITAL GROUP JOURNEY</div>
-                <h3 style="font-size:18px; font-weight:800; color:#0f172a; margin:4px 0 8px 0;">${this.escapeHtml(groupName)}</h3>
-                <div style="display:inline-flex; align-items:center; gap:6px; background:#fff; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; color:#16a34a; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-                  <span>🏆 當前篇章：第 ${chapterIndex} 篇【${this.escapeHtml(chapterTitle)}】</span>
-                </div>
-              </div>
-
-              <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
-                <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; text-align:center;">
-                  <div style="font-size:12px; color:#64748b; font-weight:600;">小組當年度累積點數</div>
-                  <div style="font-size:24px; font-weight:800; color:#2563eb; margin-top:4px;">${totalGroupScore.toLocaleString()}<small style="font-size:12px; font-weight:600; margin-left:2px;">分</small></div>
-                </div>
-                <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; text-align:center;">
-                  <div style="font-size:12px; color:#64748b; font-weight:600;">個人當年度貢獻點數</div>
-                  <div style="font-size:24px; font-weight:800; color:#16a34a; margin-top:4px;">${myContribScore.toLocaleString()}<small style="font-size:12px; font-weight:600; margin-left:2px;">分</small></div>
-                </div>
-              </div>
-
-              <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; margin-bottom:16px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; font-weight:700;">
-                  <span style="color:#334155;">個人操練貢獻比例</span>
-                  <span style="color:#2563eb;">${percent}%</span>
-                </div>
-                <div style="height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden;">
-                  <div style="height:100%; width:${percent}%; background:linear-gradient(90deg, #3b82f6, #10b981); border-radius:4px; transition:width 0.3s ease;"></div>
-                </div>
-                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#64748b;">
-                  <span>我的貢獻：${myContribScore.toLocaleString()} 分</span>
-                  <span>組員同心同行：${coScore.toLocaleString()} 分</span>
-                </div>
-              </div>
-
-              <div style="background:#f8fafc; border-radius:10px; padding:12px; text-align:center; font-size:12px; color:#475569; line-height:1.5;">
-                💡 每日晨興、讀經、禱告、書報與聚會回報，均會為小組累積活力點數，推進篇章突破！
+        this.infoModalContent.innerHTML = `
+          <div style="padding:16px;">
+            <div style="background:linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%); border:1px solid #bae6fd; border-radius:14px; padding:16px; margin-bottom:16px; text-align:center;">
+              <div style="font-size:12px; font-weight:700; color:#0284c7; text-transform:uppercase; letter-spacing:0.5px;">VITAL GROUP JOURNEY</div>
+              <h3 style="font-size:18px; font-weight:800; color:#0f172a; margin:4px 0 8px 0;">${this.escapeHtml(groupName)}</h3>
+              <div style="display:inline-flex; align-items:center; gap:6px; background:#fff; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; color:#16a34a; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+                <span>🏆 當前篇章：第 ${chapterIndex} 篇【${this.escapeHtml(chapterTitle)}】</span>
               </div>
             </div>
-          `;
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+              <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; text-align:center;">
+                <div style="font-size:12px; color:#64748b; font-weight:600;">小組當年度累積點數</div>
+                <div style="font-size:24px; font-weight:800; color:#2563eb; margin-top:4px;">${totalGroupScore.toLocaleString()}<small style="font-size:12px; font-weight:600; margin-left:2px;">分</small></div>
+              </div>
+              <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; text-align:center;">
+                <div style="font-size:12px; color:#64748b; font-weight:600;">個人當年度貢獻點數</div>
+                <div style="font-size:24px; font-weight:800; color:#16a34a; margin-top:4px;">${myContribScore.toLocaleString()}<small style="font-size:12px; font-weight:600; margin-left:2px;">分</small></div>
+              </div>
+            </div>
+
+            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; margin-bottom:16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; font-weight:700;">
+                <span style="color:#334155;">個人操練貢獻比例</span>
+                <span style="color:#2563eb;">${percent}%</span>
+              </div>
+              <div style="height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden;">
+                <div style="height:100%; width:${percent}%; background:linear-gradient(90deg, #3b82f6, #10b981); border-radius:4px; transition:width 0.3s ease;"></div>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#64748b;">
+                <span>我的貢獻：${myContribScore.toLocaleString()} 分</span>
+                <span>組員同心同行：${coScore.toLocaleString()} 分</span>
+              </div>
+            </div>
+
+            <div style="background:#f8fafc; border-radius:10px; padding:12px; text-align:center; font-size:12px; color:#475569; line-height:1.5;">
+              ${isRefreshing ? '<span style="color:#0284c7; font-weight:600;">🔄 正在即時同步最新進度...</span><br>' : ''}
+              💡 每日晨興、讀經、禱告、書報與聚會回報，均會為小組累積活力點數，推進篇章突破！
+            </div>
+          </div>
+        `;
+      };
+
+      // 1. 若有快取，先立即展示快取，提供秒開體驗
+      if (cachedSummary && (cachedSummary.groupTotalPoints !== undefined || cachedSummary.totalPoints !== undefined)) {
+        renderModalContent(cachedSummary, true);
+      } else {
+        if (this.infoModalContent) {
+          this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">讀取當年度同行貢獻資料中...</div>';
+        }
+      }
+
+      // 2. 向後端非同步請求 getGroupProgress 更新最新數據
+      try {
+        if (this.apiClient && typeof this.apiClient.getGroupProgress === 'function') {
+          const res = await this.apiClient.getGroupProgress(groupId);
+          if (res && (res.success || res.data)) {
+            const latestData = res.data || res;
+            // 更新快取
+            if (typeof localStorage !== 'undefined') {
+              try {
+                localStorage.setItem(`vital_group_progress_${groupId}`, JSON.stringify(latestData));
+              } catch (e) {}
+            }
+            // 收到最新回傳時更新 UI
+            renderModalContent(latestData, false);
+          }
         }
       } catch (err) {
-        if (this.infoModalContent) {
-          this.infoModalContent.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444;">讀取同行貢獻失敗：${this.escapeHtml(err.message || '連線逾時')}</div>`;
+        console.warn('[ProfileView] 獲取最新小組進度失敗:', err);
+        // 若完全沒有快取且請求失敗才顯示錯誤
+        if (!cachedSummary || (cachedSummary.groupTotalPoints === undefined && cachedSummary.totalPoints === undefined)) {
+          if (this.infoModalContent) {
+            this.infoModalContent.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444;">讀取同行貢獻失敗：${this.escapeHtml(err.message || '連線逾時')}</div>`;
+          }
         }
       }
     }

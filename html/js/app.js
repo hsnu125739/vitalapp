@@ -43,7 +43,7 @@
     const chapterIndex = Math.min(8, Math.max(1, maxChapterLevel));
     const chapterTitle = CHAPTER_NAMES[chapterIndex - 1] || '起步啟航';
 
-    let totalScore = Number(groupProgress.totalScore || groupProgress.totalPoints || 0);
+    let totalScore = Number(groupProgress.totalPoints || groupProgress.totalScore || 0);
     if (!totalScore && groupProgress.historySummary) {
       let hs = groupProgress.historySummary;
       if (typeof hs === 'string') {
@@ -59,6 +59,7 @@
       chapterTitle: chapterTitle,
       chapterName: chapterTitle,
       currentLevel: chapterIndex,
+      totalPoints: totalScore || (fallbackProfile && (fallbackProfile.totalPoints || fallbackProfile.totalScore)) || 0,
       totalScore: totalScore || (fallbackProfile && (fallbackProfile.totalPoints || fallbackProfile.totalScore)) || 0,
       progressPercent: Math.min(100, Math.round((chapterIndex / 8) * 100)),
       milestones: milestones
@@ -429,6 +430,21 @@
         fellowshipView.postsColIndex = pCol;
         fellowshipView.isLeader = Boolean(currentUserProfile.isLeader);
         chatStore.init(currentGId, pCol);
+
+        // 8. 登入後背景平行觸發 getGroupProgress，非同步更新快取 (SWR cache warm-up)
+        apiClient.getGroupProgress(currentGId).then(gpRes => {
+          if (gpRes && (gpRes.success || gpRes.data)) {
+            const data = gpRes.data || gpRes;
+            try {
+              localStorage.setItem(`vital_group_progress_${currentGId}`, JSON.stringify(data));
+              if (data.milestones) {
+                localStorage.setItem(`vital_group_milestones_${currentGId}`, JSON.stringify(data.milestones));
+              }
+            } catch (e) {}
+          }
+        }).catch(bgErr => {
+          console.warn('[App] 背景同步小組進度略過:', bgErr);
+        });
       } else {
         fellowshipView.currentPlayerId = (currentUserProfile && currentUserProfile.playerId) || '';
         fellowshipView.currentUserName = (currentUserProfile && currentUserProfile.name) || '';
