@@ -61,7 +61,8 @@
           const year = d.getFullYear();
           const start = new Date(year, 0, 1);
           const days = Math.floor((d - start) / (24 * 60 * 60 * 1000));
-          const week = Math.ceil((days + start.getDay() + 1) / 7);
+          const adjustedStartDay = (start.getDay() + 6) % 7;
+          const week = Math.ceil((days + adjustedStartDay + 1) / 7);
           return `${year}-W${String(week).padStart(2, '0')}`;
         };
 

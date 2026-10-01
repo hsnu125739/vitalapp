@@ -76,6 +76,11 @@
       this.infoModalTitle = document.getElementById('infoModalTitle');
       this.infoModalContent = document.getElementById('infoModalContent');
 
+      // 活力組操練鎖定狀態與提醒旗標
+      this.isPracticeLocked = false;
+      this.practiceLockReason = '';
+      this.hasPromptedGroupLock = false;
+
       this.initEvents_();
       this.subscribeStore_();
       this.renderTaskCards(this.pointsConfig);
@@ -93,6 +98,14 @@
       this.isSyncing = isLocked;
       const btns = document.querySelectorAll('.quest-card');
       btns.forEach(btn => {
+        if (this.isPracticeLocked) {
+          btn.disabled = true;
+          btn.classList.add('is-locked');
+          btn.style.opacity = '';
+          btn.style.pointerEvents = '';
+          btn.style.filter = '';
+          return;
+        }
         btn.style.opacity = isLocked ? '0.6' : '1';
         btn.style.pointerEvents = isLocked ? 'none' : 'auto';
         btn.style.filter = isLocked ? 'grayscale(0.5)' : 'none';
@@ -104,7 +117,9 @@
       const year = now.getFullYear();
       const start = new Date(year, 0, 1);
       const days = Math.floor((now - start) / (24 * 60 * 60 * 1000));
-      const week = Math.ceil((days + start.getDay() + 1) / 7);
+      // 轉換 getDay() 使得週一 = 0, 週日 = 6，如此一週的定義即為週一至週日
+      const adjustedStartDay = (start.getDay() + 6) % 7;
+      const week = Math.ceil((days + adjustedStartDay + 1) / 7);
       return `${year}-W${String(week).padStart(2, '0')}`;
     }
 
@@ -121,6 +136,7 @@
         const btn = document.querySelector(selector);
         if (btn) {
           btn.addEventListener('click', () => {
+            if (this.isPracticeLocked || btn.disabled) return;
             if (this.isSyncing) return;
             const currentItemState = this.practiceStore.dailyState[this.currentDate];
             const wasDone = Boolean(currentItemState && (currentItemState[key] !== undefined ? currentItemState[key] : (key === 'morning' ? currentItemState.morningRevival : (key === 'bible' ? currentItemState.bibleReading : (key === 'book' ? currentItemState.bookPursuit : false)))));
@@ -143,6 +159,7 @@
         const btn = document.querySelector(selector);
         if (btn) {
           btn.addEventListener('click', () => {
+            if (this.isPracticeLocked || btn.disabled) return;
             if (this.isSyncing) return;
             const currentItemState = this.practiceStore.meetingState[this.currentWeekKey];
             const wasDone = Boolean(currentItemState && currentItemState[key]);
@@ -220,6 +237,16 @@
           if (this.infoModal) this.infoModal.classList.add('hidden');
         });
       });
+
+      // 點擊小組名稱或未加入標籤時，若處於鎖定狀態可再次打開提示視窗
+      const groupEl = document.getElementById('homeGroupName');
+      if (groupEl) {
+        groupEl.addEventListener('click', () => {
+          if (this.isPracticeLocked && this.practiceLockReason) {
+            this.openGroupPracticeRequiredModal(this.practiceLockReason);
+          }
+        });
+      }
     }
 
     subscribeStore_() {
@@ -234,7 +261,29 @@
 
     render(userProfile, journeyData, announcements = null) {
       if (!userProfile) return;
-      this.currentUserProfile = userProfile;
+      
+      // 由於後端為「昨日午夜結算快照 (Settled Snapshot)」，前端必須即時加上今日未結算的本機操練分數
+      const localDelta = this.calculateTodayLocalPointsDelta_();
+      
+      // 建立淺拷貝以避免污染源物件
+      this.currentUserProfile = { ...userProfile };
+      
+      // 將未結算分數疊加到基礎分數上
+      if (this.currentUserProfile.personalPoints !== undefined) {
+        this.currentUserProfile.personalPoints += localDelta;
+      } else if (this.currentUserProfile.totalPoints !== undefined) {
+        this.currentUserProfile.totalPoints += localDelta;
+      } else if (this.currentUserProfile.totalScore !== undefined) {
+        this.currentUserProfile.totalScore += localDelta;
+      }
+      
+      if (this.currentUserProfile.groupId) {
+        if (this.currentUserProfile.contributionPoints !== undefined) {
+          this.currentUserProfile.contributionPoints += localDelta;
+        } else if (this.currentUserProfile.contribution !== undefined) {
+          this.currentUserProfile.contribution += localDelta;
+        }
+      }
 
       // 1. 頂部資訊
       const nameEl = document.getElementById('homePlayerName');
@@ -303,27 +352,27 @@
       const streakEl = document.getElementById('homeStreakText');
       if (streakEl) streakEl.textContent = `${userProfile.streakDays || 0} 天`;
 
+      let mCount = 0;
+      if (hasGroup) {
+        if (typeof userProfile.memberCount === 'number' && userProfile.memberCount > 0) {
+          mCount = userProfile.memberCount;
+        } else if (typeof journeyData?.memberCount === 'number' && journeyData.memberCount > 0) {
+          mCount = journeyData.memberCount;
+        } else {
+          try {
+            const gp = JSON.parse(localStorage.getItem(`vital_group_profile_${userProfile.groupId}`) || 'null');
+            if (gp && typeof gp.memberCount === 'number' && gp.memberCount > 0) {
+              mCount = gp.memberCount;
+            } else if (gp && Array.isArray(gp.members) && gp.members.length > 0) {
+              mCount = gp.members.length;
+            }
+          } catch (e) {}
+        }
+        if (mCount === 0) mCount = 1; // 至少本人在組內
+      }
+
       const memberCountEl = document.getElementById('homeMemberCountText');
       if (memberCountEl) {
-        const hasGroup = Boolean(userProfile && userProfile.groupId);
-        let mCount = 0;
-        if (hasGroup) {
-          if (typeof userProfile.memberCount === 'number' && userProfile.memberCount > 0) {
-            mCount = userProfile.memberCount;
-          } else if (typeof journeyData?.memberCount === 'number' && journeyData.memberCount > 0) {
-            mCount = journeyData.memberCount;
-          } else {
-            try {
-              const gp = JSON.parse(localStorage.getItem(`vital_group_profile_${userProfile.groupId}`) || 'null');
-              if (gp && typeof gp.memberCount === 'number' && gp.memberCount > 0) {
-                mCount = gp.memberCount;
-              } else if (gp && Array.isArray(gp.members) && gp.members.length > 0) {
-                mCount = gp.members.length;
-              }
-            } catch (e) {}
-          }
-          if (mCount === 0) mCount = 1; // 至少本人在組內
-        }
         memberCountEl.textContent = String(mCount);
       }
 
@@ -346,6 +395,31 @@
       if (weekDateEl) {
         weekDateEl.textContent = this.getWeeklyDateRangeText_();
       }
+
+      // 6. 活力組操練權限防禦：未加入活力組、已停用或未滿 2 人時所有打卡按鈕直接反灰不准按
+      let groupEnabled = userProfile.groupEnabled !== false;
+      let groupStatusMessage = userProfile.groupStatusMessage || '';
+      if (hasGroup) {
+        try {
+          const gp = JSON.parse(localStorage.getItem(`vital_group_profile_${userProfile.groupId}`) || 'null');
+          if (gp) {
+            if (gp.enabled !== undefined) groupEnabled = gp.enabled !== false;
+            if (gp.groupEnabled !== undefined) groupEnabled = gp.groupEnabled !== false;
+            if (gp.statusMessage) groupStatusMessage = gp.statusMessage;
+          }
+        } catch (e) {}
+      }
+
+      let lockReason = null;
+      if (!hasGroup) {
+        lockReason = '歡迎來到活力同行！操練與聚會打卡需有同伴同奔賽程。請先至「我的」頁面建立或加入活力組，才能開啟打卡功能喔！';
+      } else if (!groupEnabled) {
+        lockReason = groupStatusMessage || '您所屬的活力組目前已暫停服務，暫時無法記錄操練。如有疑問請聯絡服事弟兄。';
+      } else if (mCount < 2) {
+        lockReason = '同伴尋找中！活力組至少需要 2 位同伴成組。快邀請青職同伴加入您的活力組，一同開啟打卡操練吧！';
+      }
+
+      this.updatePracticeLockState_(lockReason);
     }
 
     renderJourneyNodes_(journeyData) {
@@ -653,8 +727,32 @@
           }).join('')}
         </div>
       `;
-
       this.infoModalContent.innerHTML = html;
+    }
+
+    calculateTodayLocalPointsDelta_() {
+      const cfg = this.pointsConfig || DEFAULT_POINTS_CONFIG;
+      let totalLocalDelta = 0;
+
+      // 1. 每日操練 (今日)
+      if (this.currentDate && this.practiceStore && this.practiceStore.dailyState[this.currentDate]) {
+        const d = this.practiceStore.dailyState[this.currentDate];
+        if (d.morning || d.morningRevival) totalLocalDelta += Number(cfg.morning || 50);
+        if (d.bible || d.bibleReading) totalLocalDelta += Number(cfg.bible || 30);
+        if (d.prayer) totalLocalDelta += Number(cfg.prayer || 30);
+        if (d.book || d.bookPursuit) totalLocalDelta += Number(cfg.book || 30);
+      }
+
+      // 2. 每週聚會 (本週)
+      if (this.currentWeekKey && this.practiceStore && this.practiceStore.meetingState[this.currentWeekKey]) {
+        const m = this.practiceStore.meetingState[this.currentWeekKey];
+        if (m.smallGroup || m.group) totalLocalDelta += Number(cfg.group !== undefined ? cfg.group : (cfg.smallGroup || 30));
+        if (m.prayerMeeting || m.prayerMtg) totalLocalDelta += Number(cfg.prayerMtg !== undefined ? cfg.prayerMtg : (cfg.prayerMeeting || 50));
+        if (m.lordDayMeeting || m.lordDay) totalLocalDelta += Number(cfg.lordDay !== undefined ? cfg.lordDay : (cfg.lordDayMeeting || 50));
+        if (m.outreachVisit || m.outreach) totalLocalDelta += Number(cfg.outreach !== undefined ? cfg.outreach : (cfg.outreachVisit || 100));
+      }
+
+      return totalLocalDelta;
     }
 
     applyOptimisticPointsDelta_(key, isDone, type) {
@@ -714,6 +812,95 @@
           localStorage.setItem('vital_current_player', JSON.stringify(this.currentUserProfile));
         } catch (e) {}
       }
+    }
+
+    updatePracticeLockState_(lockReason) {
+      this.isPracticeLocked = Boolean(lockReason);
+      this.practiceLockReason = lockReason || '';
+
+      const selectors = [
+        '#homeMorningBtn',
+        '#homeBibleBtn',
+        '#homePrayerPracticeBtn',
+        '#homeBookBtn',
+        '#homeWeeklySmallGroupBtn',
+        '#homeWeeklyPrayerMeetingBtn',
+        '#homeWeeklyLordDayBtn',
+        '#homeOutreachVisitBtn'
+      ];
+
+      selectors.forEach(sel => {
+        const btn = document.querySelector(sel);
+        if (btn) {
+          btn.disabled = this.isPracticeLocked;
+          btn.classList.toggle('is-locked', this.isPracticeLocked);
+          if (this.isPracticeLocked) {
+            btn.setAttribute('title', lockReason);
+            btn.style.opacity = '';
+            btn.style.pointerEvents = '';
+            btn.style.filter = '';
+          } else {
+            btn.removeAttribute('title');
+          }
+        }
+      });
+
+      const groupEl = document.getElementById('homeGroupName');
+      if (groupEl) {
+        groupEl.style.cursor = this.isPracticeLocked ? 'pointer' : '';
+      }
+
+      // 登入首頁時，若不符合條件，直接彈出提示視窗（每 Session 僅主動提醒一次避免反覆打擾）
+      if (this.isPracticeLocked && !this.hasPromptedGroupLock) {
+        this.hasPromptedGroupLock = true;
+        this.openGroupPracticeRequiredModal(lockReason);
+      }
+    }
+
+    openGroupPracticeRequiredModal(lockReason) {
+      if (!this.infoModal) return;
+      if (this.infoModalTitle) {
+        this.infoModalTitle.textContent = '需要活力組同行';
+      }
+      if (this.infoModalContent) {
+        this.infoModalContent.innerHTML = `
+          <div style="text-align:center; padding:24px 12px 16px; display:flex; flex-direction:column; align-items:center; gap:16px;">
+            <div style="font-size:3rem; line-height:1;">🌱</div>
+            <div style="font-size:1.02rem; font-weight:600; line-height:1.65; color:#334155; max-width:320px;">
+              ${this.escapeHtml_(lockReason)}
+            </div>
+            <div style="display:flex; gap:10px; margin-top:8px; width:100%; max-width:280px; justify-content:center;">
+              <button id="goToProfileFromLockBtn" class="primary-btn" type="button" style="padding:10px 16px; border-radius:12px; font-weight:700; flex:1; font-size:0.95rem;">
+                前往我的專屬頁
+              </button>
+              <button class="ghost-btn modal-close-btn" data-close-modal="infoModal" type="button" style="padding:10px 16px; border-radius:12px; font-weight:600; font-size:0.95rem;">
+                我知道了
+              </button>
+            </div>
+          </div>
+        `;
+
+        const goBtn = this.infoModalContent.querySelector('#goToProfileFromLockBtn');
+        if (goBtn) {
+          goBtn.addEventListener('click', () => {
+            if (this.infoModal) this.infoModal.classList.add('hidden');
+            const navMyBtn = document.getElementById('navMyBtn');
+            if (navMyBtn) {
+              navMyBtn.click();
+            } else if (typeof this.onFootprintClick === 'function') {
+              this.onFootprintClick();
+            }
+          });
+        }
+
+        this.infoModalContent.querySelectorAll('[data-close-modal="infoModal"]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            if (this.infoModal) this.infoModal.classList.add('hidden');
+          });
+        });
+      }
+
+      this.infoModal.classList.remove('hidden');
     }
 
     escapeHtml_(str) {

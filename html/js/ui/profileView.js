@@ -855,8 +855,14 @@
 
       const p = this.currentUserProfile || {};
       const groupId = p.groupId;
-      const myPersonalPoints = Number(p.personalPoints !== undefined ? p.personalPoints : (p.totalPoints !== undefined ? p.totalPoints : (p.totalScore || 0)));
-      const myContribPoints = Number(p.contributionPoints !== undefined ? p.contributionPoints : (p.contribution || 0));
+      
+      // 樂觀加上今天的未結算本機打卡分數
+      const localDelta = (window.dashboardView && typeof window.dashboardView.calculateTodayLocalPointsDelta_ === 'function') 
+        ? window.dashboardView.calculateTodayLocalPointsDelta_() 
+        : 0;
+        
+      const myPersonalPoints = Number(p.personalPoints !== undefined ? p.personalPoints : (p.totalPoints !== undefined ? p.totalPoints : (p.totalScore || 0))) + localDelta;
+      const myContribPoints = Number(p.contributionPoints !== undefined ? p.contributionPoints : (p.contribution || 0)) + localDelta;
 
       if (!groupId) {
         if (this.infoModalContent) {

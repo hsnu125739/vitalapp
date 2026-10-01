@@ -5588,6 +5588,17 @@ body{
   }
 }
 
+/* 操練與聚會打卡鎖定/反灰樣式（未加入活力組或未滿2人） */
+.quest-card:disabled,
+.quest-card.is-locked {
+  opacity: 0.52 !important;
+  filter: grayscale(0.88) !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  transform: none !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04) !important;
+}
+
 /* Desktop artwork overrides must remain after the mobile-first theme rules. */
 @media (min-width:760px){
   body{

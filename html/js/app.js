@@ -153,7 +153,7 @@
     }
   }
 
-  async function loadUserData(skipProfile = false) {
+  async function loadUserData() {
     try {
       // 0. 本地水合 (0ms rendering)
       let cachedPlayer = null;
@@ -246,7 +246,7 @@
       });
 
       const reqs = [];
-      reqs.push(skipProfile ? Promise.resolve({ success: true, player: currentUserProfile }) : apiClient.getBootstrap());
+      reqs.push(apiClient.getBootstrap());
       if (pId) {
         reqs.push(apiClient.getProgressBundle(gId));
       } else {
@@ -283,7 +283,7 @@
               if (announcements.length > 0) localStorage.setItem('vital_announcements', JSON.stringify(announcements));
             } catch (e) {}
           }
-        } else if (!skipProfile) {
+        } else {
           console.warn('[App] 取得遠端使用者檔案失敗', bootstrapRes.value);
         }
       }
