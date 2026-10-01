@@ -122,7 +122,11 @@
         if (btn) {
           btn.addEventListener('click', () => {
             if (this.isSyncing) return;
+            const currentItemState = this.practiceStore.dailyState[this.currentDate];
+            const wasDone = Boolean(currentItemState && (currentItemState[key] !== undefined ? currentItemState[key] : (key === 'morning' ? currentItemState.morningRevival : (key === 'bible' ? currentItemState.bibleReading : (key === 'book' ? currentItemState.bookPursuit : false)))));
             this.practiceStore.toggleDailyPractice(this.currentDate, key);
+            const isNowDone = !wasDone;
+            this.applyOptimisticPointsDelta_(key, isNowDone, 'DAILY');
           });
         }
       });
@@ -140,7 +144,11 @@
         if (btn) {
           btn.addEventListener('click', () => {
             if (this.isSyncing) return;
+            const currentItemState = this.practiceStore.meetingState[this.currentWeekKey];
+            const wasDone = Boolean(currentItemState && currentItemState[key]);
             this.practiceStore.toggleMeetingPractice(this.currentWeekKey, key);
+            const isNowDone = !wasDone;
+            this.applyOptimisticPointsDelta_(key, isNowDone, 'MEETING');
           });
         }
       });
@@ -626,6 +634,65 @@
       `;
 
       this.infoModalContent.innerHTML = html;
+    }
+
+    applyOptimisticPointsDelta_(key, isDone, type) {
+      if (!this.currentUserProfile) return;
+
+      const cfg = this.pointsConfig || DEFAULT_POINTS_CONFIG;
+      let pts = 0;
+
+      if (type === 'DAILY') {
+        if (key === 'morning') pts = Number(cfg.morning || 50);
+        else if (key === 'bible') pts = Number(cfg.bible || 30);
+        else if (key === 'prayer') pts = Number(cfg.prayer || 30);
+        else if (key === 'book') pts = Number(cfg.book || 30);
+      } else if (type === 'MEETING') {
+        if (key === 'smallGroup') pts = Number(cfg.group !== undefined ? cfg.group : (cfg.smallGroup || 30));
+        else if (key === 'prayerMeeting') pts = Number(cfg.prayerMtg !== undefined ? cfg.prayerMtg : (cfg.prayerMeeting || 50));
+        else if (key === 'lordDayMeeting') pts = Number(cfg.lordDay !== undefined ? cfg.lordDay : (cfg.lordDayMeeting || 50));
+        else if (key === 'outreachVisit') pts = Number(cfg.outreach !== undefined ? cfg.outreach : (cfg.outreachVisit || 100));
+      }
+
+      if (pts === 0) return;
+      const delta = isDone ? pts : -pts;
+
+      // 1. 更新【個人點數】（永遠累計）
+      const currentPersonal = Number(
+        this.currentUserProfile.personalPoints !== undefined
+          ? this.currentUserProfile.personalPoints
+          : (this.currentUserProfile.totalPoints !== undefined ? this.currentUserProfile.totalPoints : (this.currentUserProfile.totalScore || 0))
+      );
+      const nextPersonal = Math.max(0, currentPersonal + delta);
+      this.currentUserProfile.personalPoints = nextPersonal;
+      if (this.currentUserProfile.totalPoints !== undefined) this.currentUserProfile.totalPoints = nextPersonal;
+      if (this.currentUserProfile.totalScore !== undefined) this.currentUserProfile.totalScore = nextPersonal;
+
+      const personalEl = document.getElementById('homePersonalScoreText');
+      if (personalEl) personalEl.textContent = nextPersonal.toLocaleString();
+
+      // 2. 更新【貢獻點數】（若已加入活力組，則同仁在小組內的年度貢獻亦同步累計）
+      const hasGroup = Boolean(this.currentUserProfile.groupId);
+      if (hasGroup) {
+        const currentContrib = Number(
+          this.currentUserProfile.contributionPoints !== undefined
+            ? this.currentUserProfile.contributionPoints
+            : (this.currentUserProfile.contribution !== undefined ? this.currentUserProfile.contribution : 0)
+        );
+        const nextContrib = Math.max(0, currentContrib + delta);
+        this.currentUserProfile.contributionPoints = nextContrib;
+        if (this.currentUserProfile.contribution !== undefined) this.currentUserProfile.contribution = nextContrib;
+
+        const contribEl = document.getElementById('homeContributionText');
+        if (contribEl) contribEl.textContent = nextContrib.toLocaleString();
+      }
+
+      // 3. 同步至 LocalStorage 快取，防止重新整理回滾
+      if (typeof localStorage !== 'undefined') {
+        try {
+          localStorage.setItem('vital_current_player', JSON.stringify(this.currentUserProfile));
+        } catch (e) {}
+      }
     }
 
     escapeHtml_(str) {
