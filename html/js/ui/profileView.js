@@ -903,62 +903,142 @@
         if (!this.infoModalContent) return;
 
         const totalGroupScore = Number(
-          (summaryData && (summaryData.groupTotalPoints || summaryData.totalPoints)) ||
+          (summaryData && (summaryData.groupTotalPoints !== undefined ? summaryData.groupTotalPoints : summaryData.totalPoints)) ||
           (journeyData && (journeyData.totalPoints || journeyData.totalScore)) ||
           0
         );
-        const myContribScore = Number(
-          (summaryData && summaryData.individualPoints !== undefined)
-            ? summaryData.individualPoints
-            : myContribPoints
-        );
 
-        let percent = summaryData && summaryData.contributionPercent;
-        if (typeof percent === 'string') {
-          percent = parseInt(percent, 10) || 0;
-        } else if (typeof percent === 'number') {
-          percent = Math.round(percent);
-        } else {
-          percent = totalGroupScore > 0 ? Math.min(100, Math.round((myContribScore / totalGroupScore) * 100)) : (myContribScore > 0 ? 100 : 0);
+        let groupProfile = null;
+        if (typeof localStorage !== 'undefined') {
+          try { groupProfile = JSON.parse(localStorage.getItem(`vital_group_profile_${groupId}`) || 'null'); } catch(e){}
         }
-        const coScore = Math.max(0, totalGroupScore - myContribScore);
+
+        const contribs = (summaryData && (summaryData.memberContribution || summaryData.meberContribution)) || {};
+
+        // 收集小組成員資訊
+        const membersMap = new Map();
+        const membersMeta = (groupProfile && groupProfile.members) || [];
+        if (Array.isArray(membersMeta)) {
+          membersMeta.forEach(m => {
+            if (m && m.playerId) {
+              membersMap.set(m.playerId, {
+                playerId: m.playerId,
+                name: m.name || m.playerName || m.playerId,
+                avatarUrl: m.avatarUrl || '',
+                avatarKey: m.avatarKey || '001',
+                gender: m.gender || '',
+                points: 0
+              });
+            }
+          });
+        }
+
+        // 匯入各組員貢獻點數
+        for (const mId in contribs) {
+          const pts = Number(contribs[mId]) || 0;
+          if (membersMap.has(mId)) {
+            membersMap.get(mId).points = pts;
+          } else {
+            membersMap.set(mId, {
+              playerId: mId,
+              name: mId,
+              avatarUrl: '',
+              avatarKey: '001',
+              gender: '',
+              points: pts
+            });
+          }
+        }
+
+        // 若當前使用者尚未在 membersMap 中
+        const currentPid = p.playerId || (this.currentUserProfile && (this.currentUserProfile.playerId || this.currentUserProfile.id));
+        if (currentPid && !membersMap.has(currentPid)) {
+          membersMap.set(currentPid, {
+            playerId: currentPid,
+            name: p.name || p.username || currentPid,
+            avatarUrl: p.avatarUrl || '',
+            avatarKey: p.avatarKey || '001',
+            gender: p.gender || '',
+            points: Number(summaryData?.individualPoints !== undefined ? summaryData.individualPoints : myContribPoints)
+          });
+        }
+
+        const membersArray = Array.from(membersMap.values());
+        // 依點數由高至低排序
+        membersArray.sort((a, b) => b.points - a.points);
+
+        // 計算「小組所有成員當年度的總貢獻」
+        const allMembersTotalContrib = membersArray.reduce((acc, m) => acc + (Number(m.points) || 0), 0);
+
+        // 計算「共同取得」= group total points 減去「小組所有成員當年度的總貢獻」
+        const cooperativeScore = Math.max(0, totalGroupScore - allMembersTotalContrib);
+
+        const memberCount = (groupProfile && (typeof groupProfile.memberCount === 'number' ? groupProfile.memberCount : groupProfile.members?.length)) || (membersArray.length > 0 ? membersArray.length : 1);
+
+        // 組員卡片 HTML
+        const memberRows = membersArray.map(m => {
+          const isMe = (m.playerId === currentPid) || (m.playerId === p.id);
+          const name = m.name || m.playerId;
+          const initial = name ? name.charAt(0) : '?';
+
+          // 解析頭像
+          let avatarUrl = m.avatarUrl;
+          if (!avatarUrl && m.avatarKey) {
+            const isFemale = m.gender === 'SISTER' || m.gender === 'female';
+            const folder = isFemale ? 'avatar-female' : 'avatar-male';
+            const prefix = isFemale ? 'avatar-female-direct' : 'avatar-male-direct';
+            const match = String(m.avatarKey).match(/\d+/);
+            const no = match ? String(match[0]).padStart(3, '0') : '001';
+            avatarUrl = `../${folder}/${prefix}-${no}.png`;
+          }
+          if (isMe && this.currentUserProfile?.avatarUrl) {
+            avatarUrl = this.currentUserProfile.avatarUrl;
+          }
+
+          const avatarContent = avatarUrl
+            ? `<img src="${this.escapeHtml(avatarUrl)}" alt="${this.escapeHtml(name)}頭像" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';"><span class="group-contribution-avatar is-placeholder" style="display:none;">${this.escapeHtml(initial)}</span>`
+            : `<span class="group-contribution-avatar is-placeholder">${this.escapeHtml(initial)}</span>`;
+
+          return `
+            <article class="group-contribution-member${isMe ? ' is-me' : ''}">
+              <span class="group-contribution-avatar">
+                ${avatarContent}
+              </span>
+              <div class="group-contribution-member-name">
+                <strong>${this.escapeHtml(name)}</strong>
+                ${isMe ? '<small>我</small>' : ''}
+              </div>
+              <div class="group-contribution-member-score">
+                <strong>${m.points.toLocaleString()}</strong>
+                <span>點</span>
+              </div>
+            </article>
+          `;
+        }).join('');
 
         this.infoModalContent.innerHTML = `
-          <div style="padding:16px;">
-            <div style="background:linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%); border:1px solid #bae6fd; border-radius:14px; padding:16px; margin-bottom:16px; text-align:center;">
-              <div style="font-size:12px; font-weight:700; color:#0284c7; text-transform:uppercase; letter-spacing:0.5px;">VITAL GROUP JOURNEY</div>
-              <h3 style="font-size:18px; font-weight:800; color:#0f172a; margin:4px 0 8px 0;">${this.escapeHtml(groupName)}</h3>
-              <div style="display:inline-flex; align-items:center; gap:6px; background:#fff; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; color:#16a34a; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-                <span>🏆 當前篇章：第 ${chapterIndex} 篇【${this.escapeHtml(chapterTitle)}】</span>
+          <div class="group-contribution-container" style="max-height: 72vh; overflow-y: auto; padding: 4px;">
+            <section class="group-contribution-summary">
+              <span>活力組總點數</span>
+              <strong>${totalGroupScore.toLocaleString()}<small>點</small></strong>
+              <p>${this.escapeHtml(groupName)} ｜ ${memberCount} 位組員</p>
+              <div class="group-contribution-breakdown">
+                <span>共同取得 <strong>${cooperativeScore.toLocaleString()} 點</strong></span>
+                <span>個人貢獻 <strong>${allMembersTotalContrib.toLocaleString()} 點</strong></span>
               </div>
-            </div>
+            </section>
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
-              <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; text-align:center;">
-                <div style="font-size:12px; color:#64748b; font-weight:600;">小組當年度累積點數</div>
-                <div style="font-size:24px; font-weight:800; color:#2563eb; margin-top:4px;">${totalGroupScore.toLocaleString()}<small style="font-size:12px; font-weight:600; margin-left:2px;">分</small></div>
+            <section class="group-contribution-section">
+              <div class="group-contribution-list-head">
+                <h3>個人貢獻</h3>
+                <span>依點數排序</span>
               </div>
-              <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; text-align:center;">
-                <div style="font-size:12px; color:#64748b; font-weight:600;">個人當年度貢獻點數</div>
-                <div style="font-size:24px; font-weight:800; color:#16a34a; margin-top:4px;">${myContribScore.toLocaleString()}<small style="font-size:12px; font-weight:600; margin-left:2px;">分</small></div>
+              <div class="group-contribution-list">
+                ${memberRows || '<div class="empty-card" style="padding:16px;text-align:center;color:#64748b;">目前尚無組員貢獻資料</div>'}
               </div>
-            </div>
+            </section>
 
-            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; margin-bottom:16px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; font-weight:700;">
-                <span style="color:#334155;">個人操練貢獻比例</span>
-                <span style="color:#2563eb;">${percent}%</span>
-              </div>
-              <div style="height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden;">
-                <div style="height:100%; width:${percent}%; background:linear-gradient(90deg, #3b82f6, #10b981); border-radius:4px; transition:width 0.3s ease;"></div>
-              </div>
-              <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#64748b;">
-                <span>我的貢獻：${myContribScore.toLocaleString()} 分</span>
-                <span>組員同心同行：${coScore.toLocaleString()} 分</span>
-              </div>
-            </div>
-
-            <div style="background:#f8fafc; border-radius:10px; padding:12px; text-align:center; font-size:12px; color:#475569; line-height:1.5;">
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 14px; text-align:center; font-size:12px; color:#64748b; line-height:1.5; margin-top:14px;">
               ${isRefreshing ? '<span style="color:#0284c7; font-weight:600;">🔄 正在即時同步最新進度...</span><br>' : ''}
               💡 每日晨興、讀經、禱告、書報與聚會回報，均會為小組累積活力點數，推進篇章突破！
             </div>
@@ -975,25 +1055,39 @@
         }
       }
 
-      // 2. 向後端非同步請求 getGroupProgress 更新最新數據
+      // 2. 向後端非同步請求 getGroupProgress 與 getGroupProfile 更新最新數據
       try {
+        const promises = [];
         if (this.apiClient && typeof this.apiClient.getGroupProgress === 'function') {
-          const res = await this.apiClient.getGroupProgress(groupId);
-          if (res && (res.success || res.data)) {
-            const latestData = res.data || res;
-            // 更新快取
-            if (typeof localStorage !== 'undefined') {
-              try {
-                localStorage.setItem(`vital_group_progress_${groupId}`, JSON.stringify(latestData));
-              } catch (e) {}
-            }
-            // 收到最新回傳時更新 UI
-            renderModalContent(latestData, false);
+          promises.push(this.apiClient.getGroupProgress(groupId));
+        } else {
+          promises.push(Promise.resolve(null));
+        }
+        if (this.apiClient && typeof this.apiClient.getGroupProfile === 'function') {
+          promises.push(this.apiClient.getGroupProfile(groupId));
+        } else {
+          promises.push(Promise.resolve(null));
+        }
+
+        const [progressRes, profileRes] = await Promise.allSettled(promises);
+        let latestProgress = null;
+
+        if (profileRes.status === 'fulfilled' && profileRes.value && (profileRes.value.success || profileRes.value.data)) {
+          const profileData = profileRes.value.data || profileRes.value;
+          if (typeof localStorage !== 'undefined') {
+            try { localStorage.setItem(`vital_group_profile_${groupId}`, JSON.stringify(profileData)); } catch(e){}
           }
+        }
+
+        if (progressRes.status === 'fulfilled' && progressRes.value && (progressRes.value.success || progressRes.value.data)) {
+          latestProgress = progressRes.value.data || progressRes.value;
+          if (typeof localStorage !== 'undefined') {
+            try { localStorage.setItem(`vital_group_progress_${groupId}`, JSON.stringify(latestProgress)); } catch(e){}
+          }
+          renderModalContent(latestProgress, false);
         }
       } catch (err) {
         console.warn('[ProfileView] 獲取最新小組進度失敗:', err);
-        // 若完全沒有快取且請求失敗才顯示錯誤
         if (!cachedSummary || (cachedSummary.groupTotalPoints === undefined && cachedSummary.totalPoints === undefined)) {
           if (this.infoModalContent) {
             this.infoModalContent.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444;">讀取同行貢獻失敗：${this.escapeHtml(err.message || '連線逾時')}</div>`;
