@@ -70,23 +70,24 @@
       });
     }
 
-    openChestModal(userPoints = 0, selectedIdx = null) {
+    openChestModal(userPoints = 0, selectedIdx = null, passedMilestones = null) {
       if (this.infoModalTitle) this.infoModalTitle.textContent = '成就寶藏收藏';
       if (this.infoModal) this.infoModal.classList.remove('hidden');
 
-      let milestones = [];
-      if (typeof localStorage !== 'undefined') {
+      let milestones = passedMilestones;
+      if (!milestones && typeof localStorage !== 'undefined') {
         try {
           milestones = JSON.parse(localStorage.getItem('vital_player_milestones') || '[]');
         } catch (e) {
           milestones = [];
         }
       }
+      if (!Array.isArray(milestones)) milestones = [];
 
       const claimedSet = new Set(
         milestones
-          .filter(m => m && m.id && (m.id.startsWith('CHEST_') || /^T\d+$/.test(m.id)))
-          .map(m => m.id)
+          .filter(m => m && (m.id || m.tierId))
+          .map(m => m.id || m.tierId)
       );
 
       this.currentChestData = DEFAULT_CHESTS.map((c, index) => {
