@@ -185,10 +185,11 @@
         });
       }
 
-      // 旅程軌道各節點點擊（亦對應八階篇章與寶箱）
-      document.querySelectorAll('#homeJourneyNodes .journey-node').forEach((node, idx) => {
-        node.addEventListener('click', () => {
-          if (typeof this.onChestClick === 'function') this.onChestClick(idx);
+      // 關閉小組篇章專屬彈窗
+      document.querySelectorAll('[data-close-modal="chapterDetailModal"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const m = document.getElementById('chapterDetailModal');
+          if (m) m.classList.add('hidden');
         });
       });
 
@@ -276,7 +277,7 @@
       };
     }
 
-    render(userProfile, journeyData, announcements = null) {
+    render(userProfile, journeyData, announcements = null, chaptersConfig = null) {
       if (!userProfile) return;
       
       // 由於後端為「昨日午夜結算快照 (Settled Snapshot)」，前端必須即時加上今日未結算的本機操練分數
@@ -393,8 +394,8 @@
         memberCountEl.textContent = String(mCount);
       }
 
-      // 3. 八大篇章成長旅程
-      this.renderJourneyNodes_(journeyData);
+      // 3. 小組篇章成長旅程
+      this.renderJourneyNodes_(journeyData, chaptersConfig);
 
       // 4. 公告呈現 (若未傳入 announcements 則維持現有快取，絕不誤清空)
       if (Array.isArray(announcements) && announcements.length > 0) {
@@ -439,44 +440,238 @@
       this.updatePracticeLockState_(lockReason);
     }
 
-    renderJourneyNodes_(journeyData) {
-      if (!journeyData && typeof localStorage !== 'undefined') {
+    renderJourneyNodes_(journeyData, chaptersConfig = null) {
+      let chapters = chaptersConfig;
+      if (!Array.isArray(chapters) || chapters.length === 0) {
         try {
-          journeyData = JSON.parse(localStorage.getItem('vital_group_journey') || 'null');
+          const stored = localStorage.getItem('vital_chapters_config');
+          if (stored) chapters = JSON.parse(stored);
         } catch (e) {}
       }
 
-      const currentChapter = (journeyData && journeyData.currentChapter) || 1;
-      const chapterIdx = Math.max(1, Math.min(8, Number(currentChapter))) - 1;
-      const chapterName = CHAPTER_NAMES[chapterIdx] || '信心';
+      const defaultChapters = [
+        { chapterId: 'CHP_01', order: 1, status: 'ACTIVE', targetPoint: 500, name: '恩典篇', subtitle: '本於信，以致於信', description: '萬事起頭，與同伴一同立定心志，穩固建立早晨晨興與禱告生活。', themeColor: '#f59e0b', pictureKey: 'Chapter_01.webp' },
+        { chapterId: 'CHP_02', order: 2, status: 'ACTIVE', targetPoint: 1200, name: '奉獻篇', subtitle: '將身體獻上，當作活祭', description: '同心合意，全組同伴在讀經與神的話語上堅定持續，向主奉獻心志。', themeColor: '#3b82f6', pictureKey: 'Chapter_02.webp' },
+        { chapterId: 'CHP_03', order: 3, status: 'ACTIVE', targetPoint: 2500, name: '同行篇', subtitle: '兩個人總比一個人好', description: '彼此相顧，激發愛心，勉勵行善；每週同聚禱告與小排交通。', themeColor: '#10b981', pictureKey: 'Chapter_03.webp' },
+        { chapterId: 'CHP_04', order: 4, status: 'ACTIVE', targetPoint: 4500, name: '繁增篇', subtitle: '隨走隨傳，傳揚國度福音', description: '走出舒適圈，探訪相調，邀約青職聖徒與福音朋友同享豐富。', themeColor: '#8b5cf6', pictureKey: 'Chapter_04.webp' },
+        { chapterId: 'CHP_05', order: 5, status: 'ACTIVE', targetPoint: 7000, name: '得勝篇', subtitle: '那美好的仗我已經打過了', description: '同心奔跑屬天賽程，在日常繁忙職場與生活中見證基督的得勝。', themeColor: '#ec4899', pictureKey: 'Chapter_05.webp' },
+        { chapterId: 'CHP_06', order: 6, status: 'ACTIVE', targetPoint: 10000, name: '榮耀篇', subtitle: '榮上加榮，同被變化', description: '同心合意，滿有屬天的喜樂與長進，成為團體發光的榮耀見證。', themeColor: '#f97316', pictureKey: 'Chapter_06.webp' },
+        { chapterId: 'CHP_07', order: 7, status: 'ACTIVE', targetPoint: 14000, name: '建造篇', subtitle: '聯絡得合式，百節各按各職', description: '肢體互相聯絡，共同承擔神家服事，在基督的愛裡建造基督的身體。', themeColor: '#06b6d4', pictureKey: 'Chapter_07.webp' },
+        { chapterId: 'CHP_08', order: 8, status: 'ACTIVE', targetPoint: 20000, name: '國度篇', subtitle: '世上的國成了我主和祂基督的國', description: '在榮耀裡作王同掌權，成為羔羊的伴侶，完全達到基督的身量。', themeColor: '#eab308', pictureKey: 'Chapter_08.webp' }
+      ];
 
-      const titleEl = document.getElementById('homeJourneyChapterText');
-      if (titleEl) titleEl.textContent = chapterName;
-
-      const progressPercent = (journeyData && journeyData.progressPercent) || 0;
-      const progressText = document.getElementById('homeJourneyProgressText');
-      if (progressText) progressText.textContent = `${Math.min(100, Math.round(progressPercent))}%`;
-
-      const nextText = document.getElementById('homeJourneyNextText');
-      if (nextText) {
-        const nextChapterName = CHAPTER_NAMES[Math.min(7, chapterIdx + 1)];
-        const target = (journeyData && journeyData.targetPoints) || 500;
-        nextText.textContent = chapterIdx < 7
-          ? `距離【${nextChapterName}】篇章還有 ${target.toLocaleString()} 點`
-          : '已達最高榮耀篇章【愛】！';
+      if (!Array.isArray(chapters) || chapters.length === 0) {
+        chapters = defaultChapters;
       }
 
-      // 更新軌道節點高亮
-      document.querySelectorAll('#homeJourneyNodes .journey-node').forEach((node, idx) => {
-        if (idx === chapterIdx) {
-          node.classList.add('active');
+      // 嚴格依 order 升冪排序（數值越小越靠左）
+      chapters = chapters
+        .filter(c => c && c.status === 'ACTIVE')
+        .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+
+      if (chapters.length === 0) chapters = defaultChapters;
+
+      const groupScore = Number((journeyData && (journeyData.totalPoints !== undefined ? journeyData.totalPoints : journeyData.totalScore)) || 0);
+
+      // 尋找當前正在挑戰的目標篇章（第一個 targetPoint 大於目前分數者；若全達成則為最後一個）
+      let targetChapter = chapters.find(c => groupScore < (Number(c.targetPoint) || 0));
+      const allPassed = !targetChapter;
+      if (!targetChapter) {
+        targetChapter = chapters[chapters.length - 1];
+      }
+
+      // 標題顯示當前篇章名稱
+      const titleEl = document.getElementById('homeJourneyChapterText');
+      if (titleEl) {
+        titleEl.textContent = targetChapter.name || '篇章旅程';
+      }
+
+      // 計算差距點數（徹底移除百分比）
+      const nextText = document.getElementById('homeJourneyNextText');
+      if (nextText) {
+        if (allPassed) {
+          nextText.textContent = `小組已達成最高榮耀篇章【${targetChapter.name}】！感謝讚美主！`;
         } else {
-          node.classList.remove('active');
+          const gap = Math.max(0, (Number(targetChapter.targetPoint) || 0) - groupScore);
+          nextText.textContent = `距離【${targetChapter.name}】還差 ${gap.toLocaleString()} 點`;
         }
-      });
+      }
+
+      // 動態渲染軌道節點
+      const track = document.getElementById('homeJourneyNodes');
+      if (track) {
+        track.innerHTML = chapters.map((ch) => {
+          const tPoint = Number(ch.targetPoint) || 0;
+          const isPassed = groupScore >= tPoint;
+          const isCurrent = !allPassed && ch.chapterId === targetChapter.chapterId;
+          const nodeClass = isPassed ? 'journey-node passed' : (isCurrent ? 'journey-node active' : 'journey-node');
+          const statusText = isPassed ? '已達成' : (isCurrent ? '攻克中' : '尚未解鎖');
+
+          return `
+            <button class="${nodeClass}" type="button" data-chapter-id="${this.escapeHtml_(ch.chapterId)}" aria-label="${this.escapeHtml_(ch.name)} (${statusText})">
+              <span>${this.escapeHtml_(ch.order)}</span>
+              <strong>${this.escapeHtml_(ch.name)}</strong>
+            </button>
+          `;
+        }).join('');
+
+        // 綁定節點點擊開啟專屬篇章彈窗
+        track.querySelectorAll('.journey-node').forEach(node => {
+          node.addEventListener('click', () => {
+            const cid = node.getAttribute('data-chapter-id');
+            const targetCh = chapters.find(c => c.chapterId === cid);
+            if (targetCh) {
+              this.openChapterDetailModal(targetCh, groupScore);
+            }
+          });
+        });
+
+        // 啟用滑鼠左右拖移（Drag-to-Scroll）
+        this.initTrackMouseDrag_(track);
+
+        // 智慧滾動：將當前活躍或目標節點置中
+        try {
+          const activeNode = track.querySelector('.journey-node.active') || track.querySelector('.journey-node.passed:last-of-type') || track.firstElementChild;
+          if (activeNode && typeof activeNode.scrollIntoView === 'function') {
+            activeNode.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+        } catch (e) {}
+      }
 
       // 5. 渲染操練卡說明與點數
       this.renderTaskCards(this.pointsConfig);
+    }
+
+    openChapterDetailModal(chapter, groupScore = 0) {
+      if (!chapter) return;
+      const modal = document.getElementById('chapterDetailModal');
+      if (!modal) return;
+
+      const titleEl = document.getElementById('chapterDetailModalTitle');
+      const imgEl = document.getElementById('chapterDetailModalImage');
+      const nameEl = document.getElementById('chapterDetailModalName');
+      const subtitleEl = document.getElementById('chapterDetailModalSubtitle');
+      const statusEl = document.getElementById('chapterDetailModalStatus');
+      const gapEl = document.getElementById('chapterDetailModalGap');
+      const descEl = document.getElementById('chapterDetailModalDesc');
+
+      if (titleEl) titleEl.textContent = `第 ${chapter.order} 篇章`;
+      if (nameEl) nameEl.textContent = chapter.name || '';
+      if (subtitleEl) subtitleEl.textContent = chapter.subtitle || '';
+      if (descEl) descEl.textContent = chapter.description || '暫無篇章說明。';
+
+      if (imgEl) {
+        imgEl.onerror = () => {
+          imgEl.onerror = null;
+          imgEl.src = '../Chest_Assets/Chest_01.webp';
+        };
+        imgEl.src = this.resolvePictureKey_(chapter.pictureKey, '../Chest_Assets/Chest_01.webp');
+      }
+
+      const tPoint = Number(chapter.targetPoint) || 0;
+      const isPassed = groupScore >= tPoint;
+      const gap = Math.max(0, tPoint - groupScore);
+
+      if (statusEl) {
+        if (isPassed) {
+          statusEl.textContent = '🏆 已達成';
+          statusEl.style.background = '#dcfce7';
+          statusEl.style.color = '#15803d';
+        } else if (gap > 0) {
+          statusEl.textContent = '🏃 攻克中';
+          statusEl.style.background = '#fef3c7';
+          statusEl.style.color = '#d97706';
+        } else {
+          statusEl.textContent = '🔒 未解鎖';
+          statusEl.style.background = '#f1f5f9';
+          statusEl.style.color = '#64748b';
+        }
+      }
+
+      if (gapEl) {
+        if (isPassed) {
+          gapEl.textContent = `✅ 小組累積操練分已突破門檻（門檻：${tPoint.toLocaleString()} 點）`;
+          gapEl.style.color = '#15803d';
+        } else {
+          gapEl.textContent = `⚡ 距離達成【${chapter.name}】還差 ${gap.toLocaleString()} 點（門檻：${tPoint.toLocaleString()} 點）`;
+          gapEl.style.color = '#0284c7';
+        }
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    resolvePictureKey_(pictureKey, fallback = '../Chest_Assets/Chest_01.webp') {
+      if (!pictureKey) return fallback;
+      const p = String(pictureKey).trim();
+      if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('data:')) {
+        return p;
+      }
+      if (p.startsWith('Chapter_')) {
+        const matchedChest = p.replace(/^Chapter_/, 'Chest_');
+        return `../Chest_Assets/${matchedChest}`;
+      }
+      if (p.startsWith('Chest_')) {
+        return `../Chest_Assets/${p}`;
+      }
+      if (p.startsWith('Cute_Icon_')) {
+        return `../Cute_Icons/${p}`;
+      }
+      if (p.startsWith('../')) {
+        return p;
+      }
+      return `../Chest_Assets/${p}`;
+    }
+
+    initTrackMouseDrag_(track) {
+      if (!track || track._hasDragInit) return;
+      track._hasDragInit = true;
+      track.style.cursor = 'grab';
+      track.style.userSelect = 'none';
+      track.style.webkitUserSelect = 'none';
+
+      let isDown = false;
+      let startX = 0;
+      let scrollLeft = 0;
+      let hasDragged = false;
+
+      track.addEventListener('mousedown', (e) => {
+        isDown = true;
+        hasDragged = false;
+        startX = e.pageX - track.offsetLeft;
+        scrollLeft = track.scrollLeft;
+        track.style.cursor = 'grabbing';
+      });
+
+      track.addEventListener('mouseleave', () => {
+        isDown = false;
+        track.style.cursor = 'grab';
+      });
+
+      track.addEventListener('mouseup', () => {
+        isDown = false;
+        track.style.cursor = 'grab';
+        setTimeout(() => { hasDragged = false; }, 50);
+      });
+
+      track.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - track.offsetLeft;
+        const walk = (x - startX) * 1.5;
+        if (Math.abs(walk) > 4) {
+          hasDragged = true;
+        }
+        track.scrollLeft = scrollLeft - walk;
+      });
+
+      // 避免拖曳時誤觸發 click
+      track.addEventListener('click', (e) => {
+        if (hasDragged) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      }, true);
     }
 
     renderAnnouncements_(announcements) {

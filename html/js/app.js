@@ -228,9 +228,15 @@
             let cachedAnnouncements = [];
             const caStr = localStorage.getItem('vital_announcements');
             if (caStr) cachedAnnouncements = JSON.parse(caStr);
+
+            let cachedChapters = null;
+            try {
+              const chStr = localStorage.getItem('vital_chapters_config');
+              if (chStr) cachedChapters = JSON.parse(chStr);
+            } catch (e) {}
             
             // 立即使用快取資料渲染 UI
-            dashboardView.render(currentUserProfile, currentJourneyData, cachedAnnouncements);
+            dashboardView.render(currentUserProfile, currentJourneyData, cachedAnnouncements, cachedChapters);
             profileView.render(currentUserProfile, currentJourneyData);
           }
         }
@@ -332,6 +338,9 @@
       let playerMilestones = [];
       let groupMilestones = [];
       let groupProgress = null;
+      let chaptersConfig = null;
+      let achievementsConfig = null;
+      let tasksConfig = null;
 
       if (bundleRes.status === 'fulfilled' && bundleRes.value && bundleRes.value.success) {
         const data = bundleRes.value.data || bundleRes.value;
@@ -369,6 +378,19 @@
           }
         }
 
+        if (data.chapters) {
+          chaptersConfig = data.chapters;
+          try { localStorage.setItem('vital_chapters_config', JSON.stringify(data.chapters)); } catch(e) {}
+        }
+        if (data.achievements) {
+          achievementsConfig = data.achievements;
+          try { localStorage.setItem('vital_achievements_config', JSON.stringify(data.achievements)); } catch(e) {}
+        }
+        if (data.tasks) {
+          tasksConfig = data.tasks;
+          try { localStorage.setItem('vital_tasks_config', JSON.stringify(data.tasks)); } catch(e) {}
+        }
+
         if (data.pointsConfig) {
           try {
             localStorage.setItem('vital_points_config', JSON.stringify(data.pointsConfig));
@@ -387,6 +409,9 @@
             groupProgress = JSON.parse(localStorage.getItem(`vital_group_progress_${currentGId}`) || 'null');
           } catch(e) { groupMilestones = []; groupProgress = null; }
         }
+        try { chaptersConfig = JSON.parse(localStorage.getItem('vital_chapters_config') || 'null'); } catch(e) {}
+        try { achievementsConfig = JSON.parse(localStorage.getItem('vital_achievements_config') || 'null'); } catch(e) {}
+        try { tasksConfig = JSON.parse(localStorage.getItem('vital_tasks_config') || 'null'); } catch(e) {}
       }
 
       // 若 ProgressBundle 未包含 pointsConfig（如未入組/離線），發起 getPointsConfig 補充拉取
@@ -452,8 +477,11 @@
       }
 
       // 5. 差量更新視圖
-      dashboardView.render(currentUserProfile, currentJourneyData, announcements);
+      dashboardView.render(currentUserProfile, currentJourneyData, announcements, chaptersConfig);
       profileView.render(currentUserProfile, currentJourneyData);
+
+      // 5.1 檢查特殊任務登入提示彈窗 (今日不再顯示記憶機制)
+      checkSpecialTasksPrompt(tasksConfig, currentPId);
 
 
 
@@ -648,7 +676,196 @@
         pMs = JSON.parse(localStorage.getItem(`vital_player_milestones_${currentUserProfile.playerId}`) || '[]');
       } catch (e) {}
     }
-    chestView.openChestModal(points, selectedIdx, pMs);
+    let achCfg = null;
+    try {
+      achCfg = JSON.parse(localStorage.getItem('vital_achievements_config') || 'null');
+    } catch (e) {}
+    if (chestView && typeof chestView.openChestModal === 'function') {
+      chestView.openChestModal(points, selectedIdx, pMs, achCfg);
+    }
+  }
+
+  function checkSpecialTasksPrompt(tasksConfig, playerId) {
+    if (!playerId || typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const todayStr = (dashboardView && typeof dashboardView.getTodayDateString === 'function')
+      ? dashboardView.getTodayDateString()
+      : new Date().toISOString().slice(0, 10);
+
+    // 1. 檢查今日是否已開啟過並勾選「今日不再顯示」
+    try {
+      const dismissedDate = localStorage.getItem(`vital_tasks_prompt_date_${playerId}`);
+      if (dismissedDate === todayStr) {
+        return; // 今日已記錄不再顯示
+      }
+    } catch (e) {}
+
+    // 2. 取得任務清單（優先傳入 > 快取）
+    let tasks = tasksConfig;
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+      try {
+        const stored = localStorage.getItem('vital_tasks_config');
+        if (stored) tasks = JSON.parse(stored);
+      } catch (e) {}
+    }
+    if (!Array.isArray(tasks)) tasks = [];
+
+    const normalizeDate = (d) => {
+      if (!d) return '';
+      const str = String(d).trim().replace(/\//g, '-');
+      if (str.length >= 10) return str.slice(0, 10);
+      const parts = str.split('-');
+      if (parts.length === 3) {
+        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      }
+      return str;
+    };
+
+    // 3. 過濾正在開放中的特殊任務
+    const activeTasks = tasks.filter(t => {
+      if (!t || t.status !== 'ACTIVE') return false;
+      const start = normalizeDate(t.startDate);
+      const end = normalizeDate(t.endDate);
+      if (start && todayStr < start) return false;
+      if (end && todayStr > end) return false;
+      return true;
+    }).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+
+    if (activeTasks.length === 0) {
+      return; // 目前無開放中的特殊任務，不跳出提示
+    }
+
+    // 4. 若新成就慶祝視窗正在開啟，等待慶祝視窗關閉後再跳出任務提示
+    const celebrationModal = document.getElementById('milestoneCelebrationModal');
+    if (celebrationModal && !celebrationModal.classList.contains('hidden')) {
+      const closeCelebrationBtn = document.getElementById('closeCelebrationBtn');
+      if (closeCelebrationBtn && !closeCelebrationBtn._hasPromptHook) {
+        closeCelebrationBtn._hasPromptHook = true;
+        const origClick = closeCelebrationBtn.onclick;
+        closeCelebrationBtn.onclick = (e) => {
+          closeCelebrationBtn._hasPromptHook = false;
+          if (typeof origClick === 'function') origClick.call(closeCelebrationBtn, e);
+          setTimeout(() => showSpecialTasksModal(activeTasks, playerId, todayStr), 400);
+        };
+        return;
+      }
+    }
+
+    showSpecialTasksModal(activeTasks, playerId, todayStr);
+  }
+
+  function showSpecialTasksModal(activeTasks, playerId, todayStr) {
+    if (typeof document === 'undefined') return;
+    const modal = document.getElementById('taskPromptModal');
+    if (!modal) return;
+
+    const listContainer = document.getElementById('taskPromptList');
+    const checkbox = document.getElementById('taskPromptDismissTodayCheckbox');
+    if (checkbox) checkbox.checked = false; // 每次開啟預設不勾選
+
+    const escape = (str) => {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+
+    const isValidUrl = (url) => {
+      if (!url) return false;
+      const trimmed = String(url).trim();
+      return /^https?:\/\//i.test(trimmed) || (trimmed.startsWith('/') && !trimmed.startsWith('//'));
+    };
+
+    const normalizeDate = (d) => {
+      if (!d) return '';
+      const str = String(d).trim().replace(/\//g, '-');
+      if (str.length >= 10) return str.slice(0, 10);
+      const parts = str.split('-');
+      if (parts.length === 3) {
+        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      }
+      return str;
+    };
+
+    const resolvePic = (picKey) => {
+      if (!picKey) return '../Chest_Assets/Chest_01.webp';
+      const p = String(picKey).trim();
+      if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('data:') || p.startsWith('../')) return p;
+      if (p.startsWith('Chest_') || p.startsWith('Chapter_')) {
+        const matched = p.replace(/^Chapter_/, 'Chest_');
+        return `../Chest_Assets/${matched}`;
+      }
+      if (p.startsWith('Cute_Icon_')) return `../Cute_Icons/${p}`;
+      return `../Chest_Assets/${p}`;
+    };
+
+    if (listContainer) {
+      listContainer.innerHTML = activeTasks.map(t => {
+        const picUrl = escape(resolvePic(t.pictureKey));
+        const name = escape(t.name || t.title || '特殊任務');
+        const desc = escape(t.description || t.desc || '');
+        const reward = t.rewardDesc ? `<div class="task-prompt-reward">🎁 獎勵：${escape(t.rewardDesc)}</div>` : '';
+        
+        let dateRange = '';
+        if (t.startDate || t.endDate) {
+          let remainingText = '';
+          const endNorm = normalizeDate(t.endDate);
+          if (endNorm) {
+            const todayTime = new Date(`${todayStr}T00:00:00`).getTime();
+            const endTime = new Date(`${endNorm}T23:59:59`).getTime();
+            const diffDays = Math.ceil((endTime - todayTime) / 86400000);
+            if (diffDays >= 0) {
+              remainingText = diffDays === 0 ? '（最後今天）' : `（剩餘 ${diffDays} 天）`;
+            }
+          }
+          dateRange = `<div class="task-prompt-date">📅 期間：${escape(t.startDate || '即日起')} ~ ${escape(t.endDate || '截止日止')}${remainingText}</div>`;
+        }
+
+        const actionBtn = isValidUrl(t.actionUrl)
+          ? `<a href="${escape(t.actionUrl)}" target="_blank" rel="noopener noreferrer" class="task-prompt-action-btn">立即前往 ›</a>`
+          : '';
+
+        return `
+          <div class="task-prompt-item">
+            <img src="${picUrl}" alt="${name}" class="task-prompt-thumb" loading="lazy" onerror="this.onerror=null; this.src='../Chest_Assets/Chest_01.png';">
+            <div class="task-prompt-details">
+              <h4 class="task-prompt-name">${name}</h4>
+              <p class="task-prompt-desc">${desc}</p>
+              ${reward}
+              ${dateRange}
+              ${actionBtn}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    const handleDismiss = () => {
+      if (checkbox && checkbox.checked) {
+        // 使用者勾選「今日不再顯示」：在本地儲存當天的日期
+        try {
+          localStorage.setItem(`vital_tasks_prompt_date_${playerId}`, todayStr);
+        } catch (e) {}
+      } else {
+        // 未勾選：不儲存，下次登入繼續提示
+        try {
+          localStorage.removeItem(`vital_tasks_prompt_date_${playerId}`);
+        } catch (e) {}
+      }
+      modal.classList.add('hidden');
+    };
+
+    const closeBtn = document.getElementById('taskPromptCloseBtn');
+    if (closeBtn) closeBtn.onclick = handleDismiss;
+
+    modal.querySelectorAll('[data-close-modal="taskPromptModal"]').forEach(btn => {
+      btn.onclick = handleDismiss;
+    });
+
+    modal.classList.remove('hidden');
   }
 
   async function refreshUserData() {
@@ -792,6 +1009,8 @@
     updateUserGroupState,
     checkMilestone,
     showMilestonesCelebration,
+    checkSpecialTasksPrompt,
+    showSpecialTasksModal,
     get currentUserProfile() { return currentUserProfile; },
     get currentJourneyData() { return currentJourneyData; },
     get apiClient() { return apiClient; },
@@ -804,5 +1023,17 @@
     get profileView() { return profileView; },
     get fellowshipView() { return fellowshipView; }
   };
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+      deriveJourneyFromGroupProgress,
+      initApp,
+      checkMilestone,
+      showMilestonesCelebration,
+      checkSpecialTasksPrompt,
+      showSpecialTasksModal,
+      AppCoordinator: global.AppCoordinator
+    };
+  }
 
 })(typeof window !== 'undefined' ? window : global);

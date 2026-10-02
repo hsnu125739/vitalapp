@@ -48,7 +48,17 @@ const ASSETS_TO_CACHE = [
   './Chest_Assets/Chest_05.png',
   './Chest_Assets/Chest_06.png',
   './Chest_Assets/Chest_07.png',
-  './Chest_Assets/Chest_08.png'
+  './Chest_Assets/Chest_08.png',
+  // Cute Icons (Achievements & Special Tasks)
+  '../Cute_Icons/Cute_Icon_01.png',
+  '../Cute_Icons/Cute_Icon_02.png',
+  '../Cute_Icons/Cute_Icon_03.png',
+  '../Cute_Icons/Cute_Icon_04.png',
+  '../Cute_Icons/Cute_Icon_05.png',
+  '../Cute_Icons/Cute_Icon_06.png',
+  '../Cute_Icons/Cute_Icon_07.png',
+  '../Cute_Icons/Cute_Icon_08.png',
+  '../Cute_Icons/Cute_Icon_09.png'
 ];
 
 self.addEventListener('install', (event) => {

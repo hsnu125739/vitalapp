@@ -2173,6 +2173,12 @@ body[data-theme="night"] .auth-hero{
     scrollbar-width:none;
     gap:7px;
     padding:8px 0 7px;
+    cursor:grab;
+    user-select:none;
+    -webkit-user-select:none;
+}
+.journey-node-track:active{
+  cursor:grabbing;
 }
 
 .journey-node{
@@ -5787,3 +5793,259 @@ body{
         var(--asset-journey-desktop) center / cover no-repeat;
   }
 }
+
+/* ==========================================================================
+   專屬小組篇章詳情彈窗樣式 (Chapter Detail Modal)
+   ========================================================================== */
+.chapter-detail-modal-card {
+  max-width: 440px;
+  width: 90%;
+}
+.chapter-detail-content {
+  padding: 16px 20px;
+  text-align: center;
+}
+.chapter-detail-visual {
+  margin-bottom: 12px;
+}
+.chapter-detail-visual img {
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+  margin: 0 auto;
+  display: block;
+}
+.chapter-detail-copy {
+  text-align: left;
+}
+.chapter-detail-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.chapter-detail-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+.chapter-status-badge {
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #fef3c7;
+  color: #d97706;
+}
+.chapter-subtitle-text {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0 0 12px 0;
+  font-style: italic;
+}
+.chapter-gap-box {
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0284c7;
+  margin-bottom: 12px;
+}
+.chapter-desc-text {
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.chapter-detail-close-btn {
+  width: 100%;
+  margin-top: 12px;
+}
+
+/* 深色模式適配 */
+body[data-theme="night"] .chapter-detail-name {
+  color: #f1f5f9;
+}
+body[data-theme="night"] .chapter-subtitle-text {
+  color: #94a3b8;
+}
+body[data-theme="night"] .chapter-gap-box {
+  background: #1e293b;
+  border-color: #334155;
+  color: #38bdf8;
+}
+body[data-theme="night"] .chapter-desc-text {
+  color: #cbd5e1;
+}
+
+/* 成就詳情彈窗副標與獎勵標籤 */
+.achievement-subtitle-text {
+  font-size: 13px;
+  color: #7c6a5c;
+  font-style: italic;
+  margin: 0;
+}
+.achievement-reward-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b45309;
+}
+body[data-theme="night"] .achievement-subtitle-text {
+  color: #94a3b8;
+}
+body[data-theme="night"] .achievement-reward-badge {
+  background: #78350f;
+  border-color: #92400e;
+  color: #fef08a;
+}
+
+/* ==========================================================================
+   特殊任務登入提示彈窗樣式 (Task Prompt Modal)
+   ========================================================================== */
+.task-prompt-modal-card {
+  max-width: 480px;
+  width: 92%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+.task-prompt-intro {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+.task-prompt-list {
+  overflow-y: auto;
+  max-height: 52vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+}
+.task-prompt-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  text-align: left;
+}
+.task-prompt-thumb {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  object-fit: contain;
+  margin-top: 2px;
+}
+.task-prompt-details {
+  flex: 1;
+  min-width: 0;
+}
+.task-prompt-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 4px 0;
+}
+.task-prompt-desc {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0 0 6px 0;
+}
+.task-prompt-reward {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #d97706;
+  background: #fef3c7;
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+.task-prompt-date {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 0 0 8px 0;
+}
+.task-prompt-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--brand, #ea580c);
+  border-radius: 6px;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+.task-prompt-action-btn:hover {
+  opacity: 0.9;
+}
+.task-prompt-footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.task-prompt-dismiss-label {
+  font-size: 13px;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.task-prompt-close-btn {
+  min-width: 100px;
+}
+
+/* 深色模式適配 */
+body[data-theme="night"] .task-prompt-intro {
+  color: #94a3b8;
+}
+body[data-theme="night"] .task-prompt-item {
+  background: #1e293b;
+  border-color: #334155;
+}
+body[data-theme="night"] .task-prompt-name {
+  color: #f1f5f9;
+}
+body[data-theme="night"] .task-prompt-desc {
+  color: #cbd5e1;
+}
+body[data-theme="night"] .task-prompt-reward {
+  background: #78350f;
+  color: #fde68a;
+}
+body[data-theme="night"] .task-prompt-date {
+  color: #64748b;
+}
+body[data-theme="night"] .task-prompt-footer {
+  border-color: #334155;
+}
+body[data-theme="night"] .task-prompt-dismiss-label {
+  color: #cbd5e1;
+}
+
+
+

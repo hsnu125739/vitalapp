@@ -460,9 +460,15 @@
         username: cleanUser,
         password: cleanPass,
         playerId: cleanUser,
-        identifier: cleanUser
+        identifier: cleanUser,
+        data: {
+          username: cleanUser,
+          password: cleanPass,
+          playerId: cleanUser,
+          identifier: cleanUser
+        }
       });
-      console.log(JSON.stringify(res));
+
       const token = res && (res.token || res.sessionToken || (res.data && (res.data.token || res.data.sessionToken)));
       if (token) this.setSessionToken(token);
       return res;

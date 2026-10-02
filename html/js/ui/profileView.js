@@ -354,7 +354,7 @@
                   item.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;';
                   item.innerHTML = `
                     <div style="display:flex;align-items:center;gap:8px;">
-                      <img src="${(typeof window.AppCoordinator !== 'undefined' ? '' : '../') + 'images/avatar-male-direct-001.png'}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;background:#e2e8f0;" />
+                      <img src="../avatar-male/avatar-male-direct-001.png" style="width:24px;height:24px;border-radius:50%;object-fit:cover;background:#e2e8f0;" onerror="this.style.display='none';" />
                       <span style="font-size:14px;color:#334155;font-weight:500;">${this.escapeHtml(m.name || m.playerId)}</span>
                     </div>
                     <button type="button" class="primary-btn" style="padding:4px 10px;font-size:12px;border-radius:4px;">交接</button>

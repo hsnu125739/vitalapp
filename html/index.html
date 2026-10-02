@@ -218,50 +218,11 @@
           </div>
 
           <div id="homeJourneyNodes" class="journey-node-track" aria-label="生命成長旅程">
-            <button class="journey-node active" type="button" data-journey-node="faith">
-              <span>1</span>
-              <strong>信心</strong>
-            </button>
-
-            <button class="journey-node" type="button" data-journey-node="virtue">
-              <span>2</span>
-              <strong>美德</strong>
-            </button>
-
-            <button class="journey-node" type="button" data-journey-node="knowledge">
-              <span>3</span>
-              <strong>知識</strong>
-            </button>
-
-            <button class="journey-node" type="button" data-journey-node="selfControl">
-              <span>4</span>
-              <strong>節制</strong>
-            </button>
-
-            <button class="journey-node" type="button" data-journey-node="endurance">
-              <span>5</span>
-              <strong>忍耐</strong>
-            </button>
-
-            <button class="journey-node" type="button" data-journey-node="godliness">
-              <span>6</span>
-              <strong>敬虔</strong>
-            </button>
-
-            <button class="journey-node" type="button" data-journey-node="brotherlyAffection">
-              <span>7</span>
-              <strong>弟兄相愛</strong>
-            </button>
-
-            <button class="journey-node" type="button" data-journey-node="love">
-              <span>8</span>
-              <strong>愛</strong>
-            </button>
+            <!-- 由 DashboardView 依據 ChapterConfig 動態渲染節點並支援平滑拖移 -->
           </div>
 
           <div class="journey-foot">
-            <span id="homeJourneyNextText">距離美德篇章還有 20,000 點</span>
-            <span id="homeJourneyProgressText">0%</span>
+            <span id="homeJourneyNextText">載入中...</span>
           </div>
         </section>
 
@@ -745,7 +706,52 @@
 
 
 
-  <!-- 寶箱內容浮動視窗 -->
+  <!-- 小組篇章詳情彈窗（獨立專屬視窗） -->
+  <div
+    id="chapterDetailModal"
+    class="modal-layer chapter-detail-modal-layer hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="chapterDetailModalTitle"
+  >
+    <div class="modal-card chapter-detail-modal-card">
+      <div class="modal-header">
+        <button
+          class="modal-close-btn"
+          data-close-modal="chapterDetailModal"
+          type="button"
+          aria-label="關閉篇章詳情"
+        >‹</button>
+        <h2 id="chapterDetailModalTitle">篇章詳情</h2>
+        <span></span>
+      </div>
+
+      <section class="chapter-detail-content">
+        <div id="chapterDetailModalVisual" class="chapter-detail-visual">
+          <img id="chapterDetailModalImage" src="" alt="篇章插圖">
+        </div>
+
+        <div class="chapter-detail-copy">
+          <div class="chapter-detail-header-row">
+            <h3 id="chapterDetailModalName" class="chapter-detail-name">篇章名稱</h3>
+            <span id="chapterDetailModalStatus" class="chapter-status-badge">進行中</span>
+          </div>
+          <p id="chapterDetailModalSubtitle" class="chapter-subtitle-text"></p>
+          <div id="chapterDetailModalGap" class="chapter-gap-box"></div>
+          <div id="chapterDetailModalDesc" class="chapter-desc-text"></div>
+        </div>
+      </section>
+
+      <button
+        id="chapterDetailCloseBtn"
+        class="primary-btn chapter-detail-close-btn"
+        data-close-modal="chapterDetailModal"
+        type="button"
+      >關閉</button>
+    </div>
+  </div>
+
+  <!-- 成就詳情浮動視窗 -->
   <div
     id="chestDetailModal"
     class="modal-layer chest-detail-modal-layer hidden"
@@ -759,21 +765,23 @@
           class="modal-close-btn"
           data-close-modal="chestDetailModal"
           type="button"
-          aria-label="關閉寶箱內容"
+          aria-label="關閉成就內容"
         >‹</button>
-        <h2 id="chestDetailModalTitle">寶箱內容</h2>
+        <h2 id="chestDetailModalTitle">成就詳情</h2>
         <span></span>
       </div>
 
       <section class="chest-detail-content">
         <div id="chestDetailModalVisual" class="chest-detail-visual">
-          <img id="chestDetailModalImage" src="" alt="">
+          <img id="chestDetailModalImage" src="" alt="成就圖示">
         </div>
 
         <div class="chest-detail-copy">
           <span id="chestDetailModalStatus" class="chest-detail-status">待取得</span>
-          <h3 id="chestDetailModalName">寶箱名稱</h3>
-          <p id="chestDetailModalText">尚無寶箱內容。</p>
+          <h3 id="chestDetailModalName">成就名稱</h3>
+          <p id="chestDetailModalSubtitle" class="achievement-subtitle-text"></p>
+          <p id="chestDetailModalText">尚無成就說明。</p>
+          <div id="chestDetailModalReward" class="achievement-reward-badge"></div>
         </div>
       </section>
 
@@ -783,6 +791,49 @@
         data-close-modal="chestDetailModal"
         type="button"
       >關閉</button>
+    </div>
+  </div>
+
+  <!-- 特殊任務登入提示彈窗 (Special Tasks Daily Prompt Modal) -->
+  <div
+    id="taskPromptModal"
+    class="modal-layer task-prompt-modal-layer hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="taskPromptModalTitle"
+  >
+    <div class="modal-card task-prompt-modal-card">
+      <div class="modal-header">
+        <button
+          class="modal-close-btn"
+          data-close-modal="taskPromptModal"
+          type="button"
+          aria-label="關閉任務提示"
+        >‹</button>
+        <h2 id="taskPromptModalTitle">📢 特殊任務進行中</h2>
+        <span></span>
+      </div>
+
+      <div class="task-prompt-intro">
+        目前有正在開放進行的特殊任務，邀請您與同伴一同參與！
+      </div>
+
+      <div id="taskPromptList" class="task-prompt-list">
+        <!-- 動態渲染各項特殊任務卡片 -->
+      </div>
+
+      <div class="task-prompt-footer">
+        <label class="task-prompt-dismiss-label">
+          <input type="checkbox" id="taskPromptDismissTodayCheckbox">
+          今日不再顯示
+        </label>
+        <button
+          id="taskPromptCloseBtn"
+          class="primary-btn task-prompt-close-btn"
+          data-close-modal="taskPromptModal"
+          type="button"
+        >我知道了</button>
+      </div>
     </div>
   </div>
 
