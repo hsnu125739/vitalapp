@@ -38,7 +38,10 @@
     'archiveAnnualGroupProgress',
     'grantTargetedReward',
     'evaluateTargetMilestones',
-    'runDailyMilestoneSettlement'
+    'runDailyMilestoneSettlement',
+    'getChapterConfig',
+    'getAchievementConfig',
+    'getTasksConfig'
   ]);
 
   const DEFAULT_DISTRICTS = [
@@ -340,8 +343,7 @@
             groupId: payload.groupId,
             matrixColIndex: payload.matrixColIndex,
             postsColIndex: payload.postsColIndex,
-            payload: payload,
-            args: [payload]
+            payload: payload
           }, '*');
         } catch (err) {
           clearTimeout(timer);
@@ -384,8 +386,7 @@
 
         return {
           success: true,
-          districts: activeOptions,
-          data: { districts: activeOptions }
+          districts: activeOptions
         };
       }
 
@@ -459,13 +460,7 @@
         username: cleanUser,
         password: cleanPass,
         playerId: cleanUser,
-        identifier: cleanUser,
-        data: {
-          username: cleanUser,
-          password: cleanPass,
-          playerId: cleanUser,
-          identifier: cleanUser
-        }
+        identifier: cleanUser
       });
       console.log(JSON.stringify(res));
       const token = res && (res.token || res.sessionToken || (res.data && (res.data.token || res.data.sessionToken)));
@@ -718,6 +713,18 @@
 
     async getPointsConfig(date = '') {
       return await this.request('getPointsConfig', { date: date || '' }, true);
+    }
+
+    async getChapterConfig() {
+      return await this.request('getChapterConfig', {}, true);
+    }
+
+    async getAchievementConfig() {
+      return await this.request('getAchievementConfig', {}, true);
+    }
+
+    async getTasksConfig() {
+      return await this.request('getTasksConfig', {}, true);
     }
 
     async getMyGroupContributionSummary(groupId = null) {
