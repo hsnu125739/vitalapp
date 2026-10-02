@@ -1116,6 +1116,11 @@
     
     currentUserProfile = null;
     currentJourneyData = null;
+    
+    if (typeof document !== 'undefined') {
+      document.querySelectorAll('.modal-layer').forEach(m => m.classList.add('hidden'));
+    }
+    
     authView.showAuth();
   }
 

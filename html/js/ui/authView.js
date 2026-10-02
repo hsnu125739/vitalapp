@@ -14,6 +14,7 @@
 
       this.authViewEl = document.getElementById('authView');
       this.homeViewEl = document.getElementById('homeView');
+      this.myViewEl = document.getElementById('myView');
       this.loginForm = document.getElementById('loginForm');
       this.openRegisterBtn = document.getElementById('openRegisterBtn');
       this.registerModal = document.getElementById('registerModal');
@@ -288,6 +289,7 @@
     showAuth() {
       if (this.authViewEl) this.authViewEl.classList.remove('hidden');
       if (this.homeViewEl) this.homeViewEl.classList.add('hidden');
+      if (this.myViewEl) this.myViewEl.classList.add('hidden');
       const bottomNav = document.getElementById('bottomNav');
       if (bottomNav) bottomNav.classList.add('hidden');
     }
