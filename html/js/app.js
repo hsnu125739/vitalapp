@@ -354,16 +354,16 @@
       let achievementsConfig = null;
       let tasksConfig = null;
 
+      let hasBackendPlayerProgress = false;
+
       if (bundleRes.status === 'fulfilled' && bundleRes.value && bundleRes.value.success) {
         const data = bundleRes.value.data || bundleRes.value;
         
         if (data.playerProgress) {
+          hasBackendPlayerProgress = true;
           playerMilestones = data.playerProgress.milestones || [];
           if (typeof playerMilestones === 'string') {
             try { playerMilestones = JSON.parse(playerMilestones); } catch(e) { playerMilestones = []; }
-          }
-          if (currentPId && typeof localStorage !== 'undefined') {
-            try { localStorage.setItem(`vital_player_milestones_${currentPId}`, JSON.stringify(playerMilestones)); } catch(e) {}
           }
           if (currentUserProfile) {
             if (data.playerProgress.personalPoints !== undefined) {
@@ -415,7 +415,6 @@
         if (currentGId && groupProgress && typeof localStorage !== 'undefined') {
           try {
             localStorage.setItem(`vital_group_progress_${currentGId}`, JSON.stringify(groupProgress));
-            localStorage.setItem(`vital_group_milestones_${currentGId}`, JSON.stringify(groupMilestones));
           } catch(e) {}
         }
 
@@ -510,8 +509,14 @@
         } catch (e) {}
       }
 
-      // 4. checkMilestone
-      checkMilestone(playerMilestones, groupMilestones, currentPId, currentGId);
+      // 4. checkMilestone (嚴格以後端收到的 progress 為標準，前端未結算/快取不觸發)
+      if (hasBackendPlayerProgress) {
+        checkMilestone(playerMilestones, groupMilestones, currentPId, currentGId, {
+          chapters: chaptersConfig,
+          achievements: achievementsConfig,
+          tasks: tasksConfig
+        });
+      }
 
       if (announcements.length === 0 && typeof localStorage !== 'undefined') {
         try { announcements = JSON.parse(localStorage.getItem('vital_announcements') || '[]'); } catch(e) { announcements = []; }
@@ -608,31 +613,182 @@
     }
   }
 
-  function checkMilestone(playerMilestones, groupMilestones, pId = null, gId = null) {
-    let lastLogin = '1970-01-01T00:00:00Z';
-    try {
-      lastLogin = localStorage.getItem('vital_last_login') || '1970-01-01T00:00:00Z';
-    } catch (e) {}
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function resolveMilestoneName(m, type = '', configs = {}) {
+    if (!m) return '';
+    if (m.name && typeof m.name === 'string' && m.name.trim()) return m.name.trim();
+    if (m.title && typeof m.title === 'string' && m.title.trim()) return m.title.trim();
+
+    const id = String((m.id || m.achievementId || m.chapterId || m.taskId) || '').trim();
+    if (!id) return '';
+
+    let chapters = (configs && configs.chapters) || null;
+    let achievements = (configs && configs.achievements) || null;
+    let tasks = (configs && configs.tasks) || null;
+
+    if (typeof localStorage !== 'undefined') {
+      try { if (!chapters) chapters = JSON.parse(localStorage.getItem('vital_chapters_config') || 'null'); } catch (e) {}
+      try { if (!achievements) achievements = JSON.parse(localStorage.getItem('vital_achievements_config') || 'null'); } catch (e) {}
+      try { if (!tasks) tasks = JSON.parse(localStorage.getItem('vital_tasks_config') || 'null'); } catch (e) {}
+    }
+
+    const normChapterId = id.replace(/^CHAPTER_/i, '');
+    const normChestId = id.replace(/^CHEST_/i, '');
+    const normTaskId = id.replace(/^TASK_/i, '');
+
+    // 篇章查表
+    if (type === 'chapter' || id.startsWith('CHAPTER_') || id.startsWith('CHP_') || /^CH\d+$/i.test(id)) {
+      if (Array.isArray(chapters)) {
+        const found = chapters.find(c => {
+          if (!c) return false;
+          const cid = String(c.chapterId || c.id || '').trim();
+          const normCid = cid.replace(/^CHAPTER_/i, '');
+          return cid === id || cid === normChapterId || normCid === normChapterId;
+        });
+        if (found && found.name) return found.name;
+      }
+    }
+
+    // 個人成就/寶箱查表
+    if (type === 'chest' || id.startsWith('CHEST_') || /^T\d+$/i.test(id)) {
+      if (Array.isArray(achievements)) {
+        const found = achievements.find(a => {
+          if (!a) return false;
+          const aid = String(a.achievementId || a.id || '').trim();
+          const normAid = aid.replace(/^CHEST_/i, '');
+          return aid === id || aid === normChestId || normAid === normChestId;
+        });
+        if (found && found.name) return found.name;
+      }
+      const chestDefaults = {
+        'T1': '初熟果子寶箱', 'CHEST_T1': '初熟果子寶箱', 'CHEST_tier_1': '初熟果子寶箱', 'tier_1': '初熟果子寶箱',
+        'T2': '盛花繁茂寶箱', 'CHEST_T2': '盛花繁茂寶箱', 'CHEST_tier_2': '盛花繁茂寶箱', 'tier_2': '盛花繁茂寶箱',
+        'T3': '碩果纍纍寶箱', 'CHEST_T3': '碩果纍纍寶箱', 'CHEST_tier_3': '碩果纍纍寶箱', 'tier_3': '碩果纍纍寶箱',
+        'T4': '深根泉湧寶箱', 'CHEST_T4': '深根泉湧寶箱', 'CHEST_tier_4': '深根泉湧寶箱', 'tier_4': '深根泉湧寶箱',
+        'T5': '純金精煉寶箱', 'CHEST_T5': '純金精煉寶箱', 'CHEST_tier_5': '純金精煉寶箱', 'tier_5': '純金精煉寶箱',
+        'T6': '明光照耀寶箱', 'CHEST_T6': '明光照耀寶箱', 'CHEST_tier_6': '明光照耀寶箱', 'tier_6': '明光照耀寶箱',
+        'T7': '磐石基石寶箱', 'CHEST_T7': '磐石基石寶箱', 'CHEST_tier_7': '磐石基石寶箱', 'tier_7': '磐石基石寶箱',
+        'T8': '榮耀冠冕寶箱', 'CHEST_T8': '榮耀冠冕寶箱', 'CHEST_tier_8': '榮耀冠冕寶箱', 'tier_8': '榮耀冠冕寶箱'
+      };
+      if (chestDefaults[id] || chestDefaults[normChestId]) return chestDefaults[id] || chestDefaults[normChestId];
+    }
+
+    // 特殊任務查表
+    if (Array.isArray(tasks)) {
+      const found = tasks.find(t => {
+        if (!t) return false;
+        const tid = String(t.taskId || t.id || '').trim();
+        const normTid = tid.replace(/^TASK_/i, '');
+        return tid === id || tid === normTaskId || normTid === normTaskId;
+      });
+      if (found && found.name) return found.name;
+    }
+
+    return id;
+  }
+
+  function checkMilestone(playerMilestones, groupMilestones, pId = null, gId = null, configs = {}) {
+    let lastLogin = null;
+    let cachedPMs = [];
+    let cachedGMs = [];
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        lastLogin = (pId ? localStorage.getItem(`vital_last_login_${pId}`) : null) || localStorage.getItem('vital_last_login') || null;
+      } catch (e) {}
+
+      try {
+        const cachedPStr = (pId ? localStorage.getItem(`vital_player_milestones_${pId}`) : null) || localStorage.getItem('vital_player_milestones');
+        if (cachedPStr) {
+          const parsed = JSON.parse(cachedPStr);
+          if (Array.isArray(parsed)) cachedPMs = parsed;
+        }
+      } catch (e) {}
+
+      try {
+        const cachedGStr = (gId ? localStorage.getItem(`vital_group_milestones_${gId}`) : null) || localStorage.getItem('vital_group_milestones');
+        if (cachedGStr) {
+          const parsed = JSON.parse(cachedGStr);
+          if (Array.isArray(parsed)) cachedGMs = parsed;
+        }
+      } catch (e) {}
+    }
 
     const pMs = Array.isArray(playerMilestones) ? playerMilestones : [];
     const gMs = Array.isArray(groupMilestones) ? groupMilestones : [];
 
-    const newPlayerMs = pMs.filter(m => m && m.completedAt && m.completedAt > lastLogin);
-    const newGroupMs = gMs.filter(m => m && m.completedAt && m.completedAt > lastLogin);
+    let newPlayerMs = [];
+    let newGroupMs = [];
 
-    if (newPlayerMs.length > 0 || newGroupMs.length > 0) {
-      showMilestonesCelebration(newPlayerMs, newGroupMs);
+    // 條件：只有當 playerProgress 的 milestone 比快取資料多（代表有新 milestone），
+    // 而且多的 milestone 達成的時間比使用者的 lastLogin 還晚的時候，才要提示。
+    if (pMs.length > cachedPMs.length && lastLogin) {
+      const lastLoginTime = new Date(lastLogin).getTime();
+      if (!isNaN(lastLoginTime)) {
+        const cachedIds = new Set(cachedPMs.map(m => String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '')));
+        const addedMilestones = pMs.filter(m => {
+          const id = String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '');
+          return id && !cachedIds.has(id);
+        });
+        newPlayerMs = addedMilestones.filter(m => {
+          if (!m || !m.completedAt) return false;
+          const compTime = new Date(m.completedAt).getTime();
+          return !isNaN(compTime) && compTime > lastLoginTime;
+        });
+      }
     }
 
-    // 無論有無新成就，全覆蓋寫入 localStorage 確保一致性
-    try {
-      if (pId) localStorage.setItem(`vital_player_milestones_${pId}`, JSON.stringify(pMs));
-      if (gId) localStorage.setItem(`vital_group_milestones_${gId}`, JSON.stringify(gMs));
-      localStorage.setItem('vital_last_login', new Date().toISOString());
-    } catch (e) {}
+    // 小組篇章里程碑同樣遵循嚴格增量與時間判定
+    if (gMs.length > cachedGMs.length && lastLogin) {
+      const lastLoginTime = new Date(lastLogin).getTime();
+      if (!isNaN(lastLoginTime)) {
+        const cachedGIds = new Set(cachedGMs.map(m => String((m && (m.id || m.chapterId)) || '')));
+        const addedGMilestones = gMs.filter(m => {
+          const id = String((m && (m.id || m.chapterId)) || '');
+          return id && !cachedGIds.has(id);
+        });
+        newGroupMs = addedGMilestones.filter(m => {
+          if (!m || !m.completedAt) return false;
+          const compTime = new Date(m.completedAt).getTime();
+          return !isNaN(compTime) && compTime > lastLoginTime;
+        });
+      }
+    }
+
+    if (newPlayerMs.length > 0 || newGroupMs.length > 0) {
+      showMilestonesCelebration(newPlayerMs, newGroupMs, configs);
+    }
+
+    // 判定完成後，寫入 localStorage 供下次比對
+    const nowIso = new Date().toISOString();
+    if (typeof localStorage !== 'undefined') {
+      try {
+        if (pId) {
+          localStorage.setItem(`vital_player_milestones_${pId}`, JSON.stringify(pMs));
+          localStorage.setItem(`vital_last_login_${pId}`, nowIso);
+        }
+        if (gId) {
+          localStorage.setItem(`vital_group_milestones_${gId}`, JSON.stringify(gMs));
+        }
+        localStorage.setItem('vital_player_milestones', JSON.stringify(pMs));
+        localStorage.setItem('vital_group_milestones', JSON.stringify(gMs));
+        localStorage.setItem('vital_last_login', nowIso);
+      } catch (e) {}
+    }
+
+    return { newPlayerMs, newGroupMs };
   }
 
-  function showMilestonesCelebration(newPlayerMs, newGroupMs) {
+  function showMilestonesCelebration(newPlayerMs, newGroupMs, configs = {}) {
     if (typeof document === 'undefined') return;
     const modal = document.getElementById('milestoneCelebrationModal');
     if (!modal) return;
@@ -648,8 +804,8 @@
     const tasks = [];
 
     allNew.forEach(m => {
-      const id = String((m && m.id) || '');
-      if (id.startsWith('CHEST_') || /^T\d+$/.test(id)) {
+      const id = String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '');
+      if (id.startsWith('CHEST_') || /^T\d+$/i.test(id)) {
         chests.push(m);
       } else if (id.startsWith('CHAPTER_') || id.startsWith('CHP_') || /^CH\d+$/i.test(id)) {
         chapters.push(m);
@@ -666,8 +822,8 @@
 
     if (chestListEl) {
       if (chests.length > 0) {
-        chestListEl.innerHTML = `<strong>🎁 獲得新寶箱：</strong><ul style="margin: 4px 0 0 18px; padding: 0;">` +
-          chests.map(c => `<li>${c.id}${formatReward(c.reward)}</li>`).join('') +
+        chestListEl.innerHTML = `<strong>🎁 獲得新成就：</strong><ul style="margin: 4px 0 0 18px; padding: 0;">` +
+          chests.map(c => `<li>${escapeHtml(resolveMilestoneName(c, 'chest', configs))}${formatReward(c.reward)}</li>`).join('') +
           `</ul>`;
         chestListEl.style.display = 'block';
       } else {
@@ -679,7 +835,7 @@
     if (chapterListEl) {
       if (chapters.length > 0) {
         chapterListEl.innerHTML = `<strong>📜 達成新篇章：</strong><ul style="margin: 4px 0 0 18px; padding: 0;">` +
-          chapters.map(c => `<li>${c.id}${formatReward(c.reward)}</li>`).join('') +
+          chapters.map(c => `<li>${escapeHtml(resolveMilestoneName(c, 'chapter', configs))}${formatReward(c.reward)}</li>`).join('') +
           `</ul>`;
         chapterListEl.style.display = 'block';
       } else {
@@ -691,7 +847,7 @@
     if (taskListEl) {
       if (tasks.length > 0) {
         taskListEl.innerHTML = `<strong>⭐ 完成新任務：</strong><ul style="margin: 4px 0 0 18px; padding: 0;">` +
-          tasks.map(t => `<li>${t.id}${formatReward(t.reward)}</li>`).join('') +
+          tasks.map(t => `<li>${escapeHtml(resolveMilestoneName(t, 'task', configs))}${formatReward(t.reward)}</li>`).join('') +
           `</ul>`;
         taskListEl.style.display = 'block';
       } else {
@@ -1000,11 +1156,7 @@
             localStorage.setItem(`vital_group_progress_${groupId}`, JSON.stringify(data));
             localStorage.setItem(`vital_group_milestones_${groupId}`, JSON.stringify(groupMilestones));
           } catch (e) {}
-          let playerMilestones = [];
-          try {
-            playerMilestones = JSON.parse(localStorage.getItem(`vital_player_milestones_${pId}`) || '[]');
-          } catch (e) {}
-          checkMilestone(playerMilestones, groupMilestones, pId, groupId);
+          // 注意：調組/建組僅更新小組進度快取，不觸發里程碑提示（必須由後端 loadUserData 之 playerProgress 為準）
         }
       } catch (jErr) {
         console.warn('[App] 創組/加入小組後讀取小組進度失敗', jErr);
@@ -1049,6 +1201,7 @@
     refreshUserData,
     updateUserGroupState,
     checkMilestone,
+    resolveMilestoneName,
     showMilestonesCelebration,
     checkSpecialTasksPrompt,
     showSpecialTasksModal,
@@ -1070,6 +1223,7 @@
       deriveJourneyFromGroupProgress,
       initApp,
       checkMilestone,
+      resolveMilestoneName,
       showMilestonesCelebration,
       checkSpecialTasksPrompt,
       showSpecialTasksModal,
