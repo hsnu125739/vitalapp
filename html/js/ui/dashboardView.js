@@ -1119,7 +1119,7 @@
               <button id="goToProfileFromLockBtn" class="primary-btn" type="button" style="padding:10px 16px; border-radius:12px; font-weight:700; flex:1; font-size:0.95rem;">
                 前往我的專屬頁
               </button>
-              <button class="ghost-btn modal-close-btn" data-close-modal="infoModal" type="button" style="padding:10px 16px; border-radius:12px; font-weight:600; font-size:0.95rem;">
+              <button class="ghost-btn" data-close-modal="infoModal" type="button" style="padding:10px 16px; border-radius:12px; font-weight:600; font-size:0.95rem; flex:1;">
                 我知道了
               </button>
             </div>
