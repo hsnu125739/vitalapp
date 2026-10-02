@@ -269,6 +269,7 @@
                 <div>
                   <strong style="color:#15803d;font-size:15px;">現屬活力組：${this.escapeHtml(grpName)}</strong>
                   <div style="font-size:13px;color:#475569;margin-top:4px;">組別代碼：${this.escapeHtml(groupId)}</div>
+                  ${dash.inviteCode ? `<div style="font-size:13px;color:#475569;margin-top:2px;">邀請代碼：<span style="font-weight:700;color:#334155;letter-spacing:1px;background:#e2e8f0;padding:2px 6px;border-radius:4px;margin-left:4px;user-select:all;">${this.escapeHtml(dash.inviteCode)}</span></div>` : ""}
                   <div style="font-size:13px;color:#475569;margin-top:2px;">組員人數：${memberCount} 人 ${isLeader ? '<span style="color:#2563eb;font-weight:600;">(組長)</span>' : ''}</div>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
@@ -454,6 +455,7 @@
               <div>
                 <strong style="color:#15803d;font-size:15px;">現屬活力組：${this.escapeHtml(grpName)}</strong>
                 <div style="font-size:13px;color:#475569;margin-top:4px;">組別代碼：${this.escapeHtml(groupId)}</div>
+                ${(dashboard && dashboard.inviteCode) ? `<div style="font-size:13px;color:#475569;margin-top:2px;">邀請代碼：<span style="font-weight:700;color:#334155;letter-spacing:1px;background:#e2e8f0;padding:2px 6px;border-radius:4px;margin-left:4px;user-select:all;">${this.escapeHtml(dashboard.inviteCode)}</span></div>` : ""}
                 <div style="font-size:13px;color:#475569;margin-top:2px;">組員人數：${memberCount} 人 ${isLeader ? '<span style="color:#2563eb;font-weight:600;">(組長)</span>' : ''}</div>
               </div>
               <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
