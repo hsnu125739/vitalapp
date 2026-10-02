@@ -453,8 +453,21 @@
     }
 
     async login(username, password) {
-      const res = await this.request('login', { username, password });
-      const token = res && res.token;
+      const cleanUser = String(username || '').trim();
+      const cleanPass = String(password || '').trim();
+      const res = await this.request('login', {
+        username: cleanUser,
+        password: cleanPass,
+        playerId: cleanUser,
+        identifier: cleanUser,
+        data: {
+          username: cleanUser,
+          password: cleanPass,
+          playerId: cleanUser,
+          identifier: cleanUser
+        }
+      });
+      const token = res && (res.token || res.sessionToken || (res.data && (res.data.token || res.data.sessionToken)));
       if (token) this.setSessionToken(token);
       return res;
     }

@@ -52,7 +52,7 @@
           try {
             const res = await this.apiClient.login(username, password);
             if (res && res.success) {
-              const profile = (res.data && res.data.player) || res.data || {};
+              const profile = (res.data && res.data.player) || res.player || (res.data && res.data.profile) || res.profile || res.data || {};
               if (keepLogin && typeof localStorage !== 'undefined') {
                 localStorage.setItem('vital_keep_login', 'true');
               }
@@ -171,7 +171,7 @@
               alert('註冊成功！已為您自動登入進入旅程');
               if (this.registerModal) this.registerModal.classList.add('hidden');
               this.hideAuth();
-              const profile = (res.data && res.data.player) || res.data || {};
+              const profile = (res.data && res.data.player) || res.player || (res.data && res.data.profile) || res.profile || res.data || {};
               if (typeof this.onLoginSuccess === 'function') {
                 this.onLoginSuccess(profile);
               }
