@@ -467,6 +467,7 @@
           identifier: cleanUser
         }
       });
+      console.log(JSON.stringify(res));
       const token = res && (res.token || res.sessionToken || (res.data && (res.data.token || res.data.sessionToken)));
       if (token) this.setSessionToken(token);
       return res;
