@@ -4356,6 +4356,16 @@ body{
     padding-right:8px;
 }
 
+#avatarModal .modal-card{
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+
+#avatarModal .modal-header{
+  margin-bottom:0;
+}
+
 .avatar-picker-card{
   width:100%;
     padding:16px;
