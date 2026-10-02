@@ -66,7 +66,7 @@
         });
       });
 
-      // 儲存頭像
+      // 儲存頭像與顯示名稱
       if (this.avatarSaveBtn) {
         this.avatarSaveBtn.addEventListener('click', async () => {
           if (!this.selectedAvatarUrl) {
@@ -74,25 +74,36 @@
             return;
           }
 
+          const nameInput = document.getElementById('avatarDisplayNameInput');
+          const newName = nameInput ? nameInput.value.trim() : '';
+          if (nameInput && !newName) {
+            alert('請輸入顯示名稱');
+            return;
+          }
+
           this.avatarSaveBtn.disabled = true;
           this.avatarSaveBtn.textContent = '更新中...';
 
           try {
-            const res = await this.apiClient.updateAvatar(this.selectedAvatarUrl);
+            const res = await this.apiClient.updateAvatar(this.selectedAvatarUrl, newName);
             if (res && res.success) {
-              alert('頭像更新成功！');
+              alert('個人資料更新成功！');
+              if (this.currentUserProfile) {
+                if (this.selectedAvatarUrl) this.currentUserProfile.avatarUrl = this.selectedAvatarUrl;
+                if (newName) this.currentUserProfile.name = newName;
+              }
               if (this.avatarModal) this.avatarModal.classList.add('hidden');
               if (typeof this.onAvatarUpdated === 'function') {
-                this.onAvatarUpdated(this.selectedAvatarUrl);
+                this.onAvatarUpdated(this.selectedAvatarUrl, newName);
               }
             } else {
-              alert((res && (res.error || res.message)) || '更新頭像失敗');
+              alert((res && (res.error || res.message)) || '更新失敗');
             }
           } catch (err) {
-            alert(err.message || '更新頭像逾時，請稍後再試');
+            alert(err.message || '更新逾時，請稍後再試');
           } finally {
             this.avatarSaveBtn.disabled = false;
-            this.avatarSaveBtn.textContent = '確認更換';
+            this.avatarSaveBtn.textContent = '儲存頭像';
           }
         });
       }
@@ -830,6 +841,14 @@
 
     openAvatarModal() {
       if (this.avatarModal) this.avatarModal.classList.remove('hidden');
+      const nameInput = document.getElementById('avatarDisplayNameInput');
+      if (nameInput) {
+        const currentName = (this.currentUserProfile && (this.currentUserProfile.name || this.currentUserProfile.displayName))
+          || (document.getElementById('myPlayerName') && document.getElementById('myPlayerName').textContent)
+          || (document.getElementById('homePlayerName') && document.getElementById('homePlayerName').textContent)
+          || '';
+        nameInput.value = (currentName && currentName !== '活力人') ? currentName : '';
+      }
       this.updateAvatarPreview_();
     }
 

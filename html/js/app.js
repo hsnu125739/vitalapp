@@ -172,7 +172,7 @@
     if (ProfileViewClass) {
       profileView = new ProfileViewClass({
         apiClient: apiClient,
-        onAvatarUpdated: (url) => handleAvatarUpdated(url),
+        onAvatarUpdated: (url, name) => handleAvatarUpdated(url, name),
         onLogout: () => handleLogout(),
         onFootprintClick: () => footprintsView && footprintsView.openFootprintsModal(),
         onFellowshipClick: () => {
@@ -665,9 +665,13 @@
     loadUserData(false);
   }
 
-  function handleAvatarUpdated(newUrl) {
+  function handleAvatarUpdated(newUrl, newName) {
     if (currentUserProfile) {
-      currentUserProfile.avatarUrl = newUrl;
+      if (newUrl) currentUserProfile.avatarUrl = newUrl;
+      if (newName) currentUserProfile.name = newName;
+      try {
+        localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
+      } catch (e) {}
       dashboardView.render(currentUserProfile, currentJourneyData);
       profileView.render(currentUserProfile);
     }

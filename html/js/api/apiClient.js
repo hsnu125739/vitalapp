@@ -742,7 +742,19 @@
         throw err;
       }
     }
-    updateAvatar(avatarUrl) { return this.request('updatePlayerAvatar', { avatarKey: avatarUrl }); }
+    updateAvatar(avatarUrl, name) {
+      const payload = typeof avatarUrl === 'object' && avatarUrl !== null
+        ? { ...avatarUrl }
+        : { avatarKey: avatarUrl };
+      if (name !== undefined && name !== null) {
+        const trimmed = String(name).trim();
+        if (trimmed) {
+          payload.name = trimmed;
+          payload.displayName = trimmed;
+        }
+      }
+      return this.request('updatePlayerAvatar', payload);
+    }
 
     getRegistrationAreaOptions() { return this.request('getRegistrationAreaOptions'); }
 
