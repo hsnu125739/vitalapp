@@ -41,7 +41,7 @@
   });
 
   class DashboardView {
-    constructor({ practiceStore, apiClient, onFootprintClick, onChestClick, onRefresh, onLogout, onGroupJourneyListClick, onContributionClick }) {
+    constructor({ practiceStore, apiClient, onFootprintClick, onChestClick, onRefresh, onLogout, onGroupJourneyListClick, onContributionClick } = {}) {
       this.practiceStore = practiceStore;
       this.apiClient = apiClient;
       this.onFootprintClick = onFootprintClick;
@@ -450,14 +450,14 @@
       }
 
       const defaultChapters = [
-        { chapterId: 'CHP_01', order: 1, status: 'ACTIVE', targetPoint: 500, name: '恩典篇', subtitle: '本於信，以致於信', description: '萬事起頭，與同伴一同立定心志，穩固建立早晨晨興與禱告生活。', themeColor: '#f59e0b', pictureKey: 'Chapter_01.webp' },
-        { chapterId: 'CHP_02', order: 2, status: 'ACTIVE', targetPoint: 1200, name: '奉獻篇', subtitle: '將身體獻上，當作活祭', description: '同心合意，全組同伴在讀經與神的話語上堅定持續，向主奉獻心志。', themeColor: '#3b82f6', pictureKey: 'Chapter_02.webp' },
-        { chapterId: 'CHP_03', order: 3, status: 'ACTIVE', targetPoint: 2500, name: '同行篇', subtitle: '兩個人總比一個人好', description: '彼此相顧，激發愛心，勉勵行善；每週同聚禱告與小排交通。', themeColor: '#10b981', pictureKey: 'Chapter_03.webp' },
-        { chapterId: 'CHP_04', order: 4, status: 'ACTIVE', targetPoint: 4500, name: '繁增篇', subtitle: '隨走隨傳，傳揚國度福音', description: '走出舒適圈，探訪相調，邀約青職聖徒與福音朋友同享豐富。', themeColor: '#8b5cf6', pictureKey: 'Chapter_04.webp' },
-        { chapterId: 'CHP_05', order: 5, status: 'ACTIVE', targetPoint: 7000, name: '得勝篇', subtitle: '那美好的仗我已經打過了', description: '同心奔跑屬天賽程，在日常繁忙職場與生活中見證基督的得勝。', themeColor: '#ec4899', pictureKey: 'Chapter_05.webp' },
-        { chapterId: 'CHP_06', order: 6, status: 'ACTIVE', targetPoint: 10000, name: '榮耀篇', subtitle: '榮上加榮，同被變化', description: '同心合意，滿有屬天的喜樂與長進，成為團體發光的榮耀見證。', themeColor: '#f97316', pictureKey: 'Chapter_06.webp' },
-        { chapterId: 'CHP_07', order: 7, status: 'ACTIVE', targetPoint: 14000, name: '建造篇', subtitle: '聯絡得合式，百節各按各職', description: '肢體互相聯絡，共同承擔神家服事，在基督的愛裡建造基督的身體。', themeColor: '#06b6d4', pictureKey: 'Chapter_07.webp' },
-        { chapterId: 'CHP_08', order: 8, status: 'ACTIVE', targetPoint: 20000, name: '國度篇', subtitle: '世上的國成了我主和祂基督的國', description: '在榮耀裡作王同掌權，成為羔羊的伴侶，完全達到基督的身量。', themeColor: '#eab308', pictureKey: 'Chapter_08.webp' }
+        { chapterId: 'CHP_01', order: 1, status: 'ACTIVE', targetPoint: 500, name: '恩典篇', subtitle: '本於信，以致於信', description: '萬事起頭，與同伴一同立定心志，穩固建立早晨晨興與禱告生活。', themeColor: '#f59e0b', pictureKey: 'journey_1.webp' },
+        { chapterId: 'CHP_02', order: 2, status: 'ACTIVE', targetPoint: 1200, name: '奉獻篇', subtitle: '將身體獻上，當作活祭', description: '同心合意，全組同伴在讀經與神的話語上堅定持續，向主奉獻心志。', themeColor: '#3b82f6', pictureKey: 'journey_2.webp' },
+        { chapterId: 'CHP_03', order: 3, status: 'ACTIVE', targetPoint: 2500, name: '同行篇', subtitle: '兩個人總比一個人好', description: '彼此相顧，激發愛心，勉勵行善；每週同聚禱告與小排交通。', themeColor: '#10b981', pictureKey: 'journey_3.webp' },
+        { chapterId: 'CHP_04', order: 4, status: 'ACTIVE', targetPoint: 4500, name: '繁增篇', subtitle: '隨走隨傳，傳揚國度福音', description: '走出舒適圈，探訪相調，邀約青職聖徒與福音朋友同享豐富。', themeColor: '#8b5cf6', pictureKey: 'journey_4.webp' },
+        { chapterId: 'CHP_05', order: 5, status: 'ACTIVE', targetPoint: 7000, name: '得勝篇', subtitle: '那美好的仗我已經打過了', description: '同心奔跑屬天賽程，在日常繁忙職場與生活中見證基督的得勝。', themeColor: '#ec4899', pictureKey: 'journey_5.webp' },
+        { chapterId: 'CHP_06', order: 6, status: 'ACTIVE', targetPoint: 10000, name: '榮耀篇', subtitle: '榮上加榮，同被變化', description: '同心合意，滿有屬天的喜樂與長進，成為團體發光的榮耀見證。', themeColor: '#f97316', pictureKey: 'journey_6.webp' },
+        { chapterId: 'CHP_07', order: 7, status: 'ACTIVE', targetPoint: 14000, name: '建造篇', subtitle: '聯絡得合式，百節各按各職', description: '肢體互相聯絡，共同承擔神家服事，在基督的愛裡建造基督的身體。', themeColor: '#06b6d4', pictureKey: 'journey_7.webp' },
+        { chapterId: 'CHP_08', order: 8, status: 'ACTIVE', targetPoint: 20000, name: '國度篇', subtitle: '世上的國成了我主和祂基督的國', description: '在榮耀裡作王同掌權，成為羔羊的伴侶，完全達到基督的身量。', themeColor: '#eab308', pictureKey: 'journey_8.webp' }
       ];
 
       if (!Array.isArray(chapters) || chapters.length === 0) {
@@ -597,9 +597,9 @@
       if (imgEl) {
         imgEl.onerror = () => {
           imgEl.onerror = null;
-          imgEl.src = '../Chest_Assets/Chest_01.webp';
+          imgEl.src = '../Chest_Assets/journey_1.webp';
         };
-        imgEl.src = this.resolvePictureKey_(chapter.pictureKey, '../Chest_Assets/Chest_01.webp');
+        imgEl.src = this.resolvePictureKey_(chapter.pictureKey, '../Chest_Assets/journey_1.webp');
       }
 
       const tPoint = Number(chapter.targetPoint) || 0;
@@ -635,11 +635,15 @@
       modal.classList.remove('hidden');
     }
 
-    resolvePictureKey_(pictureKey, fallback = '../Chest_Assets/Chest_01.webp') {
+    resolvePictureKey_(pictureKey, fallback = '../Chest_Assets/journey_1.webp') {
       if (!pictureKey) return fallback;
       const p = String(pictureKey).trim();
       if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('data:')) {
         return p;
+      }
+      if (p.startsWith('journey_')) {
+        const file = (p.endsWith('.webp') || p.endsWith('.png') || p.endsWith('.jpg')) ? p : `${p}.webp`;
+        return `../Chest_Assets/${file}`;
       }
       if (p.startsWith('Chapter_')) {
         const matchedChest = p.replace(/^Chapter_/, 'Chest_');
