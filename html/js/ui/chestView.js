@@ -190,9 +190,9 @@
         rawList = DEFAULT_ACHIEVEMENTS;
       }
 
-      // 3. 過濾狀態並嚴格按 order 升冪排序
+      // 3. 過濾狀態並嚴格按 order 升冪排序（忽略空白列或無名設定）
       const list = rawList
-        .filter(item => item && item.status === 'ACTIVE')
+        .filter(item => item && item.status === 'ACTIVE' && String(item.name || item.title || '').trim() && String(item.achievementId || item.id || item.tierId || '').trim())
         .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
 
       const effectiveList = list.length > 0 ? list : DEFAULT_ACHIEVEMENTS;

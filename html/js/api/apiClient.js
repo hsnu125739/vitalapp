@@ -840,6 +840,12 @@
       if (groupId) data.groupId = groupId;
       return this.request('getGroupProgress', data);
     }
+    evaluateTargetMilestones(scope = 'PLAYER', targetId = null, dateStr = null) {
+      const data = { scope };
+      if (targetId) data.targetId = targetId;
+      if (dateStr) data.dateStr = dateStr;
+      return this.request('evaluateTargetMilestones', data);
+    }
 
     // 小組交流板
     createGroupPost(data) { return this.request('createGroupPost', data); }

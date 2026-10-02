@@ -464,9 +464,9 @@
         chapters = defaultChapters;
       }
 
-      // 嚴格依 order 升冪排序（數值越小越靠左）
+      // 嚴格依 order 升冪排序（數值越小越靠左，過濾空白或無名篇章）
       chapters = chapters
-        .filter(c => c && c.status === 'ACTIVE')
+        .filter(c => c && c.status === 'ACTIVE' && String(c.name || '').trim() && String(c.chapterId || '').trim())
         .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
 
       if (chapters.length === 0) chapters = defaultChapters;

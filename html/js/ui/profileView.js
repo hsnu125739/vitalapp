@@ -843,12 +843,50 @@
       if (this.avatarModal) this.avatarModal.classList.remove('hidden');
       const nameInput = document.getElementById('avatarDisplayNameInput');
       if (nameInput) {
-        const currentName = (this.currentUserProfile && (this.currentUserProfile.name || this.currentUserProfile.displayName))
-          || (document.getElementById('myPlayerName') && document.getElementById('myPlayerName').textContent)
-          || (document.getElementById('homePlayerName') && document.getElementById('homePlayerName').textContent)
-          || '';
-        nameInput.value = (currentName && currentName !== '活力人') ? currentName : '';
+        let currentName = '';
+        if (this.currentUserProfile) {
+          currentName = this.currentUserProfile.name || this.currentUserProfile.displayName || this.currentUserProfile.username || '';
+        }
+        if (!currentName && typeof window !== 'undefined' && window.AppCoordinator && window.AppCoordinator.currentUserProfile) {
+          const cp = window.AppCoordinator.currentUserProfile;
+          currentName = cp.name || cp.displayName || cp.username || '';
+        }
+        if (!currentName && typeof localStorage !== 'undefined') {
+          try {
+            const p = JSON.parse(localStorage.getItem('vital_current_player') || '{}');
+            currentName = p.name || p.displayName || p.username || '';
+          } catch (e) {}
+        }
+        if (!currentName) {
+          const myEl = document.getElementById('myPlayerName');
+          const homeEl = document.getElementById('homePlayerName');
+          currentName = (myEl && myEl.textContent ? myEl.textContent.trim() : '')
+            || (homeEl && homeEl.textContent ? homeEl.textContent.trim() : '')
+            || '';
+        }
+        nameInput.value = currentName;
       }
+
+      const currentAvatar = (this.currentUserProfile && this.currentUserProfile.avatarUrl)
+        || (typeof localStorage !== 'undefined' && (JSON.parse(localStorage.getItem('vital_current_player') || '{}')).avatarUrl)
+        || '';
+      if (currentAvatar) {
+        if (currentAvatar.includes('female')) {
+          this.avatarGender = 'female';
+        } else if (currentAvatar.includes('male')) {
+          this.avatarGender = 'male';
+        }
+        const numMatch = currentAvatar.match(/(\d+)\.png/i);
+        if (numMatch) {
+          const parsed = parseInt(numMatch[1], 10);
+          if (!isNaN(parsed) && parsed >= 1 && parsed <= 8) {
+            this.avatarNo = parsed;
+          }
+        }
+        const genderSel = document.getElementById('avatarGenderSelect');
+        if (genderSel) genderSel.value = this.avatarGender;
+      }
+
       this.updateAvatarPreview_();
     }
 

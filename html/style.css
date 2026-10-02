@@ -5806,12 +5806,15 @@ body{
   text-align: center;
 }
 .chapter-detail-visual {
-  margin-bottom: 12px;
+  width: 100%;
+  margin-bottom: 14px;
 }
 .chapter-detail-visual img {
-  width: 84px;
-  height: 84px;
-  object-fit: contain;
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 10px;
   margin: 0 auto;
   display: block;
 }
