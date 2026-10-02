@@ -1109,6 +1109,21 @@
             try { localStorage.setItem(`vital_group_progress_${groupId}`, JSON.stringify(latestProgress)); } catch(e){}
           }
           renderModalContent(latestProgress, false);
+
+          // 即時同步最新小組點數至首頁旅程 (currentJourneyData 與 dashboardView)
+          try {
+            const latestPts = Number(latestProgress.totalPoints !== undefined ? latestProgress.totalPoints : (latestProgress.groupTotalPoints !== undefined ? latestProgress.groupTotalPoints : 0));
+            if (latestPts > 0 && typeof window !== 'undefined') {
+              if (window.currentJourneyData) {
+                window.currentJourneyData.totalPoints = latestPts;
+                window.currentJourneyData.totalScore = latestPts;
+                window.currentJourneyData.groupTotalPoints = latestPts;
+              }
+              if (window.dashboardView && typeof window.dashboardView.render === 'function') {
+                window.dashboardView.render(this.currentUserProfile, window.currentJourneyData);
+              }
+            }
+          } catch(syncErr) {}
         }
       } catch (err) {
         console.warn('[ProfileView] 獲取最新小組進度失敗:', err);

@@ -471,7 +471,27 @@
 
       if (chapters.length === 0) chapters = defaultChapters;
 
-      const groupScore = Number((journeyData && (journeyData.totalPoints !== undefined ? journeyData.totalPoints : journeyData.totalScore)) || 0);
+      let groupScore = Number(
+        (journeyData && (
+          journeyData.totalPoints !== undefined ? journeyData.totalPoints :
+          (journeyData.groupTotalPoints !== undefined ? journeyData.groupTotalPoints : journeyData.totalScore)
+        )) || 0
+      );
+
+      // 兜底防禦：若分數仍為 0，嘗試從本地小組快取讀取已取得的分數
+      if (!groupScore && typeof localStorage !== 'undefined') {
+        const gid = (journeyData && journeyData.groupId) || (this.currentUserProfile && this.currentUserProfile.groupId);
+        if (gid) {
+          try {
+            const cachedGp = JSON.parse(localStorage.getItem(`vital_group_progress_${gid}`) || 'null');
+            if (cachedGp) {
+              const cp = Number(cachedGp.totalPoints !== undefined ? cachedGp.totalPoints : (cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : cachedGp.totalScore));
+              if (cp > 0) groupScore = cp;
+            }
+          } catch (e) {}
+        }
+      }
+      this.currentGroupScore = groupScore;
 
       // 尋找當前正在挑戰的目標篇章（第一個 targetPoint 大於目前分數者；若全達成則為最後一個）
       let targetChapter = chapters.find(c => groupScore < (Number(c.targetPoint) || 0));
@@ -521,7 +541,7 @@
             const cid = node.getAttribute('data-chapter-id');
             const targetCh = chapters.find(c => c.chapterId === cid);
             if (targetCh) {
-              this.openChapterDetailModal(targetCh, groupScore);
+              this.openChapterDetailModal(targetCh, this.currentGroupScore !== undefined ? this.currentGroupScore : groupScore);
             }
           });
         });
@@ -542,10 +562,24 @@
       this.renderTaskCards(this.pointsConfig);
     }
 
-    openChapterDetailModal(chapter, groupScore = 0) {
+    openChapterDetailModal(chapter, groupScore = null) {
       if (!chapter) return;
       const modal = document.getElementById('chapterDetailModal');
       if (!modal) return;
+
+      let score = (typeof groupScore === 'number' && !isNaN(groupScore)) ? groupScore : (this.currentGroupScore || 0);
+      if (score === 0 && typeof localStorage !== 'undefined') {
+        const gid = this.currentUserProfile && this.currentUserProfile.groupId;
+        if (gid) {
+          try {
+            const cachedGp = JSON.parse(localStorage.getItem(`vital_group_progress_${gid}`) || 'null');
+            if (cachedGp) {
+              const cp = Number(cachedGp.totalPoints !== undefined ? cachedGp.totalPoints : (cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : 0));
+              if (cp > 0) score = cp;
+            }
+          } catch (e) {}
+        }
+      }
 
       const titleEl = document.getElementById('chapterDetailModalTitle');
       const imgEl = document.getElementById('chapterDetailModalImage');
@@ -569,8 +603,8 @@
       }
 
       const tPoint = Number(chapter.targetPoint) || 0;
-      const isPassed = groupScore >= tPoint;
-      const gap = Math.max(0, tPoint - groupScore);
+      const isPassed = score >= tPoint;
+      const gap = Math.max(0, tPoint - score);
 
       if (statusEl) {
         if (isPassed) {

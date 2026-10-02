@@ -52,7 +52,15 @@
     const chapterIndex = Math.min(8, Math.max(1, maxChapterLevel));
     const chapterTitle = CHAPTER_NAMES[chapterIndex - 1] || '起步啟航';
 
-    let totalScore = Number(groupProgress.totalPoints || groupProgress.totalScore || 0);
+    let totalScore = Number(
+      groupProgress.totalPoints !== undefined ? groupProgress.totalPoints :
+      (groupProgress.groupTotalPoints !== undefined ? groupProgress.groupTotalPoints :
+      (groupProgress.totalScore !== undefined ? groupProgress.totalScore : 0))
+    );
+    if (!totalScore && groupProgress.memberContribution && typeof groupProgress.memberContribution === 'object') {
+      const sum = Object.values(groupProgress.memberContribution).reduce((acc, v) => acc + (Number(v) || 0), 0);
+      if (sum > 0) totalScore = sum;
+    }
     if (!totalScore && groupProgress.historySummary) {
       let hs = groupProgress.historySummary;
       if (typeof hs === 'string') {
@@ -73,6 +81,8 @@
       fallbackProfile.memberCount = mCount;
     }
 
+    const finalPoints = totalScore || (fallbackProfile && (fallbackProfile.groupTotalPoints || fallbackProfile.totalPoints || fallbackProfile.totalScore)) || 0;
+
     return {
       ...groupProgress,
       memberCount: typeof mCount === 'number' ? mCount : undefined,
@@ -80,8 +90,9 @@
       chapterTitle: chapterTitle,
       chapterName: chapterTitle,
       currentLevel: chapterIndex,
-      totalPoints: totalScore || (fallbackProfile && (fallbackProfile.totalPoints || fallbackProfile.totalScore)) || 0,
-      totalScore: totalScore || (fallbackProfile && (fallbackProfile.totalPoints || fallbackProfile.totalScore)) || 0,
+      totalPoints: finalPoints,
+      totalScore: finalPoints,
+      groupTotalPoints: finalPoints,
       progressPercent: Math.min(100, Math.round((chapterIndex / 8) * 100)),
       milestones: milestones
     };
@@ -293,10 +304,11 @@
         console.warn('[App] getPractice 快速載入略過:', err);
       });
 
-      const [bootstrapRes, bundleRes, profileRes] = await Promise.allSettled([
+      const [bootstrapRes, bundleRes, profileRes, groupProgressRes] = await Promise.allSettled([
         apiClient.getBootstrap(),
         pId ? apiClient.getProgressBundle(gId) : Promise.resolve(null),
-        gId ? apiClient.getGroupProfile(gId) : Promise.resolve(null)
+        gId ? apiClient.getGroupProfile(gId) : Promise.resolve(null),
+        gId ? apiClient.getGroupProgress(gId) : Promise.resolve(null)
       ]);
 
       let announcements = [];
@@ -370,12 +382,41 @@
           if (typeof groupMilestones === 'string') {
             try { groupMilestones = JSON.parse(groupMilestones); } catch(e) { groupMilestones = []; }
           }
-          if (currentGId && typeof localStorage !== 'undefined') {
-            try {
-              localStorage.setItem(`vital_group_progress_${currentGId}`, JSON.stringify(groupProgress));
-              localStorage.setItem(`vital_group_milestones_${currentGId}`, JSON.stringify(groupMilestones));
-            } catch(e) {}
+        }
+
+        // 若獨立查詢之 groupProgressRes 具備有效總分，優先注入
+        if (groupProgressRes && groupProgressRes.status === 'fulfilled' && groupProgressRes.value && (groupProgressRes.value.success || groupProgressRes.value.data)) {
+          const gpData = groupProgressRes.value.data || groupProgressRes.value;
+          const gpScore = Number(gpData.totalPoints !== undefined ? gpData.totalPoints : (gpData.groupTotalPoints !== undefined ? gpData.groupTotalPoints : 0));
+          if (gpScore > 0) {
+            if (!groupProgress) groupProgress = gpData;
+            groupProgress.totalPoints = gpScore;
+            groupProgress.groupTotalPoints = gpScore;
+            if (gpData.memberContribution) groupProgress.memberContribution = gpData.memberContribution;
           }
+        }
+
+        // 若仍未取得點數，嘗試從本地快取中救回既有點數
+        if (currentGId && (!groupProgress || (groupProgress.totalPoints === undefined && groupProgress.groupTotalPoints === undefined))) {
+          try {
+            const cachedGp = JSON.parse(localStorage.getItem(`vital_group_progress_${currentGId}`) || 'null');
+            if (cachedGp) {
+              const cp = Number(cachedGp.totalPoints !== undefined ? cachedGp.totalPoints : (cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : 0));
+              if (cp > 0) {
+                if (!groupProgress) groupProgress = cachedGp;
+                groupProgress.totalPoints = cp;
+                groupProgress.groupTotalPoints = cp;
+                if (cachedGp.memberContribution) groupProgress.memberContribution = cachedGp.memberContribution;
+              }
+            }
+          } catch(e) {}
+        }
+
+        if (currentGId && groupProgress && typeof localStorage !== 'undefined') {
+          try {
+            localStorage.setItem(`vital_group_progress_${currentGId}`, JSON.stringify(groupProgress));
+            localStorage.setItem(`vital_group_milestones_${currentGId}`, JSON.stringify(groupMilestones));
+          } catch(e) {}
         }
 
         if (data.chapters) {
