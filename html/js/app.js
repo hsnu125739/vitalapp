@@ -755,7 +755,7 @@
       const cachedGIds = new Set(cachedGMs.map(m => String((m && (m.id || m.chapterId)) || '')));
       const addedGMilestones = gMs.filter(m => {
         const id = String((m && (m.id || m.chapterId)) || '');
-        return id && !cachedIds.has(id);
+        return id && !cachedGIds.has(id);
       });
       newGroupMs = addedGMilestones.filter(m => {
         if (!m || !m.completedAt) return false;
