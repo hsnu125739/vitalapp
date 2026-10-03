@@ -451,8 +451,7 @@
       }
 
       const defaultChapters = [
-        { chapterId: 'CHP_01', order: 1, status: 'ACTIVE', targetPoint: 0, name: '信心篇', subtitle: '義人必本於信得生並活著', description: '萬事起頭難，需要有同伴一同立定心志，在信心裡往前！
-(基礎條件：活力組至少2人)', themeColor: '#f59e0b', pictureKey: 'journey_1.webp' },
+        { chapterId: 'CHP_01', order: 1, status: 'ACTIVE', targetPoint: 0, name: '信心篇', subtitle: '義人必本於信得生並活著', description: '萬事起頭難，需要有同伴一同立定心志，在信心裡往前！\n(基礎條件：活力組至少2人)', themeColor: '#f59e0b', pictureKey: 'journey_1.webp' },
         { chapterId: 'CHP_02', order: 2, status: 'ACTIVE', targetPoint: 1000, name: '美德篇', subtitle: '藉這榮耀和美德，祂已將又寶貴又極大的應許賜給我們', description: '因著神聖生命的能力而產生有活力的行動，在人面前有好見證！', themeColor: '#3b82f6', pictureKey: 'journey_2.webp' },
         { chapterId: 'CHP_03', order: 3, status: 'ACTIVE', targetPoint: 2000, name: '知識篇', subtitle: '直到我們眾人都達到了對神兒子之完全認識上的一', description: '對我們主的知識的領會等於真理，就是祂一切所是的實際，我們需要在真理上長大！', themeColor: '#10b981', pictureKey: 'journey_3.webp' },
         { chapterId: 'CHP_04', order: 4, status: 'ACTIVE', targetPoint: 4000, name: '節制篇', subtitle: '凡較力爭勝的，諸事都有節制', description: '生活中操練從主受限制，讓主管治我們的全人，為著生命正確的長大，也為著得著不能壞的華冠！', themeColor: '#8b5cf6', pictureKey: 'journey_4.webp' },

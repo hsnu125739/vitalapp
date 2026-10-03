@@ -449,8 +449,6 @@
         }
       };
 
-      };
-
       if (openVitalBtn && vitalModal) {
         openVitalBtn.addEventListener('click', async () => {
           vitalModal.classList.remove('hidden');
