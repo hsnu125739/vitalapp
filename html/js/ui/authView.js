@@ -114,6 +114,12 @@
         });
       }
 
+      // 動態設定出生年最大值為今年
+      const birthYearInput = document.getElementById('registerBirthYear');
+      if (birthYearInput) {
+        birthYearInput.max = String(new Date().getFullYear());
+      }
+
       // 註冊頭像選擇器
       const genderSelect = document.getElementById('registerAvatarGender');
       if (genderSelect) {
@@ -168,6 +174,18 @@
 
           if (password !== confirmPassword) {
             this.showRegisterMessage_('兩次輸入的密碼不一致，請重新確認');
+            return;
+          }
+
+          if (!birthYear) {
+            this.showRegisterMessage_('請填寫出生年份');
+            return;
+          }
+
+          const currentYear = new Date().getFullYear();
+          const parsedBirthYear = parseInt(birthYear, 10);
+          if (isNaN(parsedBirthYear) || parsedBirthYear > currentYear) {
+            this.showRegisterMessage_('出生年不可超過今年');
             return;
           }
 

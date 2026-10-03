@@ -1120,11 +1120,11 @@
             <div style="font-size:1.02rem; font-weight:600; line-height:1.65; color:#334155; max-width:320px;">
               ${this.escapeHtml_(lockReason)}
             </div>
-            <div style="display:flex; gap:10px; margin-top:8px; width:100%; max-width:280px; justify-content:center;">
-              <button id="goToProfileFromLockBtn" class="primary-btn" type="button" style="padding:10px 16px; border-radius:12px; font-weight:700; flex:1; font-size:0.95rem;">
-                前往我的專屬頁
+            <div style="display:flex; gap:10px; margin-top:8px; width:100%; max-width:280px; justify-content:center; align-items:stretch;">
+              <button id="goToProfileFromLockBtn" class="primary-btn" type="button" style="padding:8px 12px; border-radius:12px; font-weight:700; flex:1; font-size:0.95rem; line-height:1.3; text-align:center;">
+                前往<br>我的專屬頁
               </button>
-              <button class="ghost-btn" data-close-modal="infoModal" type="button" style="padding:10px 16px; border-radius:12px; font-weight:600; font-size:0.95rem; flex:1;">
+              <button class="ghost-btn" data-close-modal="infoModal" type="button" style="padding:8px 12px; border-radius:12px; font-weight:600; font-size:0.95rem; flex:1; display:flex; align-items:center; justify-content:center;">
                 我知道了
               </button>
             </div>
