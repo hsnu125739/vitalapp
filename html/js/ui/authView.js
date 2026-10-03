@@ -147,6 +147,7 @@
           const username = (document.getElementById('registerLoginName') || {}).value?.trim();
           const password = (document.getElementById('registerPassword') || {}).value;
           const confirmPassword = (document.getElementById('registerPasswordConfirm') || {}).value;
+          const realName = (document.getElementById('registerRealName') || {}).value?.trim() || '';
           const name = (document.getElementById('registerName') || document.getElementById('regName') || {}).value?.trim() || username;
           const birthYear = (document.getElementById('registerBirthYear') || {}).value;
           const phone = (document.getElementById('registerPhone') || {}).value?.trim() || '';
@@ -157,6 +158,11 @@
 
           if (!district || !area) {
             this.showRegisterMessage_('請選擇照顧區與大區');
+            return;
+          }
+
+          if (!realName) {
+            this.showRegisterMessage_('請填寫真實姓名');
             return;
           }
 
@@ -178,6 +184,7 @@
               username,
               password,
               name,
+              realName,
               phone,
               careDistrict: district,
               careArea: area,

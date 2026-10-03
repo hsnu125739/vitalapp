@@ -790,7 +790,7 @@
 
   function showMilestonesCelebration(newPlayerMs, newGroupMs, configs = {}) {
     if (typeof document === 'undefined') return;
-    if (!apiClient.getSessionToken()) return;
+    if (typeof apiClient !== 'undefined' && apiClient && typeof apiClient.getSessionToken === 'function' && !apiClient.getSessionToken()) return;
     const modal = document.getElementById('milestoneCelebrationModal');
     if (!modal) return;
 
@@ -954,7 +954,7 @@
 
   function showSpecialTasksModal(activeTasks, playerId, todayStr) {
     if (typeof document === 'undefined') return;
-    if (!apiClient.getSessionToken()) return;
+    if (typeof apiClient !== 'undefined' && apiClient && typeof apiClient.getSessionToken === 'function' && !apiClient.getSessionToken()) return;
     const modal = document.getElementById('taskPromptModal');
     if (!modal) return;
 

@@ -1108,7 +1108,7 @@
     }
 
     openGroupPracticeRequiredModal(lockReason) {
-      if (!this.apiClient || !this.apiClient.getSessionToken()) return;
+      if (this.apiClient && typeof this.apiClient.getSessionToken === 'function' && !this.apiClient.getSessionToken()) return;
       if (!this.infoModal) return;
       if (this.infoModalTitle) {
         this.infoModalTitle.textContent = '需要活力組同行';
