@@ -105,13 +105,13 @@ class ChatStore {
     try {
       const res = await this.apiClient.getGroupPosts(this.groupId, 20, this.postsColIndex, this.lastMessageCount || null);
       if (res && res.success) {
-        if (res.status === 304 || (res.data && res.data.status === 304)) return;
-        if (res.postsColIndex) this.postsColIndex = Number(res.postsColIndex);
-        if (res.data && res.data.messageCount !== undefined) this.lastMessageCount = res.data.messageCount;
-        else if (res.messageCount !== undefined) this.lastMessageCount = res.messageCount;
+        const d = res.data || res;
+        if (d.status === 304 || res.status === 304) return;
+        if (d.postsColIndex) this.postsColIndex = Number(d.postsColIndex);
+        if (d.messageCount !== undefined) this.lastMessageCount = d.messageCount;
 
-        const incomingPosts = Array.isArray(res.data) ? res.data : (res.posts || (res.data && res.data.posts) || []);
-        let ann = res.announcement !== undefined ? res.announcement : (res.data?.announcement !== undefined ? res.data.announcement : (res.pinnedPost !== undefined ? res.pinnedPost : res.data?.pinnedPost));
+        const incomingPosts = Array.isArray(d) ? d : (d.posts || []);
+        const ann = d.announcement !== undefined ? d.announcement : d.pinnedPost;
         this.mergeIncomingPosts(incomingPosts, ann);
       }
     } catch (err) {
@@ -175,9 +175,10 @@ class ChatStore {
         postsColIndex: col
       });
 
-      if (res && res.success && res.data) {
-        if (res.postsColIndex) this.postsColIndex = Number(res.postsColIndex);
-        const confirmedPost = res.data.post || res.data;
+      if (res && res.success) {
+        const d = res.data || res;
+        if (d.postsColIndex) this.postsColIndex = Number(d.postsColIndex);
+        const confirmedPost = d.post || d;
         // 替換暫存留言為正式權威物件
         const idx = this.messages.findIndex(m => m.id === tempId);
         if (idx !== -1) {
@@ -237,8 +238,9 @@ class ChatStore {
         sourcePostId: annObj.sourcePostId,
         postsColIndex: col
       });
-      if (res && res.postsColIndex) {
-        this.postsColIndex = Number(res.postsColIndex);
+      const d = res && (res.data || res);
+      if (d && d.postsColIndex) {
+        this.postsColIndex = Number(d.postsColIndex);
       }
     } catch (err) {
       console.warn('[ChatStore] 設定小組公告失敗', err);
@@ -254,8 +256,9 @@ class ChatStore {
 
     try {
       const res = await this.apiClient.clearGroupAnnouncement(this.groupId, col);
-      if (res && res.postsColIndex) {
-        this.postsColIndex = Number(res.postsColIndex);
+      const d = res && (res.data || res);
+      if (d && d.postsColIndex) {
+        this.postsColIndex = Number(d.postsColIndex);
       }
       return res;
     } catch (err) {
@@ -318,20 +321,13 @@ class ChatStore {
       try {
         const res = await this.apiClient.getGroupPosts(this.groupId, 20, this.postsColIndex, this.lastMessageCount || null);
         if (res && res.success) {
-          if (res.status === 304 || (res.data && res.data.status === 304)) {
-            // Nothing changed in posts, but maybe announcement did? Actually we can skip merge.
-            return;
-          }
-          if (res.postsColIndex) this.postsColIndex = Number(res.postsColIndex);
-          if (res.data && res.data.messageCount !== undefined) this.lastMessageCount = res.data.messageCount;
-          else if (res.messageCount !== undefined) this.lastMessageCount = res.messageCount;
+          const d = res.data || res;
+          if (d.status === 304 || res.status === 304) return;
+          if (d.postsColIndex) this.postsColIndex = Number(d.postsColIndex);
+          if (d.messageCount !== undefined) this.lastMessageCount = d.messageCount;
 
-          const incomingPosts = Array.isArray(res.data) ? res.data : (res.posts || (res.data && res.data.posts) || []);
-          let ann = undefined;
-          if (res.announcement !== undefined) ann = res.announcement;
-          else if (res.data && res.data.announcement !== undefined) ann = res.data.announcement;
-          else if (res.pinnedPost !== undefined) ann = res.pinnedPost;
-          else if (res.data && res.data.pinnedPost !== undefined) ann = res.data.pinnedPost;
+          const incomingPosts = Array.isArray(d) ? d : (d.posts || []);
+          const ann = d.announcement !== undefined ? d.announcement : d.pinnedPost;
           this.mergeIncomingPosts(incomingPosts, ann);
         }
       } catch (e) {

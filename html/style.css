@@ -1816,12 +1816,29 @@ button.player-stat-card{
   background: rgba(0, 0, 0, 0.06);
   color: rgba(0, 0, 0, 0.28);
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .footprint-badge.is-active {
   background: rgba(79, 159, 139, 0.18);
   color: var(--brand-deep, #2f7564);
   font-weight: 700;
+}
+
+/* 方案二選項 C：個人打卡但同組人數不足（未滿2人：低飽和淡綠底＋細虛線邊框） */
+.footprint-badge.is-pending {
+  background: rgba(79, 159, 139, 0.08);
+  color: #648f82;
+  border: 1.5px dashed #79a89b;
+  font-weight: 700;
+}
+
+/* 隊友達標同組共享（個人未打卡但共享得分） */
+.footprint-badge.is-shared {
+  background: rgba(79, 159, 139, 0.12);
+  color: var(--brand-deep, #2f7564);
+  border: 1px dotted rgba(79, 159, 139, 0.45);
+  font-weight: 600;
 }
 
 .footprint-day-score {

@@ -638,10 +638,21 @@
           const pActive = Boolean(d.prayerCompleted || d.prayer);
           const rActive = Boolean(d.readingCompleted || d.bookCompleted || d.bookPursuit || d.book);
 
-          // 團體晨興視覺標註
-          const morningGroupTag = d.isMorningQualified
-            ? (mActive ? '' : ' <span class="group-tag" title="隊友達標，同組共享">👥</span>')
-            : (mActive ? ' <span class="group-warning" title="未達2人門檻">⚠</span>' : '');
+          // 晨興狀態判斷（方案二選項 C：語意樣式分流，零符號雜訊，尺寸完全對齊）
+          let morningClass = '';
+          let morningTitle = '晨興：未打卡';
+          if (mActive) {
+            if (d.isMorningQualified === false) {
+              morningClass = 'is-active is-pending';
+              morningTitle = '晨興：個人已打卡 (同組未滿2人未計分)';
+            } else {
+              morningClass = 'is-active is-group-qualified';
+              morningTitle = `晨興：已完成${d.isMorningQualified ? ' (團體達標)' : ''}`;
+            }
+          } else if (d.isMorningQualified) {
+            morningClass = 'is-active is-shared';
+            morningTitle = '晨興：隊友達標 (同組共享得分)';
+          }
 
           return `
             <div class="footprint-day-row ${isToday ? 'is-today' : ''}">
@@ -650,7 +661,7 @@
                 <span class="footprint-day-date">${dDate}${isToday ? ' (今)' : ''}</span>
               </div>
               <div class="footprint-badges">
-                <span class="footprint-badge ${mActive ? 'is-active' : ''} ${d.isMorningQualified ? 'is-group-qualified' : ''}" title="晨興：${mActive ? '已完成' : '未打卡'}${d.isMorningQualified ? ' (團體達標)' : ''}">晨${morningGroupTag}</span>
+                <span class="footprint-badge ${morningClass}" title="${morningTitle}">晨</span>
                 <span class="footprint-badge ${bActive ? 'is-active' : ''}" title="讀經：${bActive ? '已完成' : '未打卡'}">讀</span>
                 <span class="footprint-badge ${pActive ? 'is-active' : ''}" title="禱告：${pActive ? '已完成' : '未打卡'}">禱</span>
                 <span class="footprint-badge ${rActive ? 'is-active' : ''}" title="書報：${rActive ? '已完成' : '未打卡'}">書</span>
