@@ -286,7 +286,7 @@
       const prevDistrict = this.districtSelect.value;
       this.areaData = districts;
 
-      this.districtSelect.innerHTML = '<option value="">請選擇照顧區</option>';
+      this.districtSelect.innerHTML = '';
       districts.forEach(d => {
         const opt = document.createElement('option');
         opt.value = d.careDistrict;
@@ -308,7 +308,7 @@
       const target = this.areaData.find(d => d.careDistrict === selectedDistrict);
       const areas = target?.careAreas || [];
 
-      this.areaSelect.innerHTML = '<option value="">請選擇大區</option>';
+      this.areaSelect.innerHTML = '';
       areas.forEach(a => {
         const opt = document.createElement('option');
         opt.value = a.careArea;
