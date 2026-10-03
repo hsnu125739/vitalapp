@@ -859,14 +859,14 @@
         dateTextEl.textContent = this.getWeeklyDateRangeText_();
       }
 
-      // 今日操練四項
-      this.updateTaskCard_('homeMorningBtn', '晨', '小組晨興', `合作取得 +${morningPts}`);
+      // 今日操練四項 (晨興為團體項目，需同組2人打卡達標，全組同得)
+      this.updateTaskCard_('homeMorningBtn', '晨', '小組晨興', `同組2人達標 +${morningPts}`);
       this.updateTaskCard_('homeBibleBtn', '讀', '個人讀經', `個人貢獻 +${biblePts}`);
       this.updateTaskCard_('homePrayerPracticeBtn', '禱', '個人禱告', `個人貢獻 +${prayerPts}`);
       this.updateTaskCard_('homeBookBtn', '書', '個人書報', `個人貢獻 +${bookPts}`);
 
-      // 每週操練四項
-      this.updateTaskCard_('homeOutreachVisitBtn', '訪', '外出探訪', `合作取得 +${outreachPts}`);
+      // 每週操練四項 (外出探訪為團體項目，需同組2人打卡達標，全組同得)
+      this.updateTaskCard_('homeOutreachVisitBtn', '訪', '外出探訪', `同組2人達標 +${outreachPts}`);
       this.updateTaskCard_('homeWeeklySmallGroupBtn', '小', '小排聚會', `個人貢獻 +${groupPts}`);
       this.updateTaskCard_('homeWeeklyPrayerMeetingBtn', '禱', '禱告聚會', `個人貢獻 +${prayerMtgPts}`);
       this.updateTaskCard_('homeWeeklyLordDayBtn', '主', '主日聚會', `個人貢獻 +${lordDayPts}`);
