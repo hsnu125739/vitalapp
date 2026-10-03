@@ -556,6 +556,15 @@
                 window.AppCoordinator.updateUserGroupState(newGId, newGName, false, mCount);
               }
 
+              // 2. 主動觸發 Progression 小組里程碑即時結算（檢驗組員人數 >= 2 解鎖第一篇章）
+              if (this.apiClient && typeof this.apiClient.evaluateTargetMilestones === 'function') {
+                try {
+                  await this.apiClient.evaluateTargetMilestones('GROUP', newGId);
+                } catch (e) {
+                  console.warn('觸發小組里程碑檢驗失敗:', e);
+                }
+              }
+
               alert('成功加入活力組！歡迎一同在主裡奔跑！');
               if (vitalModal) vitalModal.classList.add('hidden');
               if (codeInput) codeInput.value = '';

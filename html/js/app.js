@@ -723,37 +723,41 @@
     let newGroupMs = [];
 
     // 條件：只有當 playerProgress 的 milestone 比快取資料多（代表有新 milestone），
-    // 而且多的 milestone 達成的時間比使用者的 lastLogin 還晚的時候，才要提示。
-    if (pMs.length > cachedPMs.length && lastLogin) {
-      const lastLoginTime = new Date(lastLogin).getTime();
-      if (!isNaN(lastLoginTime)) {
-        const cachedIds = new Set(cachedPMs.map(m => String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '')));
-        const addedMilestones = pMs.filter(m => {
-          const id = String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '');
-          return id && !cachedIds.has(id);
-        });
+    // 且該 milestone 為新達成項目時觸發提示。
+    if (pMs.length > cachedPMs.length) {
+      const cachedIds = new Set(cachedPMs.map(m => String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '')));
+      const addedMilestones = pMs.filter(m => {
+        const id = String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '');
+        return id && !cachedIds.has(id);
+      });
+      if (lastLogin) {
+        const lastLoginTime = new Date(lastLogin).getTime();
         newPlayerMs = addedMilestones.filter(m => {
-          if (!m || !m.completedAt) return false;
+          if (!m || !m.completedAt) return true;
           const compTime = new Date(m.completedAt).getTime();
-          return !isNaN(compTime) && compTime > lastLoginTime;
+          return isNaN(compTime) || compTime >= (lastLoginTime - 300000);
         });
+      } else {
+        newPlayerMs = addedMilestones;
       }
     }
 
-    // 小組篇章里程碑同樣遵循嚴格增量與時間判定
-    if (gMs.length > cachedGMs.length && lastLogin) {
-      const lastLoginTime = new Date(lastLogin).getTime();
-      if (!isNaN(lastLoginTime)) {
-        const cachedGIds = new Set(cachedGMs.map(m => String((m && (m.id || m.chapterId)) || '')));
-        const addedGMilestones = gMs.filter(m => {
-          const id = String((m && (m.id || m.chapterId)) || '');
-          return id && !cachedGIds.has(id);
-        });
+    // 小組篇章里程碑同樣遵循嚴格增量判定
+    if (gMs.length > cachedGMs.length) {
+      const cachedGIds = new Set(cachedGMs.map(m => String((m && (m.id || m.chapterId)) || '')));
+      const addedGMilestones = gMs.filter(m => {
+        const id = String((m && (m.id || m.chapterId)) || '');
+        return id && !cachedGIds.has(id);
+      });
+      if (lastLogin) {
+        const lastLoginTime = new Date(lastLogin).getTime();
         newGroupMs = addedGMilestones.filter(m => {
-          if (!m || !m.completedAt) return false;
+          if (!m || !m.completedAt) return true;
           const compTime = new Date(m.completedAt).getTime();
-          return !isNaN(compTime) && compTime > lastLoginTime;
+          return isNaN(compTime) || compTime >= (lastLoginTime - 300000);
         });
+      } else {
+        newGroupMs = addedGMilestones;
       }
     }
 

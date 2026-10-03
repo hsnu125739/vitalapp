@@ -616,8 +616,11 @@
         imgEl.src = this.resolvePictureKey_(chapter.pictureKey, '../Chest_Assets/journey_1.webp');
       }
 
+      const chapterHistory = (this.currentJourneyData && this.currentJourneyData.chapterHistory) || [];
+      const milestones = (this.currentJourneyData && this.currentJourneyData.milestones) || [];
+      const isPassed = chapterHistory.some(m => m.chapterId === chapter.chapterId) || milestones.some(m => m.id === chapter.chapterId);
+
       const tPoint = Number(chapter.targetPoint) || 0;
-      const isPassed = score >= tPoint;
       const gap = Math.max(0, tPoint - score);
 
       if (statusEl) {
@@ -625,23 +628,32 @@
           statusEl.textContent = '🏆 已達成';
           statusEl.style.background = '#dcfce7';
           statusEl.style.color = '#15803d';
-        } else if (gap > 0) {
-          statusEl.textContent = '🏃 攻克中';
-          statusEl.style.background = '#fef3c7';
-          statusEl.style.color = '#d97706';
         } else {
-          statusEl.textContent = '🔒 未解鎖';
-          statusEl.style.background = '#f1f5f9';
-          statusEl.style.color = '#64748b';
+          const targetChapter = this.chaptersConfig ? this.chaptersConfig.find(c => !chapterHistory.some(m => m.chapterId === c.chapterId) && !milestones.some(m => m.id === c.chapterId)) : null;
+          const isCurrent = targetChapter ? targetChapter.chapterId === chapter.chapterId : (chapter.order === 1);
+          if (isCurrent) {
+            statusEl.textContent = '🏃 攻克中';
+            statusEl.style.background = '#fef3c7';
+            statusEl.style.color = '#d97706';
+          } else {
+            statusEl.textContent = '🔒 未解鎖';
+            statusEl.style.background = '#f1f5f9';
+            statusEl.style.color = '#64748b';
+          }
         }
       }
 
       if (gapEl) {
         if (isPassed) {
-          gapEl.textContent = `✅ 小組累積操練分已突破門檻（門檻：${tPoint.toLocaleString()} 點）`;
+          gapEl.textContent = tPoint > 0
+            ? `✅ 小組累積操練分已突破門檻（門檻：${tPoint.toLocaleString()} 點）`
+            : `✅ 小組已達成篇章解鎖條件`;
           gapEl.style.color = '#15803d';
-        } else {
+        } else if (tPoint > 0) {
           gapEl.textContent = `⚡ 距離達成【${chapter.name}】還差 ${gap.toLocaleString()} 點（門檻：${tPoint.toLocaleString()} 點）`;
+          gapEl.style.color = '#0284c7';
+        } else {
+          gapEl.textContent = `⚡ 正在攻克【${chapter.name}】（請參照下方達成條件）`;
           gapEl.style.color = '#0284c7';
         }
       }
