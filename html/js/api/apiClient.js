@@ -122,12 +122,15 @@
         PROGRESSION: { name: 'PROGRESSION', url: '', frame: null, source: null, readyPromise: null, readyResolve: null }
       };
 
-      // 照顧區快取 SWR
+      // 照顧區快取 SWR (若無快取則預設為最新 6 照顧區與 45 大區)
       this.cachedAreaOptions = null;
       try {
         const stored = this.storage.getItem('vital_area_options_cache');
         if (stored) this.cachedAreaOptions = JSON.parse(stored);
       } catch (e) {}
+      if (!this.cachedAreaOptions || !this.cachedAreaOptions.length) {
+        this.cachedAreaOptions = DEFAULT_DISTRICTS;
+      }
 
       // 若在瀏覽器中且具備 window.APP_RUNTIME_CONFIG，自動初始化 Iframe Bridge 監聽
       if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
@@ -928,9 +931,12 @@
     }
   }
 
+  // 附加預設照顧區與大區靜態常數
+  ApiClient.DEFAULT_DISTRICTS = DEFAULT_DISTRICTS;
+
   // 匯出至全域與模組環境
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { ApiClient };
+    module.exports = { ApiClient, DEFAULT_DISTRICTS };
   }
   global.ApiClient = ApiClient;
 })(typeof window !== 'undefined' ? window : global);

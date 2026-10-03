@@ -23,11 +23,20 @@
       this.areaSelect = document.getElementById('registerCareArea');
       this.authMessage = document.getElementById('authMessage');
 
-      this.areaData = [];
+      // 預設資料：在尚未抓到後端資料時提供即時預設連動 (最新 6 照顧區與 45 大區)
+      const defaultDistricts = (apiClient && apiClient.cachedAreaOptions && apiClient.cachedAreaOptions.length)
+        ? apiClient.cachedAreaOptions
+        : ((typeof ApiClient !== 'undefined' && ApiClient.DEFAULT_DISTRICTS) || []);
+      this.areaData = defaultDistricts;
       this.registerAvatarNo = 1;
       this.registerAvatarGender = 'male';
 
       this.initEvents_();
+
+      // 在尚未抓到後端資料時，立即以前端預設值填充下拉選單
+      if (this.districtSelect && this.areaData.length > 0) {
+        this.renderDistrictOptions_(this.areaData);
+      }
     }
 
     initEvents_() {
