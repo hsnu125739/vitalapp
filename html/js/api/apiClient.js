@@ -46,24 +46,55 @@
 
   const DEFAULT_DISTRICTS = [
     {
-      careDistrict: '西照顧區',
+      careDistrict: '東',
       districtSortOrder: 1,
-      careAreas: [{ careArea: '西一區' }, { careArea: '西二區' }, { careArea: '鼓山大區' }]
+      careAreas: [
+        { careArea: '昌裕' }, { careArea: '文藻' }, { careArea: '建興' },
+        { careArea: '大豐' }, { careArea: '文山' }, { careArea: '仁鳥' },
+        { careArea: '旗美一' }, { careArea: '旗美二' }, { careArea: '旗美三' }
+      ]
     },
     {
-      careDistrict: '東照顧區',
+      careDistrict: '西',
       districtSortOrder: 2,
-      careAreas: [{ careArea: '東一區' }, { careArea: '東二區' }, { careArea: '鳳山大區' }]
+      careAreas: [
+        { careArea: '左營' }, { careArea: '翠華' }, { careArea: '後驛' },
+        { careArea: '明誠' }, { careArea: '博愛' }, { careArea: '重愛' }, { careArea: '裕誠' }
+      ]
     },
     {
-      careDistrict: '北照顧區',
+      careDistrict: '中',
       districtSortOrder: 3,
-      careAreas: [{ careArea: '北一區' }, { careArea: '北二區' }, { careArea: '三民大區' }]
+      careAreas: [
+        { careArea: '新盛' }, { careArea: '四維' }, { careArea: '七賢' },
+        { careArea: '臺語' }, { careArea: '愛河' }, { careArea: '壽山' }
+      ]
     },
     {
-      careDistrict: '南照顧區',
+      careDistrict: '南A',
       districtSortOrder: 4,
-      careAreas: [{ careArea: '南一區' }, { careArea: '南二區' }, { careArea: '前鎮大區' }]
+      careAreas: [
+        { careArea: '新苓' }, { careArea: '五福' }, { careArea: '文化' },
+        { careArea: '民生' }, { careArea: '三多' }, { careArea: '中正' },
+        { careArea: '前鎮' }, { careArea: '民權' }, { careArea: '光華' },
+        { careArea: '獅甲' }, { careArea: '瑞隆' }
+      ]
+    },
+    {
+      careDistrict: '南B',
+      districtSortOrder: 5,
+      careAreas: [
+        { careArea: '五甲' }, { careArea: '曹公' }, { careArea: '青年' },
+        { careArea: '中山' }, { careArea: '小港' }, { careArea: '大寮' }, { careArea: '林園' }
+      ]
+    },
+    {
+      careDistrict: '北',
+      districtSortOrder: 6,
+      careAreas: [
+        { careArea: '岡山' }, { careArea: '路竹' }, { careArea: '楠梓' },
+        { careArea: '右昌' }, { careArea: '梓橋' }
+      ]
     }
   ];
 
@@ -369,18 +400,41 @@
 
       // 照顧區特例：0ms SWR 秒開
       if (action === 'getRegistrationAreaOptions') {
+        const force = Boolean(data && (data.forceRefresh || data.bypassCache || data.clearCache));
         const activeOptions = (this.cachedAreaOptions && this.cachedAreaOptions.length)
           ? this.cachedAreaOptions
           : DEFAULT_DISTRICTS;
 
-        // 背景非同步向後端同步最新定義
-        this.requestRaw_('getRegistrationAreaOptions', data).then((res) => {
+        // 若要求強制刷新，則直接向後端請求最新資料
+        if (force) {
+          const res = await this.requestRaw_('getRegistrationAreaOptions', payload);
           const dList = res && (res.districts || (res.data && res.data.districts));
           if (Array.isArray(dList) && dList.length > 0) {
             this.cachedAreaOptions = dList;
             try {
               this.storage.setItem('vital_area_options_cache', JSON.stringify(dList));
             } catch (e) {}
+            if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+              window.dispatchEvent(new CustomEvent('vital_area_options_updated', { detail: dList }));
+            }
+            return { success: true, districts: dList };
+          }
+          return { success: true, districts: activeOptions };
+        }
+
+        // SWR：背景非同步向後端同步最新定義，若有異動觸發事件熱更新 UI
+        this.requestRaw_('getRegistrationAreaOptions', payload).then((res) => {
+          const dList = res && (res.districts || (res.data && res.data.districts));
+          if (Array.isArray(dList) && dList.length > 0) {
+            const oldStr = JSON.stringify(this.cachedAreaOptions || []);
+            const newStr = JSON.stringify(dList);
+            this.cachedAreaOptions = dList;
+            try {
+              this.storage.setItem('vital_area_options_cache', newStr);
+            } catch (e) {}
+            if (oldStr !== newStr && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+              window.dispatchEvent(new CustomEvent('vital_area_options_updated', { detail: dList }));
+            }
           }
         }).catch(() => {});
 
@@ -783,7 +837,9 @@
       return this.request('updatePlayerAvatar', payload);
     }
 
-    getRegistrationAreaOptions() { return this.request('getRegistrationAreaOptions'); }
+    getRegistrationAreaOptions(forceRefresh = false) {
+      return this.request('getRegistrationAreaOptions', { forceRefresh: Boolean(forceRefresh) });
+    }
 
     // 操練與聚會打卡
     submitDailyPractice(data) { return this.request('submitDailyPractice', data); }

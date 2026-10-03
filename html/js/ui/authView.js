@@ -96,6 +96,15 @@
         });
       }
 
+      // 監聽照顧區資料熱更新事件
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('vital_area_options_updated', (evt) => {
+          if (Array.isArray(evt.detail) && evt.detail.length > 0) {
+            this.renderDistrictOptions_(evt.detail);
+          }
+        });
+      }
+
       // 註冊頭像選擇器
       const genderSelect = document.getElementById('registerAvatarGender');
       if (genderSelect) {
@@ -243,28 +252,38 @@
       await this.loadAreaOptions_();
     }
 
-    async loadAreaOptions_() {
+    async loadAreaOptions_(force = false) {
       if (!this.districtSelect) return;
       try {
-        const res = await this.apiClient.getRegistrationAreaOptions();
+        const res = await this.apiClient.getRegistrationAreaOptions(force);
         const districts = (res && (res.districts || (res.data && res.data.districts))) || [];
-        this.areaData = districts;
-
-        this.districtSelect.innerHTML = '<option value="">請選擇照顧區</option>';
-        districts.forEach(d => {
-          const opt = document.createElement('option');
-          opt.value = d.careDistrict;
-          opt.textContent = d.careDistrict;
-          this.districtSelect.appendChild(opt);
-        });
-        this.districtSelect.disabled = false;
-
         if (districts.length > 0) {
-          this.districtSelect.value = districts[0].careDistrict;
-          this.updateAreaOptions_(districts[0].careDistrict);
+          this.renderDistrictOptions_(districts);
         }
       } catch (err) {
         console.warn('[AuthView] 讀取照顧區選單失敗', err);
+      }
+    }
+
+    renderDistrictOptions_(districts) {
+      if (!this.districtSelect) return;
+      const prevDistrict = this.districtSelect.value;
+      this.areaData = districts;
+
+      this.districtSelect.innerHTML = '<option value="">請選擇照顧區</option>';
+      districts.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.careDistrict;
+        opt.textContent = d.careDistrict;
+        this.districtSelect.appendChild(opt);
+      });
+      this.districtSelect.disabled = false;
+
+      if (districts.length > 0) {
+        const stillExists = districts.some(d => d.careDistrict === prevDistrict);
+        const targetVal = (prevDistrict && stillExists) ? prevDistrict : districts[0].careDistrict;
+        this.districtSelect.value = targetVal;
+        this.updateAreaOptions_(targetVal);
       }
     }
 
