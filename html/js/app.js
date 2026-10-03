@@ -695,15 +695,23 @@
   }
 
   function checkMilestone(playerMilestones, groupMilestones, pId = null, gId = null, configs = {}) {
-    let lastLogin = null;
+    // 直接讀取後端給的 currentUserProfile.lastLoginAt
+    // 若沒有值，代表是剛註冊，直接結束 checkMilestone
+    const profile = (typeof currentUserProfile !== 'undefined' && currentUserProfile) || (typeof global !== 'undefined' && global.currentUserProfile) || null;
+    const lastLogin = profile && (profile.lastLoginAt || profile.lastLogin);
+    if (!lastLogin) {
+      return { newPlayerMs: [], newGroupMs: [] };
+    }
+
+    const lastLoginTime = new Date(lastLogin).getTime();
+    if (isNaN(lastLoginTime)) {
+      return { newPlayerMs: [], newGroupMs: [] };
+    }
+
     let cachedPMs = [];
     let cachedGMs = [];
 
     if (typeof localStorage !== 'undefined') {
-      try {
-        lastLogin = (pId ? localStorage.getItem(`vital_last_login_${pId}`) : null) || localStorage.getItem('vital_last_login') || null;
-      } catch (e) {}
-
       try {
         const cachedPStr = (pId ? localStorage.getItem(`vital_player_milestones_${pId}`) : null) || localStorage.getItem('vital_player_milestones');
         if (cachedPStr) {
@@ -727,62 +735,50 @@
     let newPlayerMs = [];
     let newGroupMs = [];
 
-    // 條件：只有當 playerProgress 的 milestone 有新達成項目時觸發提示。
-    const cachedIds = new Set(cachedPMs.map(m => String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '')));
-    const addedMilestones = pMs.filter(m => {
-      const id = String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '');
-      return id && !cachedIds.has(id);
-    });
-    if (addedMilestones.length > 0) {
-      if (lastLogin) {
-        const lastLoginTime = new Date(lastLogin).getTime();
-        newPlayerMs = addedMilestones.filter(m => {
-          if (!m || !m.completedAt) return true;
-          const compTime = new Date(m.completedAt).getTime();
-          return isNaN(compTime) || compTime >= (lastLoginTime - 3600000);
-        });
-      } else {
-        newPlayerMs = addedMilestones;
-      }
+    // 條件：只有當 playerProgress 的 milestone 數量比快取多（有新 milestone），
+    // 且達成時間晚於上次登入時間 lastLogin 時才提示。
+    if (pMs.length > cachedPMs.length) {
+      const cachedIds = new Set(cachedPMs.map(m => String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '')));
+      const addedMilestones = pMs.filter(m => {
+        const id = String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '');
+        return id && !cachedIds.has(id);
+      });
+      newPlayerMs = addedMilestones.filter(m => {
+        if (!m || !m.completedAt) return false;
+        const compTime = new Date(m.completedAt).getTime();
+        return !isNaN(compTime) && compTime > lastLoginTime;
+      });
     }
 
-    // 小組篇章里程碑同樣遵循嚴格增量判定
-    const cachedGIds = new Set(cachedGMs.map(m => String((m && (m.id || m.chapterId)) || '')));
-    const addedGMilestones = gMs.filter(m => {
-      const id = String((m && (m.id || m.chapterId)) || '');
-      return id && !cachedGIds.has(id);
-    });
-    if (addedGMilestones.length > 0) {
-      if (lastLogin) {
-        const lastLoginTime = new Date(lastLogin).getTime();
-        newGroupMs = addedGMilestones.filter(m => {
-          if (!m || !m.completedAt) return true;
-          const compTime = new Date(m.completedAt).getTime();
-          return isNaN(compTime) || compTime >= (lastLoginTime - 3600000);
-        });
-      } else {
-        newGroupMs = addedGMilestones;
-      }
+    // 小組篇章里程碑同樣遵循嚴格增量與時間判定
+    if (gMs.length > cachedGMs.length) {
+      const cachedGIds = new Set(cachedGMs.map(m => String((m && (m.id || m.chapterId)) || '')));
+      const addedGMilestones = gMs.filter(m => {
+        const id = String((m && (m.id || m.chapterId)) || '');
+        return id && !cachedIds.has(id);
+      });
+      newGroupMs = addedGMilestones.filter(m => {
+        if (!m || !m.completedAt) return false;
+        const compTime = new Date(m.completedAt).getTime();
+        return !isNaN(compTime) && compTime > lastLoginTime;
+      });
     }
 
     if (newPlayerMs.length > 0 || newGroupMs.length > 0) {
       showMilestonesCelebration(newPlayerMs, newGroupMs, configs);
     }
 
-    // 判定完成後，寫入 localStorage 供下次比對
-    const nowIso = new Date().toISOString();
+    // 判定完成後，僅寫入成就清單快取供下次比對，不操作任何 vital_last_login
     if (typeof localStorage !== 'undefined') {
       try {
         if (pId) {
           localStorage.setItem(`vital_player_milestones_${pId}`, JSON.stringify(pMs));
-          localStorage.setItem(`vital_last_login_${pId}`, nowIso);
         }
         if (gId) {
           localStorage.setItem(`vital_group_milestones_${gId}`, JSON.stringify(gMs));
         }
         localStorage.setItem('vital_player_milestones', JSON.stringify(pMs));
         localStorage.setItem('vital_group_milestones', JSON.stringify(gMs));
-        localStorage.setItem('vital_last_login', nowIso);
       } catch (e) {}
     }
 
