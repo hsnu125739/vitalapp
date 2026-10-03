@@ -1071,6 +1071,9 @@
         localStorage.setItem('vital_current_player', JSON.stringify(profile));
       } catch (e) {}
     }
+    if (profileView && typeof profileView.showHome === 'function') {
+      profileView.showHome();
+    }
     loadUserData(false);
   }
 
@@ -1114,6 +1117,10 @@
     
     if (typeof document !== 'undefined') {
       document.querySelectorAll('.modal-layer').forEach(m => m.classList.add('hidden'));
+    }
+
+    if (profileView && typeof profileView.showHome === 'function') {
+      profileView.showHome();
     }
     
     authView.showAuth();

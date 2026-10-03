@@ -35,6 +35,7 @@
       this.currentJourneyData = null;
 
       this.initEvents_();
+      this.showHome();
     }
 
     initEvents_() {

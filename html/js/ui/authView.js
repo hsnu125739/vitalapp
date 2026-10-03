@@ -345,13 +345,22 @@
       if (this.myViewEl) this.myViewEl.classList.add('hidden');
       const bottomNav = document.getElementById('bottomNav');
       if (bottomNav) bottomNav.classList.add('hidden');
+      const navHome = document.getElementById('navHomeBtn');
+      const navMy = document.getElementById('navMyBtn');
+      if (navHome) navHome.classList.add('active');
+      if (navMy) navMy.classList.remove('active');
     }
 
     hideAuth() {
       if (this.authViewEl) this.authViewEl.classList.add('hidden');
       if (this.homeViewEl) this.homeViewEl.classList.remove('hidden');
+      if (this.myViewEl) this.myViewEl.classList.add('hidden');
       const bottomNav = document.getElementById('bottomNav');
       if (bottomNav) bottomNav.classList.remove('hidden');
+      const navHome = document.getElementById('navHomeBtn');
+      const navMy = document.getElementById('navMyBtn');
+      if (navHome) navHome.classList.add('active');
+      if (navMy) navMy.classList.remove('active');
     }
 
     showMessage(msg, type = 'info') {
