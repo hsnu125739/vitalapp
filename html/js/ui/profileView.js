@@ -494,15 +494,25 @@
                 this.currentUserProfile.memberCount = 1;
               }
               this.render(this.currentUserProfile, null);
+
+              // 主動觸發 Progression 小組里程碑判定 (CHP_01)
+              if (this.apiClient && typeof this.apiClient.evaluateTargetMilestones === 'function') {
+                try {
+                  await this.apiClient.evaluateTargetMilestones('CHP_01', createdGId);
+                } catch (e) {
+                  console.warn('觸發小組里程碑檢驗失敗:', e);
+                }
+              }
+
               if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
-                window.AppCoordinator.updateUserGroupState(createdGId, groupName, true, 1);
+                await window.AppCoordinator.updateUserGroupState(createdGId, groupName, true, 1);
               }
 
               alert(`恭喜！活力組【${groupName}】建立成功！`);
               if (vitalModal) vitalModal.classList.add('hidden');
               if (nameInput) nameInput.value = '';
               if (typeof window.AppCoordinator?.refreshUserData === 'function') {
-                window.AppCoordinator.refreshUserData();
+                await window.AppCoordinator.refreshUserData();
               }
             } else {
               alert((res && (res.error || res.message)) || '建立活力組失敗');
@@ -552,24 +562,25 @@
                 this.currentUserProfile.memberCount = mCount;
               }
               this.render(this.currentUserProfile, null);
-              if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
-                window.AppCoordinator.updateUserGroupState(newGId, newGName, false, mCount);
-              }
 
-              // 2. 主動觸發 Progression 小組里程碑即時結算（檢驗組員人數 >= 2 解鎖第一篇章）
+              // 2. 主動觸發 Progression 小組里程碑即時結算（明確縮小 scope 為 CHP_01，檢驗組員人數 >= 2 解鎖第一篇章）
               if (this.apiClient && typeof this.apiClient.evaluateTargetMilestones === 'function') {
                 try {
-                  await this.apiClient.evaluateTargetMilestones('GROUP', newGId);
+                  await this.apiClient.evaluateTargetMilestones('CHP_01', newGId);
                 } catch (e) {
                   console.warn('觸發小組里程碑檢驗失敗:', e);
                 }
+              }
+
+              if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
+                await window.AppCoordinator.updateUserGroupState(newGId, newGName, false, mCount);
               }
 
               alert('成功加入活力組！歡迎一同在主裡奔跑！');
               if (vitalModal) vitalModal.classList.add('hidden');
               if (codeInput) codeInput.value = '';
               if (typeof window.AppCoordinator?.refreshUserData === 'function') {
-                window.AppCoordinator.refreshUserData();
+                await window.AppCoordinator.refreshUserData();
               }
             } else {
               alert((res && (res.error || res.message)) || '加入活力組失敗，請檢查邀請碼');

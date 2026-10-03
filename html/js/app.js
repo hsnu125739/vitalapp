@@ -510,7 +510,7 @@
       }
 
       // 4. checkMilestone (嚴格以後端收到的 progress 為標準，前端未結算/快取不觸發)
-      if (hasBackendPlayerProgress) {
+      if (hasBackendPlayerProgress || (groupMilestones && groupMilestones.length > 0)) {
         checkMilestone(playerMilestones, groupMilestones, currentPId, currentGId, {
           chapters: chaptersConfig,
           achievements: achievementsConfig,
@@ -649,6 +649,11 @@
         });
         if (found && found.name) return found.name;
       }
+      const match = id.match(/(?:CHP_|CHAPTER_|CH)(\d+)/i);
+      if (match) {
+        const idx = parseInt(match[1], 10);
+        if (idx >= 1 && idx <= 8 && CHAPTER_NAMES[idx - 1]) return CHAPTER_NAMES[idx - 1];
+      }
     }
 
     // 個人成就/寶箱查表
@@ -722,20 +727,19 @@
     let newPlayerMs = [];
     let newGroupMs = [];
 
-    // 條件：只有當 playerProgress 的 milestone 比快取資料多（代表有新 milestone），
-    // 且該 milestone 為新達成項目時觸發提示。
-    if (pMs.length > cachedPMs.length) {
-      const cachedIds = new Set(cachedPMs.map(m => String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '')));
-      const addedMilestones = pMs.filter(m => {
-        const id = String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '');
-        return id && !cachedIds.has(id);
-      });
+    // 條件：只有當 playerProgress 的 milestone 有新達成項目時觸發提示。
+    const cachedIds = new Set(cachedPMs.map(m => String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '')));
+    const addedMilestones = pMs.filter(m => {
+      const id = String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '');
+      return id && !cachedIds.has(id);
+    });
+    if (addedMilestones.length > 0) {
       if (lastLogin) {
         const lastLoginTime = new Date(lastLogin).getTime();
         newPlayerMs = addedMilestones.filter(m => {
           if (!m || !m.completedAt) return true;
           const compTime = new Date(m.completedAt).getTime();
-          return isNaN(compTime) || compTime >= (lastLoginTime - 300000);
+          return isNaN(compTime) || compTime >= (lastLoginTime - 3600000);
         });
       } else {
         newPlayerMs = addedMilestones;
@@ -743,18 +747,18 @@
     }
 
     // 小組篇章里程碑同樣遵循嚴格增量判定
-    if (gMs.length > cachedGMs.length) {
-      const cachedGIds = new Set(cachedGMs.map(m => String((m && (m.id || m.chapterId)) || '')));
-      const addedGMilestones = gMs.filter(m => {
-        const id = String((m && (m.id || m.chapterId)) || '');
-        return id && !cachedGIds.has(id);
-      });
+    const cachedGIds = new Set(cachedGMs.map(m => String((m && (m.id || m.chapterId)) || '')));
+    const addedGMilestones = gMs.filter(m => {
+      const id = String((m && (m.id || m.chapterId)) || '');
+      return id && !cachedGIds.has(id);
+    });
+    if (addedGMilestones.length > 0) {
       if (lastLogin) {
         const lastLoginTime = new Date(lastLogin).getTime();
         newGroupMs = addedGMilestones.filter(m => {
           if (!m || !m.completedAt) return true;
           const compTime = new Date(m.completedAt).getTime();
-          return isNaN(compTime) || compTime >= (lastLoginTime - 300000);
+          return isNaN(compTime) || compTime >= (lastLoginTime - 3600000);
         });
       } else {
         newGroupMs = addedGMilestones;
@@ -1165,9 +1169,9 @@
           currentJourneyData = deriveJourneyFromGroupProgress(data, currentUserProfile);
           try {
             localStorage.setItem(`vital_group_progress_${groupId}`, JSON.stringify(data));
-            localStorage.setItem(`vital_group_milestones_${groupId}`, JSON.stringify(groupMilestones));
           } catch (e) {}
-          // 注意：調組/建組僅更新小組進度快取，不觸發里程碑提示（必須由後端 loadUserData 之 playerProgress 為準）
+          // 注意：調組/建組僅更新小組進度快取，不在此預先寫入 vital_group_milestones_${groupId}，
+          // 必須保留由 checkMilestone 依據後端最新 progress 判定增量並彈出慶祝提示
         }
       } catch (jErr) {
         console.warn('[App] 創組/加入小組後讀取小組進度失敗', jErr);

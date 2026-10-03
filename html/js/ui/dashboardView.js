@@ -441,6 +441,27 @@
       this.updatePracticeLockState_(lockReason);
     }
 
+    isChapterPassed_(chapId, journeyData = null) {
+      if (!chapId) return false;
+      const jData = journeyData || this.currentJourneyData || {};
+      const chapterHistory = jData.chapterHistory || [];
+      const milestones = jData.milestones || [];
+      const targetId = String(chapId).trim().toUpperCase();
+      const normTarget = targetId.replace(/^(?:CHAPTER_|CHP_|CH)/i, '');
+
+      const matchMilestone = (m) => {
+        if (!m) return false;
+        if (typeof m === 'string') {
+          const s = m.trim().toUpperCase();
+          return s === targetId || s.replace(/^(?:CHAPTER_|CHP_|CH)/i, '') === normTarget;
+        }
+        const mId = String(m.id || m.chapterId || m.taskId || m.achievementId || '').trim().toUpperCase();
+        return mId === targetId || mId.replace(/^(?:CHAPTER_|CHP_|CH)/i, '') === normTarget;
+      };
+
+      return chapterHistory.some(matchMilestone) || milestones.some(matchMilestone);
+    }
+
     renderJourneyNodes_(journeyData, chaptersConfig = null) {
       let chapters = chaptersConfig;
       if (!Array.isArray(chapters) || chapters.length === 0) {
@@ -495,13 +516,7 @@
       this.currentGroupScore = groupScore;
 
       // 完全根據後端回傳的真實成就紀錄來判定篇章進度
-      const chapterHistory = (journeyData && journeyData.chapterHistory) || [];
-      const milestones = (journeyData && journeyData.milestones) || [];
-      
-      // 輔助函式：判斷某篇章是否真實在後端已達成
-      const isChapterPassed = (chapId) => {
-        return chapterHistory.some(m => m.chapterId === chapId) || milestones.some(m => m.id === chapId);
-      };
+      const isChapterPassed = (chapId) => this.isChapterPassed_(chapId, journeyData);
 
       // 尋找當前正在挑戰的目標篇章（第一個尚未達成的篇章；若全達成則為最後一個）
       let targetChapter = chapters.find(c => !isChapterPassed(c.chapterId));
@@ -618,7 +633,7 @@
 
       const chapterHistory = (this.currentJourneyData && this.currentJourneyData.chapterHistory) || [];
       const milestones = (this.currentJourneyData && this.currentJourneyData.milestones) || [];
-      const isPassed = chapterHistory.some(m => m.chapterId === chapter.chapterId) || milestones.some(m => m.id === chapter.chapterId);
+      const isPassed = this.isChapterPassed_(chapter.chapterId, this.currentJourneyData);
 
       const tPoint = Number(chapter.targetPoint) || 0;
       const gap = Math.max(0, tPoint - score);
@@ -629,7 +644,7 @@
           statusEl.style.background = '#dcfce7';
           statusEl.style.color = '#15803d';
         } else {
-          const targetChapter = this.chaptersConfig ? this.chaptersConfig.find(c => !chapterHistory.some(m => m.chapterId === c.chapterId) && !milestones.some(m => m.id === c.chapterId)) : null;
+          const targetChapter = this.chaptersConfig ? this.chaptersConfig.find(c => !this.isChapterPassed_(c.chapterId, this.currentJourneyData)) : null;
           const isCurrent = targetChapter ? targetChapter.chapterId === chapter.chapterId : (chapter.order === 1);
           if (isCurrent) {
             statusEl.textContent = '🏃 攻克中';
