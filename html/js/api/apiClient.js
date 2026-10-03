@@ -44,6 +44,36 @@
     'getTasksConfig'
   ]);
 
+  /**
+   * 在途請求互斥鎖動作清單 (In-Flight Exclusive Mutating Actions)
+   * 規則：同時間僅允許一個同名寫入動作在途傳輸，重複呼叫於前端網路層直接攔截，絕不送至後端。
+   * 注意：每日與每週打卡 (submitDailyPractice, submitMeetingPractice) 具備專屬 OptimisticPracticeStore 佇列，嚴格排除於此鎖之外。
+   */
+  const MUTATING_EXCLUSIVE_ACTIONS = new Set([
+    'createGroup',
+    'createVitalGroup',
+    'leaveGroup',
+    'leaveVitalGroup',
+    'joinGroup',
+    'joinVitalGroupByInviteCode',
+    'transferGroupLeader',
+    'updatePlayerAvatar',
+    'updateMyPassword',
+    'updatePassword',
+    'updateProfile',
+    'register',
+    'login',
+    'adminLogin',
+    'updateAdminPassword',
+    'createGroupPost',
+    'setGroupAnnouncement',
+    'pinGroupPost',
+    'setPinnedPost',
+    'clearGroupAnnouncement',
+    'deleteGroupPost',
+    'createAnnouncement'
+  ]);
+
   const DEFAULT_DISTRICTS = [
     {
       careDistrict: '東',
@@ -114,6 +144,7 @@
       this.token = this.storage.getItem('vital_session_token') || null;
       this.requestSeq = 0;
       this.pendingRequests = new Map();
+      this.inFlightMutex = new Set();
 
       // Iframe 通道池
       this.channels = {
@@ -390,64 +421,90 @@
     // --- 統一 RPC 派發核心 (Request Core) ---
 
     async request(action, data = {}) {
-      const payload = {
-        action,
-        token: this.token,
-        sessionToken: this.token,
-        playerId: (data && data.playerId) || this.getPlayerIdFromToken() || '',
-        groupId: (data && data.groupId) || this.getGroupIdFromStorage() || '',
-        matrixColIndex: (data && data.matrixColIndex) || this.getMatrixColIndexFromStorage(),
-        postsColIndex: (data && data.postsColIndex) || this.getPostsColIndexFromStorage(),
-        ...data
-      };
+      // 在途請求互斥鎖 (In-Flight Action Mutex)：針對排他性寫入動作，嚴格防重送
+      const isExclusive = MUTATING_EXCLUSIVE_ACTIONS.has(action);
+      const lockKey = isExclusive ? action : null;
 
-      // 照顧區特例：0ms SWR 秒開
-      if (action === 'getRegistrationAreaOptions') {
-        const force = Boolean(data && (data.forceRefresh || data.bypassCache || data.clearCache));
-        const activeOptions = (this.cachedAreaOptions && this.cachedAreaOptions.length)
-          ? this.cachedAreaOptions
-          : DEFAULT_DISTRICTS;
-
-        // 若要求強制刷新，則直接向後端請求最新資料
-        if (force) {
-          const res = await this.requestRaw_('getRegistrationAreaOptions', payload);
-          const dList = res && (res.districts || (res.data && res.data.districts));
-          if (Array.isArray(dList) && dList.length > 0) {
-            this.cachedAreaOptions = dList;
-            try {
-              this.storage.setItem('vital_area_options_cache', JSON.stringify(dList));
-            } catch (e) {}
-            if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-              window.dispatchEvent(new CustomEvent('vital_area_options_updated', { detail: dList }));
-            }
-            return { success: true, districts: dList };
-          }
-          return { success: true, districts: activeOptions };
+      if (lockKey) {
+        if (!this.inFlightMutex) {
+          this.inFlightMutex = new Set();
         }
-
-        // SWR：背景非同步向後端同步最新定義，若有異動觸發事件熱更新 UI
-        this.requestRaw_('getRegistrationAreaOptions', payload).then((res) => {
-          const dList = res && (res.districts || (res.data && res.data.districts));
-          if (Array.isArray(dList) && dList.length > 0) {
-            const oldStr = JSON.stringify(this.cachedAreaOptions || []);
-            const newStr = JSON.stringify(dList);
-            this.cachedAreaOptions = dList;
-            try {
-              this.storage.setItem('vital_area_options_cache', newStr);
-            } catch (e) {}
-            if (oldStr !== newStr && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-              window.dispatchEvent(new CustomEvent('vital_area_options_updated', { detail: dList }));
-            }
-          }
-        }).catch(() => {});
-
-        return {
-          success: true,
-          districts: activeOptions
-        };
+        if (this.inFlightMutex.has(lockKey)) {
+          return {
+            success: false,
+            code: 'IN_FLIGHT_LOCKED',
+            error: '操作處理中，請勿重複提交',
+            action,
+            isBlocked: true
+          };
+        }
+        this.inFlightMutex.add(lockKey);
       }
 
-      return this.requestRaw_(action, payload);
+      try {
+        const payload = {
+          action,
+          token: this.token,
+          sessionToken: this.token,
+          playerId: (data && data.playerId) || this.getPlayerIdFromToken() || '',
+          groupId: (data && data.groupId) || this.getGroupIdFromStorage() || '',
+          matrixColIndex: (data && data.matrixColIndex) || this.getMatrixColIndexFromStorage(),
+          postsColIndex: (data && data.postsColIndex) || this.getPostsColIndexFromStorage(),
+          ...data
+        };
+
+        // 照顧區特例：0ms SWR 秒開
+        if (action === 'getRegistrationAreaOptions') {
+          const force = Boolean(data && (data.forceRefresh || data.bypassCache || data.clearCache));
+          const activeOptions = (this.cachedAreaOptions && this.cachedAreaOptions.length)
+            ? this.cachedAreaOptions
+            : DEFAULT_DISTRICTS;
+
+          // 若要求強制刷新，則直接向後端請求最新資料
+          if (force) {
+            const res = await this.requestRaw_('getRegistrationAreaOptions', payload);
+            const dList = res && (res.districts || (res.data && res.data.districts));
+            if (Array.isArray(dList) && dList.length > 0) {
+              this.cachedAreaOptions = dList;
+              try {
+                this.storage.setItem('vital_area_options_cache', JSON.stringify(dList));
+              } catch (e) {}
+              if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+                window.dispatchEvent(new CustomEvent('vital_area_options_updated', { detail: dList }));
+              }
+              return { success: true, districts: dList };
+            }
+            return { success: true, districts: activeOptions };
+          }
+
+          // SWR：背景非同步向後端同步最新定義，若有異動觸發事件熱更新 UI
+          this.requestRaw_('getRegistrationAreaOptions', payload).then((res) => {
+            const dList = res && (res.districts || (res.data && res.data.districts));
+            if (Array.isArray(dList) && dList.length > 0) {
+              const oldStr = JSON.stringify(this.cachedAreaOptions || []);
+              const newStr = JSON.stringify(dList);
+              this.cachedAreaOptions = dList;
+              try {
+                this.storage.setItem('vital_area_options_cache', newStr);
+              } catch (e) {}
+              if (oldStr !== newStr && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+                window.dispatchEvent(new CustomEvent('vital_area_options_updated', { detail: dList }));
+              }
+            }
+          }).catch(() => {});
+
+          return {
+            success: true,
+            districts: activeOptions
+          };
+        }
+
+        return await this.requestRaw_(action, payload);
+      } finally {
+        if (lockKey && this.inFlightMutex) {
+          this.inFlightMutex.delete(lockKey);
+        }
+      }
     }
 
     async requestRaw_(action, payload) {
@@ -929,14 +986,24 @@
       if (currentDate) data.currentDate = currentDate;
       return this.request('getAnnouncements', data);
     }
+
+    /**
+     * 檢查指定動作是否正在在途執行中
+     * @param {string} action 
+     * @returns {boolean}
+     */
+    isActionInFlight(action) {
+      return !!(this.inFlightMutex && this.inFlightMutex.has(action));
+    }
   }
 
-  // 附加預設照顧區與大區靜態常數
+  // 附加預設照顧區與互斥鎖動作靜態常數
   ApiClient.DEFAULT_DISTRICTS = DEFAULT_DISTRICTS;
+  ApiClient.MUTATING_EXCLUSIVE_ACTIONS = MUTATING_EXCLUSIVE_ACTIONS;
 
   // 匯出至全域與模組環境
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { ApiClient, DEFAULT_DISTRICTS };
+    module.exports = { ApiClient, DEFAULT_DISTRICTS, MUTATING_EXCLUSIVE_ACTIONS };
   }
   global.ApiClient = ApiClient;
 })(typeof window !== 'undefined' ? window : global);

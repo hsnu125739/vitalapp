@@ -102,8 +102,8 @@
           } catch (err) {
             alert(err.message || '更新逾時，請稍後再試');
           } finally {
-            this.avatarSaveBtn.disabled = false;
             this.avatarSaveBtn.textContent = '儲存頭像';
+            this.avatarSaveBtn.disabled = false;
           }
         });
       }
@@ -156,20 +156,25 @@
       if (changePwdForm) {
         changePwdForm.addEventListener('submit', async (e) => {
           e.preventDefault();
+          const submitBtn = changePwdForm.querySelector('button[type="submit"]');
+          if (submitBtn) submitBtn.disabled = true;
           const currentPwd = (document.getElementById('currentPasswordCode') || {}).value?.trim();
           const newPwd = (document.getElementById('newPasswordCode') || {}).value?.trim();
           const confirmPwd = (document.getElementById('confirmNewPasswordCode') || {}).value?.trim();
 
           if (!currentPwd || !newPwd) {
             alert('請填寫目前密碼與新密碼');
+            if (submitBtn) submitBtn.disabled = false;
             return;
           }
           if (newPwd !== confirmPwd) {
             alert('兩次輸入的新密碼不一致，請重新確認');
+            if (submitBtn) submitBtn.disabled = false;
             return;
           }
           if (newPwd.length < 6) {
             alert('新密碼長度至少需 6 碼以上');
+            if (submitBtn) submitBtn.disabled = false;
             return;
           }
 
@@ -184,6 +189,8 @@
             }
           } catch (err) {
             alert(err.message || '更新密碼逾時，請稍後再試');
+          } finally {
+            if (submitBtn) submitBtn.disabled = false;
           }
         });
       }
@@ -308,8 +315,8 @@
                 } catch (e) {
                   alert('解散失敗：' + e.message);
                 } finally {
-                  leaveBtn.disabled = false;
                   leaveBtn.textContent = leaveBtnText;
+                  leaveBtn.disabled = false;
                 }
               } else {
                 if (isLeader) {
@@ -318,6 +325,7 @@
                 }
                 const ok = confirm(`確定要退出「${grpName}」嗎？您先前的操練貢獻仍會保留在該組，但您未來的操練將不會計入。您可自由加入新組。`);
                 if (!ok) return;
+
                 leaveBtn.disabled = true;
                 leaveBtn.textContent = '正在退出...';
                 try {
@@ -333,8 +341,8 @@
                 } catch (e) {
                   alert('退出失敗：' + e.message);
                 } finally {
-                  leaveBtn.disabled = false;
                   leaveBtn.textContent = leaveBtnText;
+                  leaveBtn.disabled = false;
                 }
               }
             });
@@ -362,26 +370,26 @@
                   `;
                   const tBtn = item.querySelector('button');
                   tBtn.addEventListener('click', async () => {
-                    if (confirm(`確定要將組長交接給「${m.name || m.playerId}」嗎？`)) {
-                      tBtn.disabled = true;
-                      tBtn.textContent = '交接中...';
-                      try {
-                        const res = await this.apiClient.transferGroupLeader(m.playerId, groupId);
-                        if (res && res.success) {
-                          alert('交接成功！您已卸任組長。');
-                          if (typeof window.AppCoordinator?.refreshUserData === 'function') {
-                            window.AppCoordinator.refreshUserData();
-                          }
-                        } else {
-                          alert('交接失敗：' + (res.error || res.message || '未知錯誤'));
-                          tBtn.disabled = false;
-                          tBtn.textContent = '交接';
+                    const ok = confirm(`確定要將組長交接給「${m.name || m.playerId}」嗎？`);
+                    if (!ok) return;
+
+                    tBtn.disabled = true;
+                    tBtn.textContent = '交接中...';
+                    try {
+                      const res = await this.apiClient.transferGroupLeader(m.playerId, groupId);
+                      if (res && res.success) {
+                        alert('交接成功！您已卸任組長。');
+                        if (typeof window.AppCoordinator?.refreshUserData === 'function') {
+                          window.AppCoordinator.refreshUserData();
                         }
-                      } catch (err) {
-                        alert('交接失敗：' + err.message);
-                        tBtn.disabled = false;
-                        tBtn.textContent = '交接';
+                      } else {
+                        alert('交接失敗：' + (res.error || res.message || '未知錯誤'));
                       }
+                    } catch (err) {
+                      alert('交接失敗：' + err.message);
+                    } finally {
+                      tBtn.textContent = '交接';
+                      tBtn.disabled = false;
                     }
                   });
                   pickerList.appendChild(item);
@@ -507,13 +515,12 @@
                   }
                 } else {
                   alert((res && (res.error || res.message)) || '解散活力組失敗');
-                  leaveBtn.disabled = false;
-                  leaveBtn.textContent = '解散活力組';
                 }
               } catch (err) {
                 alert(err.message || '連線逾時，請稍後再試');
-                leaveBtn.disabled = false;
+              } finally {
                 leaveBtn.textContent = '解散活力組';
+                leaveBtn.disabled = false;
               }
             } else {
               // 多人小組：組長無法退組
@@ -552,13 +559,12 @@
                   }
                 } else {
                   alert((res && (res.error || res.message)) || '退出活力組失敗');
-                  leaveBtn.disabled = false;
-                  leaveBtn.textContent = '退出活力組';
                 }
               } catch (err) {
                 alert(err.message || '連線逾時，請稍後再試');
-                leaveBtn.disabled = false;
+              } finally {
                 leaveBtn.textContent = '退出活力組';
+                leaveBtn.disabled = false;
               }
             }
           });
@@ -610,13 +616,12 @@
                     }
                   } else {
                     alert((res && (res.error || res.message)) || '轉讓組長失敗');
-                    btn.disabled = false;
-                    btn.textContent = '指定為組長 →';
                   }
                 } catch (err) {
                   alert(err.message || '連線逾時，請稍後再試');
-                  btn.disabled = false;
+                } finally {
                   btn.textContent = '指定為組長 →';
+                  btn.disabled = false;
                 }
               });
             });
@@ -646,14 +651,19 @@
       if (createGrpForm) {
         createGrpForm.addEventListener('submit', async (e) => {
           e.preventDefault();
+          const submitBtn = createGrpForm.querySelector('button[type="submit"]');
+          if (submitBtn) submitBtn.disabled = true;
+
           if (this.currentUserProfile && this.currentUserProfile.groupId) {
             alert('您目前已在活力組中，無法重複建立小組。若需換組請先退出原小組。');
+            if (submitBtn) submitBtn.disabled = false;
             return;
           }
           const nameInput = document.getElementById('createVitalGroupName');
           const groupName = nameInput ? nameInput.value.trim() : '';
           if (!groupName) {
             alert('請輸入活力組名稱');
+            if (submitBtn) submitBtn.disabled = false;
             return;
           }
 
@@ -684,6 +694,8 @@
             }
           } catch (err) {
             alert(err.message || '連線逾時，請稍後再試');
+          } finally {
+            if (submitBtn) submitBtn.disabled = false;
           }
         });
       }
@@ -691,14 +703,19 @@
       if (joinGrpForm) {
         joinGrpForm.addEventListener('submit', async (e) => {
           e.preventDefault();
+          const submitBtn = joinGrpForm.querySelector('button[type="submit"]');
+          if (submitBtn) submitBtn.disabled = true;
+
           if (this.currentUserProfile && this.currentUserProfile.groupId) {
             alert('您目前已在活力組中，無法重複加入小組。若需換組請先退出原小組。');
+            if (submitBtn) submitBtn.disabled = false;
             return;
           }
           const codeInput = document.getElementById('joinVitalGroupCode');
           const inviteCode = codeInput ? codeInput.value.trim() : '';
           if (!inviteCode) {
             alert('請輸入邀請碼');
+            if (submitBtn) submitBtn.disabled = false;
             return;
           }
 
@@ -735,6 +752,8 @@
             }
           } catch (err) {
             alert(err.message || '連線逾時，請稍後再試');
+          } finally {
+            if (submitBtn) submitBtn.disabled = false;
           }
         });
       }

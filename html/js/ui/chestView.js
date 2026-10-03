@@ -98,15 +98,8 @@
     return `../Chest_Assets/Chest_0${num}.${ext}`;
   }
 
-  function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
+  const escapeHtml = (typeof VitalUtils !== 'undefined' && VitalUtils.escapeHtml)
+    || ((str) => String(str == null ? '' : str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
 
   class ChestView {
     constructor({ apiClient }) {

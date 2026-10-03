@@ -64,18 +64,21 @@ class OptimisticPracticeStore {
 
     // 併發與收斂佇列控制
     this.isSending = false;
+    this.isReplaying = false;        // 離線佇列補發互斥鎖，防止並發操作同一 localStorage queue
     this.pendingDaily = new Map();   // key: date, value: latest payload
     this.pendingMeeting = new Map(); // key: weekKey, value: latest payload
 
     // 冷啟動離線狀態水合
     this.hydrateFromOfflineQueue();
 
-    // 監聽網路連線恢復
+    // 監聽網路連線恢復（互斥鎖防止冷啟動 replay 尚未完成時 online 事件重複觸發）
     if (typeof window !== 'undefined' && window.addEventListener) {
-      window.addEventListener('online', () => this.replayOfflineQueue());
+      window.addEventListener('online', () => {
+        if (!this.isReplaying) this.replayOfflineQueue();
+      });
     }
 
-    // 冷啟動自動補發
+    // 冷啟動自動補發（不受 isReplaying 鎖影響，保證首次一定執行）
     this.replayOfflineQueue().catch(() => {});
   }
 
@@ -421,7 +424,9 @@ class OptimisticPracticeStore {
 
     if (queue.length === 0) return;
 
-    const promises = queue.map(item => {
+    this.isReplaying = true;
+    try {
+      const promises = queue.map(item => {
       if (item.type === 'DAILY') {
         const p = item.payload || {};
         return this.apiClient.submitDailyPractice({
@@ -458,15 +463,18 @@ class OptimisticPracticeStore {
       return Promise.resolve({ item, success: false });
     });
 
-    const results = await Promise.allSettled(promises);
-    const remaining = results
-      .filter(r => r.status === 'fulfilled' && !r.value?.success)
-      .map(r => r.value.item);
+      const results = await Promise.allSettled(promises);
+      const remaining = results
+        .filter(r => r.status === 'fulfilled' && !r.value?.success)
+        .map(r => r.value.item);
 
-    if (remaining.length > 0) {
-      this.storage.setItem('vital_offline_queue', JSON.stringify(remaining));
-    } else {
-      this.storage.removeItem('vital_offline_queue');
+      if (remaining.length > 0) {
+        this.storage.setItem('vital_offline_queue', JSON.stringify(remaining));
+      } else {
+        this.storage.removeItem('vital_offline_queue');
+      }
+    } finally {
+      this.isReplaying = false;
     }
   }
 }
