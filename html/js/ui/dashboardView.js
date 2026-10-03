@@ -285,6 +285,7 @@
       
       // 建立淺拷貝以避免污染源物件
       this.currentUserProfile = { ...userProfile };
+      this.currentJourneyData = journeyData;
       
       // 將未結算分數疊加到基礎分數上
       if (this.currentUserProfile.personalPoints !== undefined) {
@@ -493,8 +494,17 @@
       }
       this.currentGroupScore = groupScore;
 
-      // 尋找當前正在挑戰的目標篇章（第一個 targetPoint 大於目前分數者；若全達成則為最後一個）
-      let targetChapter = chapters.find(c => groupScore < (Number(c.targetPoint) || 0));
+      // 完全根據後端回傳的真實成就紀錄來判定篇章進度
+      const chapterHistory = (journeyData && journeyData.chapterHistory) || [];
+      const milestones = (journeyData && journeyData.milestones) || [];
+      
+      // 輔助函式：判斷某篇章是否真實在後端已達成
+      const isChapterPassed = (chapId) => {
+        return chapterHistory.some(m => m.chapterId === chapId) || milestones.some(m => m.id === chapId);
+      };
+
+      // 尋找當前正在挑戰的目標篇章（第一個尚未達成的篇章；若全達成則為最後一個）
+      let targetChapter = chapters.find(c => !isChapterPassed(c.chapterId));
       const allPassed = !targetChapter;
       if (!targetChapter) {
         targetChapter = chapters[chapters.length - 1];
@@ -506,14 +516,19 @@
         titleEl.textContent = targetChapter.name || '篇章旅程';
       }
 
-      // 計算差距點數（徹底移除百分比）
+      // 計算差距點數（如果目標篇章有設定 targetPoint > 0，才顯示分數差距）
       const nextText = document.getElementById('homeJourneyNextText');
       if (nextText) {
         if (allPassed) {
           nextText.textContent = `小組已達成最高榮耀篇章【${targetChapter.name}】！感謝讚美主！`;
         } else {
-          const gap = Math.max(0, (Number(targetChapter.targetPoint) || 0) - groupScore);
-          nextText.textContent = `距離【${targetChapter.name}】還差 ${gap.toLocaleString()} 點`;
+          const tPoint = Number(targetChapter.targetPoint) || 0;
+          if (tPoint > 0) {
+            const gap = Math.max(0, tPoint - groupScore);
+            nextText.textContent = `距離【${targetChapter.name}】還差 ${gap.toLocaleString()} 點`;
+          } else {
+            nextText.textContent = `正在努力攻克【${targetChapter.name}】`;
+          }
         }
       }
 
@@ -521,8 +536,7 @@
       const track = document.getElementById('homeJourneyNodes');
       if (track) {
         track.innerHTML = chapters.map((ch) => {
-          const tPoint = Number(ch.targetPoint) || 0;
-          const isPassed = groupScore >= tPoint;
+          const isPassed = isChapterPassed(ch.chapterId);
           const isCurrent = !allPassed && ch.chapterId === targetChapter.chapterId;
           const nodeClass = isPassed ? 'journey-node passed' : (isCurrent ? 'journey-node active' : 'journey-node');
           const statusText = isPassed ? '已達成' : (isCurrent ? '攻克中' : '尚未解鎖');
