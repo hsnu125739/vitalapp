@@ -238,6 +238,23 @@
               <span class="section-kicker"></span>
               <h2>今日任務</h2>
             </div>
+            <div class="task-info-wrapper">
+              <button class="task-info-btn task-info-badge-btn" id="dailyTaskInfoBtn" type="button" aria-label="每日任務結算說明" title="結算說明">
+                <svg class="task-info-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="2.3"/>
+                  <line x1="12" y1="7" x2="12" y2="12.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                  <circle cx="12" cy="16.5" r="1.35" fill="currentColor"/>
+                </svg>
+              </button>
+              <div class="task-info-popover hidden" id="dailyTaskPopover" role="tooltip">
+                <div class="popover-arrow"></div>
+                <div class="popover-header">
+                  <span class="popover-icon">⏰</span>
+                  <strong>每日任務結算說明</strong>
+                </div>
+                <p class="popover-text">每日任務將在隔天凌晨結算</p>
+              </div>
+            </div>
           </div>
 
           <div class="daily-quest-grid">
@@ -288,6 +305,23 @@
               <div class="weekly-task-title-row">
                 <h2>本週任務</h2>
                 <p id="homeWeeklyDateText">日期：讀取中...</p>
+              </div>
+            </div>
+            <div class="task-info-wrapper">
+              <button class="task-info-btn task-info-badge-btn" id="weeklyTaskInfoBtn" type="button" aria-label="每週任務結算說明" title="結算說明">
+                <svg class="task-info-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="2.3"/>
+                  <line x1="12" y1="7" x2="12" y2="12.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                  <circle cx="12" cy="16.5" r="1.35" fill="currentColor"/>
+                </svg>
+              </button>
+              <div class="task-info-popover hidden" id="weeklyTaskPopover" role="tooltip">
+                <div class="popover-arrow"></div>
+                <div class="popover-header">
+                  <span class="popover-icon">📅</span>
+                  <strong>每週任務結算說明</strong>
+                </div>
+                <p class="popover-text">每週任務將在下週一凌晨結算</p>
               </div>
             </div>
           </div>

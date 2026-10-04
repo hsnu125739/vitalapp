@@ -6073,5 +6073,148 @@ body[data-theme="night"] .task-prompt-dismiss-label {
   color: #cbd5e1;
 }
 
+/* 任務框右上角資訊按鈕 (款式 B: Q版立體徽章款) */
+.task-info-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
 
+.task-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid #fff5ea;
+  background: linear-gradient(180deg, #ffeed7, #f7d2a7);
+  box-shadow: 0 3px 0 #c28859, 0 3px 6px rgba(90, 60, 52, 0.12);
+  color: #7b4424;
+  cursor: pointer;
+  padding: 0;
+  outline: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
 
+.task-info-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 0 #c28859, 0 5px 8px rgba(90, 60, 52, 0.18);
+}
+
+.task-info-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #c28859;
+}
+
+.task-info-svg {
+  display: block;
+  pointer-events: none;
+}
+
+/* 任務結算提示氣泡 (Popover) */
+.task-info-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 99;
+  min-width: 220px;
+  max-width: 260px;
+  width: max-content;
+  background: #fffcf5;
+  border: 2px solid #edd5be;
+  border-radius: 16px;
+  padding: 10px 12px;
+  box-shadow: 0 6px 18px rgba(90, 60, 52, 0.16);
+  animation: taskPopoverIn 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  text-align: left;
+}
+
+.task-info-popover .popover-arrow {
+  position: absolute;
+  right: 9px;
+  top: -6px;
+  width: 10px;
+  height: 10px;
+  background: #fffcf5;
+  border-top: 2px solid #edd5be;
+  border-left: 2px solid #edd5be;
+  transform: rotate(45deg);
+}
+
+.task-info-popover .popover-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #7a4832;
+  margin-bottom: 5px;
+  border-bottom: 1px solid #fcefe2;
+  padding-bottom: 4px;
+}
+
+.task-info-popover .popover-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.task-info-popover .popover-text {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #c44322;
+  margin: 0;
+  line-height: 1.45;
+}
+
+@keyframes taskPopoverIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 深色模式支援 */
+body[data-theme="night"] .task-info-btn {
+  background: linear-gradient(180deg, #334155, #1e293b);
+  border-color: #475569;
+  box-shadow: 0 3px 0 #0f172a, 0 3px 6px rgba(0, 0, 0, 0.3);
+  color: #f1f5f9;
+}
+
+body[data-theme="night"] .task-info-btn:hover {
+  box-shadow: 0 4px 0 #0f172a, 0 5px 8px rgba(0, 0, 0, 0.4);
+}
+
+body[data-theme="night"] .task-info-btn:active {
+  box-shadow: 0 1px 0 #0f172a;
+}
+
+body[data-theme="night"] .task-info-popover {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+body[data-theme="night"] .task-info-popover .popover-arrow {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body[data-theme="night"] .task-info-popover .popover-header {
+  color: #f1f5f9;
+  border-color: #334155;
+}
+
+body[data-theme="night"] .task-info-popover .popover-text {
+  color: #fca5a5;
+}

@@ -248,6 +248,48 @@
           }
         });
       }
+
+      // 任務結算說明資訊按鈕與氣泡開關
+      const dailyInfoBtn = document.getElementById('dailyTaskInfoBtn');
+      const dailyPopover = document.getElementById('dailyTaskPopover');
+      const weeklyInfoBtn = document.getElementById('weeklyTaskInfoBtn');
+      const weeklyPopover = document.getElementById('weeklyTaskPopover');
+
+      const closeAllTaskPopovers = () => {
+        if (dailyPopover) dailyPopover.classList.add('hidden');
+        if (weeklyPopover) weeklyPopover.classList.add('hidden');
+      };
+
+      if (dailyInfoBtn && dailyPopover) {
+        dailyInfoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isHidden = dailyPopover.classList.contains('hidden');
+          closeAllTaskPopovers();
+          if (isHidden) {
+            dailyPopover.classList.remove('hidden');
+          }
+        });
+      }
+
+      if (weeklyInfoBtn && weeklyPopover) {
+        weeklyInfoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isHidden = weeklyPopover.classList.contains('hidden');
+          closeAllTaskPopovers();
+          if (isHidden) {
+            weeklyPopover.classList.remove('hidden');
+          }
+        });
+      }
+
+      if (typeof document !== 'undefined') {
+        document.addEventListener('click', (e) => {
+          if (!e.target || typeof e.target.closest !== 'function') return;
+          if (!e.target.closest('.task-info-wrapper')) {
+            closeAllTaskPopovers();
+          }
+        });
+      }
     }
 
     subscribeStore_() {
