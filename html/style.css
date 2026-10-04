@@ -6080,6 +6080,7 @@ body[data-theme="night"] .task-prompt-dismiss-label {
   align-items: center;
   justify-content: center;
   z-index: 10;
+  transform: translateY(-5.5px);
 }
 
 .task-info-btn {
