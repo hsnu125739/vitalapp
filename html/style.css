@@ -1815,6 +1815,7 @@ button.player-stat-card{
   font-size: 11px;
   background: rgba(0, 0, 0, 0.06);
   color: rgba(0, 0, 0, 0.28);
+  border: 1.5px solid transparent;
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -1825,6 +1826,11 @@ button.player-stat-card{
   font-weight: 700;
 }
 
+/* 個人打卡＋團體達標：帶綠色實線框 */
+.footprint-badge.is-group-qualified {
+  border-color: var(--brand, #4f9f8b);
+}
+
 /* 方案二選項 C：個人打卡但同組人數不足（未滿2人：低飽和淡綠底＋細虛線邊框） */
 .footprint-badge.is-pending {
   background: rgba(79, 159, 139, 0.08);
@@ -1833,11 +1839,11 @@ button.player-stat-card{
   font-weight: 700;
 }
 
-/* 隊友達標同組共享（個人未打卡但共享得分） */
+/* 提案2：隊友達標同組共享（個人未打卡：灰底灰字＋綠色實線框） */
 .footprint-badge.is-shared {
-  background: rgba(79, 159, 139, 0.12);
-  color: var(--brand-deep, #2f7564);
-  border: 1px dotted rgba(79, 159, 139, 0.45);
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.28);
+  border: 1.5px solid var(--brand, #4f9f8b);
   font-weight: 600;
 }
 

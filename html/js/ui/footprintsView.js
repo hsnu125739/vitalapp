@@ -732,7 +732,7 @@
               morningTitle = `晨興：已完成${d.isMorningQualified ? ' (團體達標)' : ''}`;
             }
           } else if (d.isMorningQualified) {
-            morningClass = 'is-active is-shared';
+            morningClass = 'is-shared';
             morningTitle = '晨興：隊友達標 (同組共享得分)';
           }
 
