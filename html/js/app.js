@@ -337,6 +337,12 @@
             syncStatus: 'synced',
             hasAmberDot: false
           };
+          if (pId && typeof localStorage !== 'undefined') {
+            try {
+              localStorage.setItem(`vital_daily_records_${pId}`, JSON.stringify({ [today]: practiceStore.dailyState[today] }));
+              localStorage.setItem(`vital_meeting_records_${pId}`, JSON.stringify({ [curWeek]: practiceStore.meetingState[curWeek] }));
+            } catch (e) {}
+          }
           if (dashboardView) {
             dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
             dashboardView.renderMeetingPracticeState(practiceStore.meetingState[curWeek]);
@@ -347,11 +353,10 @@
         console.warn('[App] getPractice 快速載入略過:', err);
       });
 
-      const [bootstrapRes, bundleRes, profileRes, groupProgressRes] = await Promise.allSettled([
+      const [bootstrapRes, bundleRes, profileRes] = await Promise.allSettled([
         apiClient.getBootstrap(),
         pId ? apiClient.getProgressBundle(gId) : Promise.resolve(null),
-        gId ? apiClient.getGroupProfile(gId) : Promise.resolve(null),
-        gId ? apiClient.getGroupProgress(gId) : Promise.resolve(null)
+        gId ? apiClient.getGroupProfile(gId) : Promise.resolve(null)
       ]);
 
       let announcements = [];
@@ -365,15 +370,15 @@
           const fetchedPlayer = res.player || res.data?.player || res.data || {};
           currentUserProfile = { ...currentUserProfile, ...fetchedPlayer };
           
-          if (res.data?.dailyRecords) dailyRecords = res.data.dailyRecords;
-          if (res.data?.meetingRecords) meetingRecords = res.data.meetingRecords;
+          if (res.data?.dailyRecords && Object.keys(res.data.dailyRecords).length > 0) dailyRecords = res.data.dailyRecords;
+          if (res.data?.meetingRecords && Object.keys(res.data.meetingRecords).length > 0) meetingRecords = res.data.meetingRecords;
           if (res.data?.announcements) announcements = res.data.announcements;
 
           if (typeof localStorage !== 'undefined') {
             try {
               localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
-              if (dailyRecords) localStorage.setItem(`vital_daily_records_${currentUserProfile.playerId}`, JSON.stringify(dailyRecords));
-              if (meetingRecords) localStorage.setItem(`vital_meeting_records_${currentUserProfile.playerId}`, JSON.stringify(meetingRecords));
+              if (dailyRecords && Object.keys(dailyRecords).length > 0) localStorage.setItem(`vital_daily_records_${currentUserProfile.playerId}`, JSON.stringify(dailyRecords));
+              if (meetingRecords && Object.keys(meetingRecords).length > 0) localStorage.setItem(`vital_meeting_records_${currentUserProfile.playerId}`, JSON.stringify(meetingRecords));
               if (announcements.length > 0) localStorage.setItem('vital_announcements', JSON.stringify(announcements));
             } catch (e) {}
           }
@@ -426,18 +431,6 @@
           groupMilestones = groupProgress.milestones || [];
           if (typeof groupMilestones === 'string') {
             try { groupMilestones = JSON.parse(groupMilestones); } catch(e) { groupMilestones = []; }
-          }
-        }
-
-        // 若獨立查詢之 groupProgressRes 具備有效總分，優先注入
-        if (groupProgressRes && groupProgressRes.status === 'fulfilled' && groupProgressRes.value && (groupProgressRes.value.success || groupProgressRes.value.data)) {
-          const gpData = groupProgressRes.value.data || groupProgressRes.value;
-          const gpScore = Number(gpData.totalPoints !== undefined ? gpData.totalPoints : (gpData.groupTotalPoints !== undefined ? gpData.groupTotalPoints : 0));
-          if (gpScore > 0) {
-            if (!groupProgress) groupProgress = gpData;
-            groupProgress.totalPoints = gpScore;
-            groupProgress.groupTotalPoints = gpScore;
-            if (gpData.memberContribution) groupProgress.memberContribution = gpData.memberContribution;
           }
         }
 
@@ -499,22 +492,6 @@
         try { tasksConfig = JSON.parse(localStorage.getItem('vital_tasks_config') || 'null'); } catch(e) {}
       }
 
-      // 若 ProgressBundle 未包含 pointsConfig（如未入組/離線），發起 getPointsConfig 補充拉取
-      const hasPointsConfig = Boolean(bundleRes?.value?.data?.pointsConfig || bundleRes?.value?.pointsConfig);
-      if (!hasPointsConfig) {
-        apiClient.getPointsConfig().then(pcRes => {
-          const cfg = (pcRes && (pcRes.pointsConfig || pcRes.data || pcRes.configs)) || null;
-          if (cfg) {
-            try { localStorage.setItem('vital_points_config', JSON.stringify(cfg)); } catch (e) {}
-            if (dashboardView && typeof dashboardView.renderTaskCards === 'function') {
-              dashboardView.renderTaskCards(cfg);
-            }
-          }
-        }).catch(err => {
-          console.warn('[App] getPointsConfig 補充拉取跳過:', err);
-        });
-      }
-
       if (currentGId && profileRes.status === 'fulfilled' && profileRes.value && profileRes.value.success) {
         const groupProfileData = profileRes.value.data || profileRes.value;
         if (typeof localStorage !== 'undefined') {
@@ -568,7 +545,7 @@
       }
 
       // 5. 處理打卡狀態 (從 dailyRecords / meetingRecords 解析，確保 render 前 practiceStore 已就緒)
-      if (dailyRecords) {
+      if (dailyRecords && Object.keys(dailyRecords).length > 0) {
         const today = dashboardView.currentDate || dashboardView.getTodayDateString();
         const todayRecord = dailyRecords[today] || {};
         practiceStore.dailyState[today] = {
@@ -584,7 +561,7 @@
         };
         dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
       }
-      if (meetingRecords) {
+      if (meetingRecords && Object.keys(meetingRecords).length > 0) {
         const currentWeek = dashboardView.currentWeekKey || dashboardView.getCurrentWeekKey();
         const currentMtg = meetingRecords[currentWeek] || {};
         practiceStore.meetingState[currentWeek] = {
@@ -613,21 +590,6 @@
         fellowshipView.postsColIndex = pCol;
         fellowshipView.isLeader = Boolean(currentUserProfile.isLeader);
         chatStore.init(currentGId, pCol);
-
-        // 8. 登入後背景平行觸發 getGroupProgress，非同步更新快取 (SWR cache warm-up)
-        apiClient.getGroupProgress(currentGId).then(gpRes => {
-          if (gpRes && (gpRes.success || gpRes.data)) {
-            const data = gpRes.data || gpRes;
-            try {
-              localStorage.setItem(`vital_group_progress_${currentGId}`, JSON.stringify(data));
-              if (data.milestones) {
-                localStorage.setItem(`vital_group_milestones_${currentGId}`, JSON.stringify(data.milestones));
-              }
-            } catch (e) {}
-          }
-        }).catch(bgErr => {
-          console.warn('[App] 背景同步小組進度略過:', bgErr);
-        });
       } else {
         fellowshipView.currentPlayerId = (currentUserProfile && currentUserProfile.playerId) || '';
         fellowshipView.currentUserName = (currentUserProfile && currentUserProfile.name) || '';
