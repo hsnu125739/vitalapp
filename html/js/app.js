@@ -253,20 +253,39 @@
               if (today) {
                 try {
                   const cachedDaily = JSON.parse(localStorage.getItem(`vital_daily_records_${cachedPlayer.playerId}`) || 'null');
-                  if (cachedDaily && cachedDaily[today]) {
-                    const rec = cachedDaily[today];
-                    practiceStore.dailyState[today] = {
-                      morning: Boolean(rec.morning || rec.morningRevival),
-                      morningRevival: Boolean(rec.morning || rec.morningRevival),
-                      bible: Boolean(rec.bible || rec.bibleReading),
-                      bibleReading: Boolean(rec.bible || rec.bibleReading),
-                      prayer: Boolean(rec.prayer),
-                      book: Boolean(rec.book || rec.bookPursuit),
-                      bookPursuit: Boolean(rec.book || rec.bookPursuit),
-                      syncStatus: 'synced',
-                      hasAmberDot: false
-                    };
-                    if (dashboardView) dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
+                  if (cachedDaily) {
+                    if (cachedDaily[today]) {
+                      const rec = cachedDaily[today];
+                      practiceStore.dailyState[today] = {
+                        morning: Boolean(rec.morning || rec.morningRevival),
+                        morningRevival: Boolean(rec.morning || rec.morningRevival),
+                        bible: Boolean(rec.bible || rec.bibleReading),
+                        bibleReading: Boolean(rec.bible || rec.bibleReading),
+                        prayer: Boolean(rec.prayer),
+                        book: Boolean(rec.book || rec.bookPursuit),
+                        bookPursuit: Boolean(rec.book || rec.bookPursuit),
+                        syncStatus: 'synced',
+                        hasAmberDot: false
+                      };
+                      if (dashboardView) dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
+                    }
+                    const yDate = (dashboardView && typeof dashboardView.getYesterdayDateString === 'function')
+                      ? dashboardView.getYesterdayDateString(today)
+                      : '';
+                    if (yDate && cachedDaily[yDate]) {
+                      const yRec = cachedDaily[yDate];
+                      practiceStore.dailyState[yDate] = {
+                        morning: Boolean(yRec.morning || yRec.morningRevival),
+                        morningRevival: Boolean(yRec.morning || yRec.morningRevival),
+                        bible: Boolean(yRec.bible || yRec.bibleReading),
+                        bibleReading: Boolean(yRec.bible || yRec.bibleReading),
+                        prayer: Boolean(yRec.prayer),
+                        book: Boolean(yRec.book || yRec.bookPursuit),
+                        bookPursuit: Boolean(yRec.book || yRec.bookPursuit),
+                        syncStatus: 'synced',
+                        hasAmberDot: false
+                      };
+                    }
                   }
                 } catch (e) {}
               }
@@ -313,9 +332,11 @@
       // 平行發起極速 getPractice，專供首頁儀表板 2 個單元格更新與解鎖
       apiClient.getPractice().then(pRes => {
         if (pRes && pRes.success && pRes.data) {
-          const today = dashboardView.currentDate || dashboardView.getTodayDateString();
-          const curWeek = dashboardView.currentWeekKey || dashboardView.getCurrentWeekKey();
+          const today = dashboardView.currentDate || pRes.data.todayStr || (dashboardView.getTodayDateString && dashboardView.getTodayDateString());
+          const yesterday = pRes.data.yesterdayStr || (dashboardView.getYesterdayDateString && dashboardView.getYesterdayDateString(today));
+          const curWeek = dashboardView.currentWeekKey || pRes.data.weekKey || (dashboardView.getCurrentWeekKey && dashboardView.getCurrentWeekKey());
           const dRec = pRes.data.daily || {};
+          const yRec = pRes.data.yesterdayDaily || null;
           const mRec = pRes.data.meeting || {};
           
           practiceStore.dailyState[today] = {
@@ -329,6 +350,21 @@
             syncStatus: 'synced',
             hasAmberDot: false
           };
+
+          if (yesterday && yRec) {
+            practiceStore.dailyState[yesterday] = {
+              morning: Boolean(yRec.morning || yRec.morningRevival),
+              morningRevival: Boolean(yRec.morning || yRec.morningRevival),
+              bible: Boolean(yRec.bible || yRec.bibleReading),
+              bibleReading: Boolean(yRec.bible || yRec.bibleReading),
+              prayer: Boolean(yRec.prayer),
+              book: Boolean(yRec.book || yRec.bookPursuit),
+              bookPursuit: Boolean(yRec.book || yRec.bookPursuit),
+              syncStatus: 'synced',
+              hasAmberDot: false
+            };
+          }
+
           practiceStore.meetingState[curWeek] = {
             smallGroup: Boolean(mRec.group || mRec.smallGroup),
             prayerMeeting: Boolean(mRec.prayerMtg || mRec.prayerMeeting),
@@ -339,13 +375,20 @@
           };
           if (pId && typeof localStorage !== 'undefined') {
             try {
-              localStorage.setItem(`vital_daily_records_${pId}`, JSON.stringify({ [today]: practiceStore.dailyState[today] }));
+              const dailyToSave = { [today]: practiceStore.dailyState[today] };
+              if (yesterday && practiceStore.dailyState[yesterday]) {
+                dailyToSave[yesterday] = practiceStore.dailyState[yesterday];
+              }
+              localStorage.setItem(`vital_daily_records_${pId}`, JSON.stringify(dailyToSave));
               localStorage.setItem(`vital_meeting_records_${pId}`, JSON.stringify({ [curWeek]: practiceStore.meetingState[curWeek] }));
             } catch (e) {}
           }
           if (dashboardView) {
             dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
             dashboardView.renderMeetingPracticeState(practiceStore.meetingState[curWeek]);
+            if (currentUserProfile && typeof dashboardView.refreshScoresDisplay === 'function') {
+              dashboardView.refreshScoresDisplay(currentUserProfile);
+            }
             dashboardView.setSyncLock(false);
           }
         }
@@ -421,6 +464,22 @@
             if (data.playerProgress.contributionPoints !== undefined) {
               currentUserProfile.contributionPoints = Number(data.playerProgress.contributionPoints || 0);
               currentUserProfile.baseContributionPoints = currentUserProfile.contributionPoints;
+            }
+            // 擷取昨日結算日期時間戳記，供跨夜結算期間平滑補償判定使用
+            let lastSettled = data.playerProgress.lastSettledDate || '';
+            const hSummary = data.playerProgress.historySummary;
+            if (!lastSettled && hSummary) {
+              if (typeof hSummary === 'object' && hSummary._lastSettledDate) {
+                lastSettled = hSummary._lastSettledDate;
+              } else if (typeof hSummary === 'string') {
+                try {
+                  const parsed = JSON.parse(hSummary);
+                  if (parsed._lastSettledDate) lastSettled = parsed._lastSettledDate;
+                } catch (e) {}
+              }
+            }
+            if (lastSettled) {
+              currentUserProfile._lastSettledDate = String(lastSettled).trim();
             }
             try { localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile)); } catch(e) {}
           }

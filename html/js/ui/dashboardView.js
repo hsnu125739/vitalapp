@@ -94,6 +94,20 @@
       return `${y}-${m}-${day}`;
     }
 
+    getYesterdayDateString(baseDateStr = '') {
+      let d;
+      if (baseDateStr) {
+        d = new Date(baseDateStr + 'T12:00:00');
+      } else {
+        d = new Date();
+      }
+      const prev = new Date(d.getTime() - 86400000);
+      const y = prev.getFullYear();
+      const m = String(prev.getMonth() + 1).padStart(2, '0');
+      const day = String(prev.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
     setSyncLock(isLocked) {
       this.isSyncing = isLocked;
       const btns = document.querySelectorAll('.quest-card');
@@ -282,7 +296,7 @@
         });
       }
 
-      if (typeof document !== 'undefined') {
+      if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
         document.addEventListener('click', (e) => {
           if (!e.target || typeof e.target.closest !== 'function') return;
           if (!e.target.closest('.task-info-wrapper')) {
@@ -322,12 +336,12 @@
     render(userProfile, journeyData, announcements = null, chaptersConfig = null) {
       if (!userProfile) return;
       
-      // 由於後端為「昨日午夜結算快照 (Settled Snapshot)」，前端必須即時加上今日未結算的本機操練分數
-      const localDelta = this.calculateTodayLocalPointsDelta_();
-      
       // 建立淺拷貝以避免污染源物件
       this.currentUserProfile = { ...userProfile };
       this.currentJourneyData = journeyData;
+
+      // 由於後端為「昨日午夜結算快照 (Settled Snapshot)」，前端必須即時加上今日未結算的本機操練分數
+      const localDelta = this.calculateTodayLocalPointsDelta_();
       
       // 保存未加上 localDelta 的基礎結算分數 (防止重複疊加)
       const basePersonal = this.currentUserProfile.basePersonalPoints !== undefined
@@ -417,6 +431,8 @@
         : (this.currentUserProfile.contribution !== undefined ? this.currentUserProfile.contribution : 0);
       const contribEl = document.getElementById('homeContributionText');
       if (contribEl) contribEl.textContent = Number(contribution || 0).toLocaleString();
+
+      this.renderSettlingBadges_();
 
       const streakEl = document.getElementById('homeStreakText');
       if (streakEl) streakEl.textContent = `${userProfile.streakDays || 0} 天`;
@@ -1071,14 +1087,31 @@
       this.infoModalContent.innerHTML = html;
     }
 
-    calculateTodayLocalPointsDelta_() {
+    calculateUnsettledPointsDelta_() {
       const cfg = this.pointsConfig || DEFAULT_POINTS_CONFIG;
       let totalLocalDelta = 0;
 
       const curDate = this.currentDate || this.getTodayDateString();
+      const yesterdayStr = this.getYesterdayDateString(curDate);
       const curWeek = this.currentWeekKey || this.getCurrentWeekKey();
 
-      // 1. 每日操練 (今日)
+      // 1. 檢查後端是否已經完成昨日結算（比較 _lastSettledDate）
+      const lastSettledDate = (this.currentUserProfile && this.currentUserProfile._lastSettledDate) || '';
+      const isYesterdaySettled = Boolean(lastSettledDate && lastSettledDate >= yesterdayStr);
+      this.isSettlingYesterday = !isYesterdaySettled;
+
+      // 2. 若後端尚未結算昨日：將昨日操練打卡分數計入補償 Delta（防跨夜分數回退核心！）
+      if (!isYesterdaySettled && yesterdayStr && this.practiceStore && this.practiceStore.dailyState) {
+        const y = this.practiceStore.dailyState[yesterdayStr];
+        if (y) {
+          if (y.morning || y.morningRevival) totalLocalDelta += Number(cfg.morning || 50);
+          if (y.bible || y.bibleReading) totalLocalDelta += Number(cfg.bible || 30);
+          if (y.prayer) totalLocalDelta += Number(cfg.prayer || 30);
+          if (y.book || y.bookPursuit) totalLocalDelta += Number(cfg.book || 30);
+        }
+      }
+
+      // 3. 每日操練 (今日)
       if (curDate && this.practiceStore && this.practiceStore.dailyState && this.practiceStore.dailyState[curDate]) {
         const d = this.practiceStore.dailyState[curDate];
         if (d.morning || d.morningRevival) totalLocalDelta += Number(cfg.morning || 50);
@@ -1087,7 +1120,7 @@
         if (d.book || d.bookPursuit) totalLocalDelta += Number(cfg.book || 30);
       }
 
-      // 2. 每週聚會 (本週)
+      // 4. 每週聚會 (本週)
       if (curWeek && this.practiceStore && this.practiceStore.meetingState && this.practiceStore.meetingState[curWeek]) {
         const m = this.practiceStore.meetingState[curWeek];
         if (m.smallGroup || m.group) totalLocalDelta += Number(cfg.group !== undefined ? cfg.group : (cfg.smallGroup || 30));
@@ -1097,6 +1130,70 @@
       }
 
       return totalLocalDelta;
+    }
+
+    calculateTodayLocalPointsDelta_() {
+      return this.calculateUnsettledPointsDelta_();
+    }
+
+    renderSettlingBadges_() {
+      if (typeof document === 'undefined') return;
+      const pSyncEl = document.getElementById('homePersonalSyncText');
+      const cSyncEl = document.getElementById('homeContributionSyncText');
+      const isSettling = Boolean(this.isSettlingYesterday);
+
+      [pSyncEl, cSyncEl].forEach(el => {
+        if (!el) return;
+        if (isSettling) {
+          el.textContent = '⏳ 結算中';
+          el.className = 'score-sync-badge is-settling';
+          if (el.classList && typeof el.classList.add === 'function') el.classList.add('is-settling');
+          el.title = '系統正在進行昨日操練結算，已為您暫存最新累計點數';
+          if (typeof el.removeAttribute === 'function') el.removeAttribute('hidden');
+          el.hidden = false;
+        } else {
+          el.className = 'score-sync-badge';
+          if (el.classList && typeof el.classList.remove === 'function') el.classList.remove('is-settling');
+          if (typeof el.setAttribute === 'function') el.setAttribute('hidden', '');
+          el.hidden = true;
+          el.textContent = '';
+        }
+      });
+    }
+
+    refreshScoresDisplay(userProfile = null) {
+      if (userProfile) {
+        this.currentUserProfile = { ...this.currentUserProfile, ...userProfile };
+      }
+      if (!this.currentUserProfile) return;
+
+      const basePersonal = this.currentUserProfile.basePersonalPoints !== undefined
+        ? Number(this.currentUserProfile.basePersonalPoints || 0)
+        : Number(this.currentUserProfile.personalPoints || 0);
+
+      const baseContrib = this.currentUserProfile.baseContributionPoints !== undefined
+        ? Number(this.currentUserProfile.baseContributionPoints || 0)
+        : Number(this.currentUserProfile.contributionPoints || 0);
+
+      const localDelta = this.calculateUnsettledPointsDelta_();
+      const nextPersonal = basePersonal + localDelta;
+      const nextContrib = baseContrib + localDelta;
+
+      this.currentUserProfile.personalPoints = nextPersonal;
+      if (this.currentUserProfile.totalPoints !== undefined) this.currentUserProfile.totalPoints = nextPersonal;
+      if (this.currentUserProfile.totalScore !== undefined) this.currentUserProfile.totalScore = nextPersonal;
+
+      const personalEl = (typeof document !== 'undefined') ? document.getElementById('homePersonalScoreText') : null;
+      if (personalEl) personalEl.textContent = Number(nextPersonal).toLocaleString();
+
+      if (this.currentUserProfile.groupId) {
+        this.currentUserProfile.contributionPoints = nextContrib;
+        if (this.currentUserProfile.contribution !== undefined) this.currentUserProfile.contribution = nextContrib;
+        const contribEl = (typeof document !== 'undefined') ? document.getElementById('homeContributionText') : null;
+        if (contribEl) contribEl.textContent = Number(nextContrib).toLocaleString();
+      }
+
+      this.renderSettlingBadges_();
     }
 
     applyOptimisticPointsDelta_(key, isDone, type) {
