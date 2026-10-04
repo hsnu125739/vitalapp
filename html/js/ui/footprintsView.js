@@ -35,6 +35,53 @@
     outreach: 100
   });
 
+  function extractRuleField_(obj, key, fallbackVal) {
+    if (!obj) return fallbackVal;
+    if (obj[key] !== undefined && obj[key] !== null) return Number(obj[key]);
+    if (obj.daily && obj.daily[key] !== undefined && obj.daily[key] !== null) return Number(obj.daily[key]);
+    if (obj.meeting && obj.meeting[key] !== undefined && obj.meeting[key] !== null) return Number(obj.meeting[key]);
+    return fallbackVal;
+  }
+
+  /**
+   * 依日期查詢適用的計分規則 (支援後端 PointsConfig 之多期間動態加分規則)
+   */
+  function getRuleForDate(rulesOrConfig, targetDateStr) {
+    if (!rulesOrConfig) return DEFAULT_POINTS_CONFIG;
+    if (Array.isArray(rulesOrConfig)) {
+      if (rulesOrConfig.length === 0) return DEFAULT_POINTS_CONFIG;
+      const dStr = String(targetDateStr || '').slice(0, 10);
+      for (let i = 0; i < rulesOrConfig.length; i++) {
+        const r = rulesOrConfig[i];
+        if (!r) continue;
+        if (r.startDate && dStr < r.startDate) continue;
+        if (r.endDate && dStr > r.endDate) continue;
+        return {
+          morning: extractRuleField_(r, 'morning', DEFAULT_POINTS_CONFIG.morning),
+          bible: extractRuleField_(r, 'bible', DEFAULT_POINTS_CONFIG.bible),
+          prayer: extractRuleField_(r, 'prayer', DEFAULT_POINTS_CONFIG.prayer),
+          book: extractRuleField_(r, 'book', DEFAULT_POINTS_CONFIG.book),
+          group: extractRuleField_(r, 'group', DEFAULT_POINTS_CONFIG.group),
+          prayerMtg: extractRuleField_(r, 'prayerMtg', DEFAULT_POINTS_CONFIG.prayerMtg),
+          lordDay: extractRuleField_(r, 'lordDay', DEFAULT_POINTS_CONFIG.lordDay),
+          outreach: extractRuleField_(r, 'outreach', DEFAULT_POINTS_CONFIG.outreach)
+        };
+      }
+      const first = rulesOrConfig[0];
+      return {
+        morning: extractRuleField_(first, 'morning', DEFAULT_POINTS_CONFIG.morning),
+        bible: extractRuleField_(first, 'bible', DEFAULT_POINTS_CONFIG.bible),
+        prayer: extractRuleField_(first, 'prayer', DEFAULT_POINTS_CONFIG.prayer),
+        book: extractRuleField_(first, 'book', DEFAULT_POINTS_CONFIG.book),
+        group: extractRuleField_(first, 'group', DEFAULT_POINTS_CONFIG.group),
+        prayerMtg: extractRuleField_(first, 'prayerMtg', DEFAULT_POINTS_CONFIG.prayerMtg),
+        lordDay: extractRuleField_(first, 'lordDay', DEFAULT_POINTS_CONFIG.lordDay),
+        outreach: extractRuleField_(first, 'outreach', DEFAULT_POINTS_CONFIG.outreach)
+      };
+    }
+    return Object.assign({}, DEFAULT_POINTS_CONFIG, rulesOrConfig);
+  }
+
   function getChineseMonthName(monthKey) {
     if (!monthKey || typeof monthKey !== 'string') return '本月';
     const parts = monthKey.split('-');
@@ -75,8 +122,8 @@
 
   /**
    * 前端解算引擎核心：將後端極簡 Raw Data 組裝為完整的足跡資料
-   * @param {Object} raw 後端回傳的極簡格式 { today, dates, weeks, teamDaily, teamMeeting, selfPlayerId, groupId }
-   * @param {Object} [pointsConfig] 點數設定
+   * @param {Object} raw 後端回傳的極簡格式 { today, dates, weeks, teamDaily, teamMeeting, selfPlayerId, groupId, joinGroupTime, pointsRules }
+   * @param {Object} [pointsConfig] 點數設定或規則陣列
    * @param {Object} [liveStore] 今日即時打卡狀態 { morning, bible, prayer, book } (from practiceStore)
    * @returns {{ monthSummary, weeks }} 與舊版 render() 入參相容的完整足跡資料
    */
@@ -86,15 +133,27 @@
     if (raw.monthSummary && Array.isArray(raw.weeks) && raw.weeks.length > 0 && typeof raw.weeks[0] === 'object' && !raw.teamDaily) {
       return raw;
     }
-    const pts = pointsConfig || DEFAULT_POINTS_CONFIG;
+
+    // 優先順序：raw.pointsRules > raw.pointsConfig > pointsConfig > localStorage 快取 > 預設常數
+    let resolvedRules = (raw && (raw.pointsRules || raw.pointsConfig)) || pointsConfig;
+    if (!resolvedRules && typeof localStorage !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('vital_points_config') || 'null');
+        if (stored) resolvedRules = stored;
+      } catch (e) {}
+    }
+    if (!resolvedRules) resolvedRules = DEFAULT_POINTS_CONFIG;
+
     const todayStr = raw.today || '';
     const dates = raw.dates || [];
     const weekKeys = raw.weeks || [];
     const teamDaily = raw.teamDaily || {};
     const teamMeeting = raw.teamMeeting || {};
     const selfId = raw.selfPlayerId || '';
+    const groupId = raw.groupId || '';
+    const joinGroupDate = (raw.joinGroupTime && typeof raw.joinGroupTime === 'string') ? raw.joinGroupTime.slice(0, 10) : '';
 
-    const teamMemberIds = Object.keys(teamDaily);
+    const teamMemberIds = Array.from(new Set([...Object.keys(teamDaily), ...Object.keys(teamMeeting)]));
     const teamSize = teamMemberIds.length;
 
     // 確保自己在 teamDaily 中
@@ -106,6 +165,7 @@
 
     for (let i = 0; i < dates.length; i++) {
       const dateStr = dates[i];
+      const rule = getRuleForDate(resolvedRules, dateStr);
 
       // 統計全組晨興打卡人數
       let morningCount = 0;
@@ -114,7 +174,10 @@
         const val = (arr && arr[i]) || 0;
         if (val % 100 > 0) morningCount++;
       }
-      const isMorningQualified = (teamSize >= 2 && morningCount >= 2);
+
+      // 入組判定：若為活力組成員，且該日期在入組日當天或之後，才享有晨興團體共享分
+      const isJoinedToday = Boolean(groupId) && (!joinGroupDate || dateStr >= joinGroupDate);
+      const isMorningQualified = (teamSize >= 2 && morningCount >= 2 && isJoinedToday);
 
       // 本人解包（若是今日且有 liveStore，優先使用本地即時狀態）
       let selfVal = selfDailyArr[i] || 0;
@@ -138,14 +201,14 @@
 
       // 計算當日得分：個人項目 + 團體晨興
       let dailyScore = 0;
-      if (unpacked.bible) dailyScore += pts.bible;
-      if (unpacked.prayer) dailyScore += pts.prayer;
-      if (unpacked.book) dailyScore += pts.book;
+      if (unpacked.bible) dailyScore += rule.bible;
+      if (unpacked.prayer) dailyScore += rule.prayer;
+      if (unpacked.book) dailyScore += rule.book;
 
-      // 晨興：團體項目，同組≥2人才得分
-      const finalMorningQualified = (teamSize >= 2 && morningCount >= 2);
+      // 晨興：團體項目，同組≥2人且本人當日已入組才得分
+      const finalMorningQualified = (teamSize >= 2 && morningCount >= 2 && isJoinedToday);
       if (finalMorningQualified) {
-        dailyScore += pts.morning;
+        dailyScore += rule.morning;
       }
 
       dailyResults[dateStr] = {
@@ -160,6 +223,13 @@
 
     for (let w = 0; w < weekKeys.length; w++) {
       const wk = weekKeys[w];
+      const weekStartIdx = w * 7;
+      const weekDates = dates.slice(weekStartIdx, weekStartIdx + 7);
+      const wStartDate = weekDates[0] || '';
+      // 以該週週四作為代表日取得該週 pointsRule
+      const wThurs = wStartDate ? new Date(new Date(wStartDate + 'T00:00:00Z').getTime() + 3 * 86400000) : new Date();
+      const wRepDate = wThurs.toISOString().slice(0, 10);
+      const wRule = getRuleForDate(resolvedRules, wRepDate);
 
       // 統計全組外出探訪人數
       let outreachCount = 0;
@@ -168,18 +238,19 @@
         const val = (arr && arr[w]) || 0;
         if (Math.floor(val / 1000000) % 100 > 0) outreachCount++;
       }
-      const isOutreachQualified = (teamSize >= 2 && outreachCount >= 2);
+      const isJoinedThisWeek = Boolean(groupId) && (!joinGroupDate || wRepDate >= joinGroupDate);
+      const isOutreachQualified = (teamSize >= 2 && outreachCount >= 2 && isJoinedThisWeek);
 
       const selfMeetVal = selfMeetingArr[w] || 0;
       const unpackedM = unpackMeeting(selfMeetVal);
 
       // 計算聚會得分：個人項目 + 團體探訪
       let meetingScore = 0;
-      if (unpackedM.group) meetingScore += pts.group;
-      if (unpackedM.prayerMtg) meetingScore += pts.prayerMtg;
-      if (unpackedM.lordDay) meetingScore += pts.lordDay;
+      if (unpackedM.group) meetingScore += wRule.group;
+      if (unpackedM.prayerMtg) meetingScore += wRule.prayerMtg;
+      if (unpackedM.lordDay) meetingScore += wRule.lordDay;
       if (isOutreachQualified) {
-        meetingScore += pts.outreach;
+        meetingScore += wRule.outreach;
       }
 
       weeklyResults[wk] = {
@@ -270,13 +341,14 @@
         groupMeetingCompleted: Boolean(wr.unpackedMeeting.group),
         prayerMeetingCompleted: Boolean(wr.unpackedMeeting.prayerMtg),
         lordDayCompleted: Boolean(wr.unpackedMeeting.lordDay),
-        visitCompleted: wr.isOutreachQualified,
+        visitCompleted: Boolean(wr.unpackedMeeting.outreach),
         isOutreachQualified: wr.isOutreachQualified,
         meeting: {
           smallGroup: Boolean(wr.unpackedMeeting.group),
           prayerMeeting: Boolean(wr.unpackedMeeting.prayerMtg),
           lordDayMeeting: Boolean(wr.unpackedMeeting.lordDay),
-          outreachVisit: wr.isOutreachQualified,
+          outreachVisit: Boolean(wr.unpackedMeeting.outreach),
+          isOutreachQualified: wr.isOutreachQualified,
           points: wr.meetingScore
         },
         days
@@ -402,7 +474,7 @@
       if (this.apiClient && typeof this.apiClient.getCachedFootprints === 'function') {
         const cached = this.apiClient.getCachedFootprints(targetPlayerId);
         if (cached && (cached.teamDaily || (cached.weeks && cached.monthSummary))) {
-          const assembled = assembleFootprintsData(cached, DEFAULT_POINTS_CONFIG, this.getLiveToday_());
+          const assembled = assembleFootprintsData(cached, null, this.getLiveToday_());
           this.render(assembled);
           hasRenderedCache = true;
         }
@@ -419,14 +491,14 @@
           const res = await this.apiClient.getFootprints({ playerId: targetPlayerId, weeks: 10 });
           if (res && res.success) {
             const freshRaw = res.data || res;
-            const assembled = assembleFootprintsData(freshRaw, DEFAULT_POINTS_CONFIG, this.getLiveToday_());
+            const assembled = assembleFootprintsData(freshRaw, null, this.getLiveToday_());
             this.render(assembled);
             // 若為 SWR 快取返回且帶有背景 revalidatePromise，等網路返回時無縫更新畫面
             if (res.revalidatePromise) {
               res.revalidatePromise.then(freshRes => {
                 if (freshRes && freshRes.success) {
                   const latestRaw = freshRes.data || freshRes;
-                  const latestAssembled = assembleFootprintsData(latestRaw, DEFAULT_POINTS_CONFIG, this.getLiveToday_());
+                  const latestAssembled = assembleFootprintsData(latestRaw, null, this.getLiveToday_());
                   this.render(latestAssembled);
                 }
               }).catch(() => {});
@@ -616,13 +688,23 @@
         const groupDone = Boolean(w.groupMeetingCompleted || (w.meeting && (w.meeting.smallGroup || w.meeting.group)));
         const prayerDone = Boolean(w.prayerMeetingCompleted || (w.meeting && (w.meeting.prayerMeeting || w.meeting.prayerMtg)));
         const lordDayDone = Boolean(w.lordDayCompleted || (w.meeting && (w.meeting.lordDayMeeting || w.meeting.lordDay)));
-        const visitDone = Boolean(w.visitCompleted || w.isOutreachQualified);
+        const visitSelf = Boolean(w.visitCompleted || (w.meeting && (w.meeting.outreachVisit || w.meeting.outreach)));
+        const visitQualified = Boolean(w.isOutreachQualified || (w.meeting && w.meeting.isOutreachQualified));
+
+        let visitSummary = '▫️ 探訪';
+        if (visitSelf && visitQualified) {
+          visitSummary = '✅ 探訪';
+        } else if (visitSelf && !visitQualified) {
+          visitSummary = '⏳ 探訪';
+        } else if (!visitSelf && visitQualified) {
+          visitSummary = '🤝 探訪';
+        }
 
         const meetingSummaryParts = [
           groupDone ? '✅ 小排' : '▫️ 小排',
           prayerDone ? '✅ 禱會' : '▫️ 禱會',
           lordDayDone ? '✅ 主日' : '▫️ 主日',
-          visitDone ? '✅ 探訪' : '▫️ 探訪'
+          visitSummary
         ];
 
         // 7 天清單列

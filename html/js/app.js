@@ -621,7 +621,8 @@
     if (m.name && typeof m.name === 'string' && m.name.trim()) return m.name.trim();
     if (m.title && typeof m.title === 'string' && m.title.trim()) return m.title.trim();
 
-    const id = String((m.id || m.achievementId || m.chapterId || m.taskId) || '').trim();
+    // REPEAT 里程碑 id 形如 `${基底ID}_YYYY-MM-DD`，查表一律以基底 ID 為準
+    const id = String((m.id || m.achievementId || m.chapterId || m.taskId) || '').trim().replace(/_\d{4}-\d{2}-\d{2}$/, '');
     if (!id) return '';
 
     let chapters = (configs && configs.chapters) || null;
@@ -638,49 +639,54 @@
     const normChestId = id.replace(/^CHEST_/i, '');
     const normTaskId = id.replace(/^TASK_/i, '');
 
-    // 篇章查表
-    if (type === 'chapter' || id.startsWith('CHAPTER_') || id.startsWith('CHP_') || /^CH\d+$/i.test(id)) {
-      if (Array.isArray(chapters)) {
-        const found = chapters.find(c => {
-          if (!c) return false;
-          const cid = String(c.chapterId || c.id || '').trim();
-          const normCid = cid.replace(/^CHAPTER_/i, '');
-          return cid === id || cid === normChapterId || normCid === normChapterId;
-        });
-        if (found && found.name) return found.name;
-      }
-      const match = id.match(/(?:CHP_|CHAPTER_|CH)(\d+)/i);
-      if (match) {
-        const idx = parseInt(match[1], 10);
-        if (idx >= 1 && idx <= 8 && CHAPTER_NAMES[idx - 1]) return CHAPTER_NAMES[idx - 1];
-      }
+    // 1. 若指定 type，優先對應之設定表查表
+    if (type === 'chapter' && Array.isArray(chapters)) {
+      const found = chapters.find(c => {
+        if (!c) return false;
+        const cid = String(c.chapterId || c.id || '').trim();
+        const normCid = cid.replace(/^CHAPTER_/i, '');
+        return cid === id || cid === normChapterId || normCid === normChapterId;
+      });
+      if (found && found.name) return found.name;
+    }
+    if (type === 'chest' && Array.isArray(achievements)) {
+      const found = achievements.find(a => {
+        if (!a) return false;
+        const aid = String(a.achievementId || a.id || '').trim();
+        const normAid = aid.replace(/^CHEST_/i, '');
+        return aid === id || aid === normChestId || normAid === normChestId;
+      });
+      if (found && found.name) return found.name;
+    }
+    if (type === 'task' && Array.isArray(tasks)) {
+      const found = tasks.find(t => {
+        if (!t) return false;
+        const tid = String(t.taskId || t.id || '').trim();
+        const normTid = tid.replace(/^TASK_/i, '');
+        return tid === id || tid === normTaskId || normTid === normTaskId;
+      });
+      if (found && found.name) return found.name;
     }
 
-    // 個人成就/寶箱查表
-    if (type === 'chest' || id.startsWith('CHEST_') || /^T\d+$/i.test(id)) {
-      if (Array.isArray(achievements)) {
-        const found = achievements.find(a => {
-          if (!a) return false;
-          const aid = String(a.achievementId || a.id || '').trim();
-          const normAid = aid.replace(/^CHEST_/i, '');
-          return aid === id || aid === normChestId || normAid === normChestId;
-        });
-        if (found && found.name) return found.name;
-      }
-      const chestDefaults = {
-        'T1': '初熟果子寶箱', 'CHEST_T1': '初熟果子寶箱', 'CHEST_tier_1': '初熟果子寶箱', 'tier_1': '初熟果子寶箱',
-        'T2': '盛花繁茂寶箱', 'CHEST_T2': '盛花繁茂寶箱', 'CHEST_tier_2': '盛花繁茂寶箱', 'tier_2': '盛花繁茂寶箱',
-        'T3': '碩果纍纍寶箱', 'CHEST_T3': '碩果纍纍寶箱', 'CHEST_tier_3': '碩果纍纍寶箱', 'tier_3': '碩果纍纍寶箱',
-        'T4': '深根泉湧寶箱', 'CHEST_T4': '深根泉湧寶箱', 'CHEST_tier_4': '深根泉湧寶箱', 'tier_4': '深根泉湧寶箱',
-        'T5': '純金精煉寶箱', 'CHEST_T5': '純金精煉寶箱', 'CHEST_tier_5': '純金精煉寶箱', 'tier_5': '純金精煉寶箱',
-        'T6': '明光照耀寶箱', 'CHEST_T6': '明光照耀寶箱', 'CHEST_tier_6': '明光照耀寶箱', 'tier_6': '明光照耀寶箱',
-        'T7': '磐石基石寶箱', 'CHEST_T7': '磐石基石寶箱', 'CHEST_tier_7': '磐石基石寶箱', 'tier_7': '磐石基石寶箱',
-        'T8': '榮耀冠冕寶箱', 'CHEST_T8': '榮耀冠冕寶箱', 'CHEST_tier_8': '榮耀冠冕寶箱', 'tier_8': '榮耀冠冕寶箱'
-      };
-      if (chestDefaults[id] || chestDefaults[normChestId]) return chestDefaults[id] || chestDefaults[normChestId];
+    // 2. 全面依設定表查表 (AchievementConfig -> ChapterConfig -> TasksConfig)
+    if (Array.isArray(achievements)) {
+      const found = achievements.find(a => {
+        if (!a) return false;
+        const aid = String(a.achievementId || a.id || '').trim();
+        const normAid = aid.replace(/^CHEST_/i, '');
+        return aid === id || aid === normChestId || normAid === normChestId;
+      });
+      if (found && found.name) return found.name;
     }
-
-    // 特殊任務查表
+    if (Array.isArray(chapters)) {
+      const found = chapters.find(c => {
+        if (!c) return false;
+        const cid = String(c.chapterId || c.id || '').trim();
+        const normCid = cid.replace(/^CHAPTER_/i, '');
+        return cid === id || cid === normChapterId || normCid === normChapterId;
+      });
+      if (found && found.name) return found.name;
+    }
     if (Array.isArray(tasks)) {
       const found = tasks.find(t => {
         if (!t) return false;
@@ -690,6 +696,21 @@
       });
       if (found && found.name) return found.name;
     }
+
+    // 3. 安全兜底預設名稱
+    const legacyDefaults = {
+      'T1': '初熟果子寶箱', 'CHEST_T1': '初熟果子寶箱',
+      'T2': '盛花繁茂寶箱', 'CHEST_T2': '盛花繁茂寶箱',
+      'T3': '碩果纍纍寶箱', 'CHEST_T3': '碩果纍纍寶箱',
+      'T4': '深根泉湧寶箱', 'CHEST_T4': '深根泉湧寶箱',
+      'T5': '純金精煉寶箱', 'CHEST_T5': '純金精煉寶箱',
+      'T6': '明光照耀寶箱', 'CHEST_T6': '明光照耀寶箱',
+      'T7': '磐石基石寶箱', 'CHEST_T7': '磐石基石寶箱',
+      'T8': '榮耀冠冕寶箱', 'CHEST_T8': '榮耀冠冕寶箱',
+      'CHP_01': '信心篇', 'CHP_02': '美德篇', 'CHP_03': '知識篇', 'CHP_04': '節制篇',
+      'CHP_05': '忍耐篇', 'CHP_06': '敬虔篇', 'CHP_07': '弟兄相愛篇', 'CHP_08': '愛篇'
+    };
+    if (legacyDefaults[id]) return legacyDefaults[id];
 
     return id;
   }
@@ -801,11 +822,29 @@
     const chapters = [];
     const tasks = [];
 
+    let achCfgForClassify = (configs && configs.achievements) || null;
+    let chpCfgForClassify = (configs && configs.chapters) || null;
+    if (typeof localStorage !== 'undefined') {
+      try { if (!achCfgForClassify) achCfgForClassify = JSON.parse(localStorage.getItem('vital_achievements_config') || 'null'); } catch (e) {}
+      try { if (!chpCfgForClassify) chpCfgForClassify = JSON.parse(localStorage.getItem('vital_chapters_config') || 'null'); } catch (e) {}
+    }
+    const achIdSet = new Set(Array.isArray(achCfgForClassify) && achCfgForClassify.length > 0
+      ? achCfgForClassify.map(a => String((a && (a.achievementId || a.id)) || '').trim()).filter(Boolean)
+      : ['CHEST_T1', 'CHEST_T2', 'CHEST_T3', 'CHEST_T4', 'CHEST_T5', 'CHEST_T6', 'CHEST_T7', 'CHEST_T8', 'REPEAT_DAILY_ALL', 'REPEAT_STREAK_7']);
+
+    const chpIdSet = new Set(Array.isArray(chpCfgForClassify) && chpCfgForClassify.length > 0
+      ? chpCfgForClassify.map(c => String((c && (c.chapterId || c.id)) || '').trim()).filter(Boolean)
+      : ['CHP_01', 'CHP_02', 'CHP_03', 'CHP_04', 'CHP_05', 'CHP_06', 'CHP_07', 'CHP_08']);
+
     allNew.forEach(m => {
-      const id = String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '');
-      if (id.startsWith('CHEST_') || /^T\d+$/i.test(id)) {
+      // REPEAT 里程碑 id 形如 `${基底ID}_YYYY-MM-DD`，分類以基底 ID 為準
+      const id = String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '').replace(/_\d{4}-\d{2}-\d{2}$/, '').trim();
+      if (!id) return;
+
+      // 全面以 AchievementConfig 與 ChapterConfig 設定表為準
+      if (achIdSet.has(id)) {
         chests.push(m);
-      } else if (id.startsWith('CHAPTER_') || id.startsWith('CHP_') || /^CH\d+$/i.test(id)) {
+      } else if (chpIdSet.has(id)) {
         chapters.push(m);
       } else {
         tasks.push(m);

@@ -163,11 +163,22 @@
       }
       if (!Array.isArray(milestones)) milestones = [];
 
-      const claimedSet = new Set(
-        milestones
-          .filter(m => m && (m.id || m.tierId || m.achievementId))
-          .map(m => String(m.id || m.tierId || m.achievementId).trim())
-      );
+      // REPEAT 類成就在後端以 `${成就ID}_YYYY-MM-DD` 逐日記錄，這裡還原為基底 ID 並統計次數/最近日期
+      const claimedSet = new Set();
+      const repeatInfo = new Map(); // baseId -> { count, last }
+      milestones.forEach(m => {
+        const raw = m && String(m.id || m.tierId || m.achievementId || '').trim();
+        if (!raw) return;
+        claimedSet.add(raw);
+        const dm = raw.match(/^(.+)_(\d{4}-\d{2}-\d{2})$/);
+        if (dm) {
+          const info = repeatInfo.get(dm[1]) || { count: 0, last: '' };
+          info.count++;
+          if (dm[2] > info.last) info.last = dm[2];
+          repeatInfo.set(dm[1], info);
+          claimedSet.add(dm[1]);
+        }
+      });
 
       // 2. 取得成就設定清單（優先傳入 > 快取 > 預設）
       let rawList = passedAchievements;
@@ -214,8 +225,13 @@
           : (ach.description || ach.desc || '暫無成就說明。');
         const displayReward = isMystery ? '達成後揭曉' : (ach.rewardDesc || '');
 
+        const rep = repeatInfo.get(achId) || null;
+        const repeatCount = rep ? rep.count : 0;
+        const lastClaimedDate = rep ? rep.last : '';
+        const repeatSuffix = repeatCount > 0 ? ` ×${repeatCount}` : '';
+
         const statusText = isClaimed ? '已獲得' : (isUnlocked ? '達標待結算' : '未達門檻');
-        const statusLabel = isMystery ? '🔒 待探索' : (isClaimed ? '🏆 已獲得' : (isUnlocked ? '⏳ 達標待結算' : '🔒 未達門檻'));
+        const statusLabel = isMystery ? '🔒 待探索' : (isClaimed ? `🏆 已獲得${repeatSuffix}` : (isUnlocked ? '⏳ 達標待結算' : '🔒 未達門檻'));
         const statusColor = isClaimed ? '#10b981' : (isUnlocked ? '#f59e0b' : '#94a3b8');
 
         const webpUrl = resolveChestImg(ach, index, 'webp');
@@ -233,6 +249,8 @@
           minPoints,
           isClaimed,
           claimed: isClaimed,
+          repeatCount,
+          lastClaimedDate,
           isUnlocked,
           unlocked: isUnlocked,
           isMystery,
