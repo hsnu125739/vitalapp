@@ -1728,6 +1728,28 @@ button.player-stat-card{
   line-height: 1.4;
 }
 
+/* 聚會摘要標籤佈局 */
+.footprint-meeting-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-top: 3px;
+  min-width: 0;
+}
+
+.footprint-meeting-tag {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--ink-soft, #555);
+  font-weight: 600;
+  flex-shrink: 0;
+  letter-spacing: -0.2px;
+}
+
 .footprint-week-points {
   text-align: right;
   display: flex;
@@ -4951,9 +4973,36 @@ body{
   }
 
   .footprint-week-summary{
-    grid-template-columns:30px minmax(0,1fr) auto;
-    padding:10px 12px;
-    gap:10px;
+    grid-template-columns:28px minmax(0,1fr) auto;
+    padding:10px 10px;
+    gap:8px;
+  }
+
+  .footprint-week-info h4{
+    font-size:13.5px;
+    white-space:nowrap;
+    gap:6px;
+  }
+
+  .footprint-week-info p{
+    font-size:11.5px;
+    white-space:nowrap;
+  }
+
+  .footprint-meeting-summary{
+    gap:5px;
+    margin-top:3px;
+    overflow-x:auto;
+    scrollbar-width:none;
+  }
+
+  .footprint-meeting-summary::-webkit-scrollbar{
+    display:none;
+  }
+
+  .footprint-meeting-tag{
+    font-size:11px;
+    gap:1.5px;
   }
 
   .footprint-week-marker{
@@ -6218,4 +6267,9 @@ body[data-theme="night"] .task-info-popover .popover-header {
 
 body[data-theme="night"] .task-info-popover .popover-text {
   color: #fca5a5;
+}
+
+/* 足跡聚會標籤深色模式 */
+body[data-theme="night"] .footprint-meeting-tag {
+  color: #cbd5e1;
 }

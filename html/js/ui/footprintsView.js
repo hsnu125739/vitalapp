@@ -768,9 +768,9 @@
                 <p>
                   📖 ${w.bibleDays || 0}天 · 🙏 ${w.prayerDays || 0}天 · 🌅 ${w.morningDays || 0}天 · 📚 ${w.readingDays || w.bookDays || 0}天
                 </p>
-                <p style="margin-top: 2px;">
-                  ${meetingSummaryParts.join('　')}
-                </p>
+                <div class="footprint-meeting-summary">
+                  ${meetingSummaryParts.map(item => `<span class="footprint-meeting-tag">${item}</span>`).join('')}
+                </div>
               </div>
               <div class="footprint-week-points">
                 <strong>+${formatNumber(w.weeklyScore || w.totalWeekPoints || 0)} 點</strong>
