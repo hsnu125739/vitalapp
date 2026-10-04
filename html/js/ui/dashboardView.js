@@ -287,21 +287,29 @@
       this.currentUserProfile = { ...userProfile };
       this.currentJourneyData = journeyData;
       
+      // 保存未加上 localDelta 的基礎結算分數 (防止重複疊加)
+      const basePersonal = this.currentUserProfile.basePersonalPoints !== undefined
+        ? Number(this.currentUserProfile.basePersonalPoints || 0)
+        : Number(this.currentUserProfile.personalPoints !== undefined 
+            ? this.currentUserProfile.personalPoints 
+            : (this.currentUserProfile.totalPoints !== undefined ? this.currentUserProfile.totalPoints : (this.currentUserProfile.totalScore || 0)));
+      this.currentUserProfile.basePersonalPoints = basePersonal;
+
+      const baseContrib = this.currentUserProfile.baseContributionPoints !== undefined
+        ? Number(this.currentUserProfile.baseContributionPoints || 0)
+        : Number(this.currentUserProfile.contributionPoints !== undefined 
+            ? this.currentUserProfile.contributionPoints 
+            : (this.currentUserProfile.contribution !== undefined ? this.currentUserProfile.contribution : 0));
+      this.currentUserProfile.baseContributionPoints = baseContrib;
+
       // 將未結算分數疊加到基礎分數上
-      if (this.currentUserProfile.personalPoints !== undefined) {
-        this.currentUserProfile.personalPoints += localDelta;
-      } else if (this.currentUserProfile.totalPoints !== undefined) {
-        this.currentUserProfile.totalPoints += localDelta;
-      } else if (this.currentUserProfile.totalScore !== undefined) {
-        this.currentUserProfile.totalScore += localDelta;
-      }
-      
+      this.currentUserProfile.personalPoints = basePersonal + localDelta;
+      if (this.currentUserProfile.totalPoints !== undefined) this.currentUserProfile.totalPoints = this.currentUserProfile.personalPoints;
+      if (this.currentUserProfile.totalScore !== undefined) this.currentUserProfile.totalScore = this.currentUserProfile.personalPoints;
+
       if (this.currentUserProfile.groupId) {
-        if (this.currentUserProfile.contributionPoints !== undefined) {
-          this.currentUserProfile.contributionPoints += localDelta;
-        } else if (this.currentUserProfile.contribution !== undefined) {
-          this.currentUserProfile.contribution += localDelta;
-        }
+        this.currentUserProfile.contributionPoints = baseContrib + localDelta;
+        if (this.currentUserProfile.contribution !== undefined) this.currentUserProfile.contribution = this.currentUserProfile.contributionPoints;
       }
 
       // 1. 頂部資訊
@@ -354,17 +362,17 @@
         }
       }
 
-      // 【個人點數】（整年操練分 + 歷史結算沉澱分 personalPoints）
-      const personalPoints = userProfile.personalPoints !== undefined 
-        ? userProfile.personalPoints 
-        : (userProfile.totalPoints !== undefined ? userProfile.totalPoints : (userProfile.totalScore || 0));
+      // 【個人點數】（整年操練分 + 歷史結算沉澱分 personalPoints + 今日未結算操練分數）
+      const personalPoints = this.currentUserProfile.personalPoints !== undefined 
+        ? this.currentUserProfile.personalPoints 
+        : (this.currentUserProfile.totalPoints !== undefined ? this.currentUserProfile.totalPoints : (this.currentUserProfile.totalScore || 0));
       const personalEl = document.getElementById('homePersonalScoreText');
       if (personalEl) personalEl.textContent = Number(personalPoints || 0).toLocaleString();
 
-      // 【貢獻點數】（在目前組別累積貢獻點 contributionPoints）
-      const contribution = userProfile.contributionPoints !== undefined 
-        ? userProfile.contributionPoints 
-        : (userProfile.contribution !== undefined ? userProfile.contribution : 0);
+      // 【貢獻點數】（在目前組別累積貢獻點 contributionPoints + 今日未結算操練分數）
+      const contribution = this.currentUserProfile.contributionPoints !== undefined 
+        ? this.currentUserProfile.contributionPoints 
+        : (this.currentUserProfile.contribution !== undefined ? this.currentUserProfile.contribution : 0);
       const contribEl = document.getElementById('homeContributionText');
       if (contribEl) contribEl.textContent = Number(contribution || 0).toLocaleString();
 
@@ -1025,9 +1033,12 @@
       const cfg = this.pointsConfig || DEFAULT_POINTS_CONFIG;
       let totalLocalDelta = 0;
 
+      const curDate = this.currentDate || this.getTodayDateString();
+      const curWeek = this.currentWeekKey || this.getCurrentWeekKey();
+
       // 1. 每日操練 (今日)
-      if (this.currentDate && this.practiceStore && this.practiceStore.dailyState[this.currentDate]) {
-        const d = this.practiceStore.dailyState[this.currentDate];
+      if (curDate && this.practiceStore && this.practiceStore.dailyState && this.practiceStore.dailyState[curDate]) {
+        const d = this.practiceStore.dailyState[curDate];
         if (d.morning || d.morningRevival) totalLocalDelta += Number(cfg.morning || 50);
         if (d.bible || d.bibleReading) totalLocalDelta += Number(cfg.bible || 30);
         if (d.prayer) totalLocalDelta += Number(cfg.prayer || 30);
@@ -1035,12 +1046,12 @@
       }
 
       // 2. 每週聚會 (本週)
-      if (this.currentWeekKey && this.practiceStore && this.practiceStore.meetingState[this.currentWeekKey]) {
-        const m = this.practiceStore.meetingState[this.currentWeekKey];
+      if (curWeek && this.practiceStore && this.practiceStore.meetingState && this.practiceStore.meetingState[curWeek]) {
+        const m = this.practiceStore.meetingState[curWeek];
         if (m.smallGroup || m.group) totalLocalDelta += Number(cfg.group !== undefined ? cfg.group : (cfg.smallGroup || 30));
         if (m.prayerMeeting || m.prayerMtg) totalLocalDelta += Number(cfg.prayerMtg !== undefined ? cfg.prayerMtg : (cfg.prayerMeeting || 50));
         if (m.lordDayMeeting || m.lordDay) totalLocalDelta += Number(cfg.lordDay !== undefined ? cfg.lordDay : (cfg.lordDayMeeting || 50));
-        if (m.outreachVisit || m.outreach) totalLocalDelta += Number(cfg.outreach !== undefined ? cfg.outreach : (cfg.outreachVisit || 100));
+        if (m.outreachVisit || m.outreach || m.mutual || m.blend) totalLocalDelta += Number(cfg.outreach !== undefined ? cfg.outreach : (cfg.outreachVisit || 100));
       }
 
       return totalLocalDelta;

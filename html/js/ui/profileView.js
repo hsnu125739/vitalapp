@@ -753,16 +753,25 @@
         this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">讀取當年度同行貢獻資料中...</div>';
       }
 
-      const p = this.currentUserProfile || {};
+      const dashProf = (typeof window !== 'undefined' && window.dashboardView && window.dashboardView.currentUserProfile)
+        || (typeof global !== 'undefined' && global.dashboardView && global.dashboardView.currentUserProfile);
+      const p = dashProf || this.currentUserProfile || {};
       const groupId = p.groupId;
       
-      // 樂觀加上今天的未結算本機打卡分數
-      const localDelta = (window.dashboardView && typeof window.dashboardView.calculateTodayLocalPointsDelta_ === 'function') 
-        ? window.dashboardView.calculateTodayLocalPointsDelta_() 
-        : 0;
-        
-      const myPersonalPoints = Number(p.personalPoints !== undefined ? p.personalPoints : (p.totalPoints !== undefined ? p.totalPoints : (p.totalScore || 0))) + localDelta;
-      const myContribPoints = Number(p.contributionPoints !== undefined ? p.contributionPoints : (p.contribution || 0)) + localDelta;
+      let myPersonalPoints;
+      let myContribPoints;
+      if (dashProf && dashProf.personalPoints !== undefined) {
+        myPersonalPoints = Number(dashProf.personalPoints || 0);
+        myContribPoints = Number(dashProf.contributionPoints !== undefined ? dashProf.contributionPoints : (dashProf.contribution || 0));
+      } else {
+        const localDelta = (dashProf && typeof dashProf.calculateTodayLocalPointsDelta_ === 'function') 
+          ? dashProf.calculateTodayLocalPointsDelta_() 
+          : ((typeof window !== 'undefined' && window.dashboardView && typeof window.dashboardView.calculateTodayLocalPointsDelta_ === 'function') ? window.dashboardView.calculateTodayLocalPointsDelta_() : 0);
+        const basePersonal = Number(p.basePersonalPoints !== undefined ? p.basePersonalPoints : (p.personalPoints !== undefined ? p.personalPoints : (p.totalPoints !== undefined ? p.totalPoints : (p.totalScore || 0))));
+        const baseContrib = Number(p.baseContributionPoints !== undefined ? p.baseContributionPoints : (p.contributionPoints !== undefined ? p.contributionPoints : (p.contribution || 0)));
+        myPersonalPoints = basePersonal + localDelta;
+        myContribPoints = baseContrib + localDelta;
+      }
 
       if (!groupId) {
         if (this.infoModalContent) {

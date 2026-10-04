@@ -245,6 +245,49 @@
               const chStr = localStorage.getItem('vital_chapters_config');
               if (chStr) cachedChapters = JSON.parse(chStr);
             } catch (e) {}
+
+            // 嘗試從本地操練快取水合 practiceStore，確保 0ms 首屏即可精確算出今日未結算點數
+            if (practiceStore) {
+              const today = (dashboardView && dashboardView.currentDate) || (dashboardView && dashboardView.getTodayDateString && dashboardView.getTodayDateString());
+              const curWeek = (dashboardView && dashboardView.currentWeekKey) || (dashboardView && dashboardView.getCurrentWeekKey && dashboardView.getCurrentWeekKey());
+              if (today) {
+                try {
+                  const cachedDaily = JSON.parse(localStorage.getItem(`vital_daily_records_${cachedPlayer.playerId}`) || 'null');
+                  if (cachedDaily && cachedDaily[today]) {
+                    const rec = cachedDaily[today];
+                    practiceStore.dailyState[today] = {
+                      morning: Boolean(rec.morning || rec.morningRevival),
+                      morningRevival: Boolean(rec.morning || rec.morningRevival),
+                      bible: Boolean(rec.bible || rec.bibleReading),
+                      bibleReading: Boolean(rec.bible || rec.bibleReading),
+                      prayer: Boolean(rec.prayer),
+                      book: Boolean(rec.book || rec.bookPursuit),
+                      bookPursuit: Boolean(rec.book || rec.bookPursuit),
+                      syncStatus: 'synced',
+                      hasAmberDot: false
+                    };
+                    if (dashboardView) dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
+                  }
+                } catch (e) {}
+              }
+              if (curWeek) {
+                try {
+                  const cachedMtg = JSON.parse(localStorage.getItem(`vital_meeting_records_${cachedPlayer.playerId}`) || 'null');
+                  if (cachedMtg && cachedMtg[curWeek]) {
+                    const mRec = cachedMtg[curWeek];
+                    practiceStore.meetingState[curWeek] = {
+                      smallGroup: Boolean(mRec.group || mRec.smallGroup),
+                      prayerMeeting: Boolean(mRec.prayerMtg || mRec.prayerMeeting),
+                      lordDayMeeting: Boolean(mRec.lordDay || mRec.lordDayMeeting),
+                      outreachVisit: Boolean(mRec.outreach || mRec.outreachVisit || mRec.blend || mRec.mutual),
+                      syncStatus: 'synced',
+                      hasAmberDot: false
+                    };
+                    if (dashboardView) dashboardView.renderMeetingPracticeState(practiceStore.meetingState[curWeek]);
+                  }
+                } catch (e) {}
+              }
+            }
             
             // 立即使用快取資料渲染 UI
             dashboardView.render(currentUserProfile, currentJourneyData, cachedAnnouncements, cachedChapters);
@@ -368,9 +411,11 @@
           if (currentUserProfile) {
             if (data.playerProgress.personalPoints !== undefined) {
               currentUserProfile.personalPoints = Number(data.playerProgress.personalPoints || 0);
+              currentUserProfile.basePersonalPoints = currentUserProfile.personalPoints;
             }
             if (data.playerProgress.contributionPoints !== undefined) {
               currentUserProfile.contributionPoints = Number(data.playerProgress.contributionPoints || 0);
+              currentUserProfile.baseContributionPoints = currentUserProfile.contributionPoints;
             }
             try { localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile)); } catch(e) {}
           }
@@ -522,27 +567,18 @@
         try { announcements = JSON.parse(localStorage.getItem('vital_announcements') || '[]'); } catch(e) { announcements = []; }
       }
 
-      // 5. 差量更新視圖
-      dashboardView.render(currentUserProfile, currentJourneyData, announcements, chaptersConfig);
-      profileView.render(currentUserProfile, currentJourneyData);
-
-      // 5.1 檢查特殊任務登入提示彈窗 (今日不再顯示記憶機制)
-      checkSpecialTasksPrompt(tasksConfig, currentPId);
-
-
-
-      // 6. 處理打卡狀態 (從 dailyRecords / meetingRecords 解析)
+      // 5. 處理打卡狀態 (從 dailyRecords / meetingRecords 解析，確保 render 前 practiceStore 已就緒)
       if (dailyRecords) {
         const today = dashboardView.currentDate || dashboardView.getTodayDateString();
         const todayRecord = dailyRecords[today] || {};
         practiceStore.dailyState[today] = {
-          morning: Boolean(todayRecord.morning),
-          morningRevival: Boolean(todayRecord.morning),
-          bible: Boolean(todayRecord.bible),
-          bibleReading: Boolean(todayRecord.bible),
+          morning: Boolean(todayRecord.morning || todayRecord.morningRevival),
+          morningRevival: Boolean(todayRecord.morning || todayRecord.morningRevival),
+          bible: Boolean(todayRecord.bible || todayRecord.bibleReading),
+          bibleReading: Boolean(todayRecord.bible || todayRecord.bibleReading),
           prayer: Boolean(todayRecord.prayer),
-          book: Boolean(todayRecord.book),
-          bookPursuit: Boolean(todayRecord.book),
+          book: Boolean(todayRecord.book || todayRecord.bookPursuit),
+          bookPursuit: Boolean(todayRecord.book || todayRecord.bookPursuit),
           syncStatus: 'synced',
           hasAmberDot: false
         };
@@ -552,15 +588,22 @@
         const currentWeek = dashboardView.currentWeekKey || dashboardView.getCurrentWeekKey();
         const currentMtg = meetingRecords[currentWeek] || {};
         practiceStore.meetingState[currentWeek] = {
-          smallGroup: Boolean(currentMtg.group),
-          prayerMeeting: Boolean(currentMtg.prayerMtg),
-          lordDayMeeting: Boolean(currentMtg.lordDay),
-          outreachVisit: Boolean(currentMtg.mutual),
+          smallGroup: Boolean(currentMtg.group || currentMtg.smallGroup),
+          prayerMeeting: Boolean(currentMtg.prayerMtg || currentMtg.prayerMeeting),
+          lordDayMeeting: Boolean(currentMtg.lordDay || currentMtg.lordDayMeeting),
+          outreachVisit: Boolean(currentMtg.outreach || currentMtg.outreachVisit || currentMtg.blend || currentMtg.mutual),
           syncStatus: 'synced',
           hasAmberDot: false
         };
         dashboardView.renderMeetingPracticeState(practiceStore.meetingState[currentWeek]);
       }
+
+      // 6. 差量更新視圖 (此時 practiceStore 已具備最新打卡紀錄，未結算操練分數即時疊加)
+      dashboardView.render(currentUserProfile, currentJourneyData, announcements, chaptersConfig);
+      profileView.render(currentUserProfile, currentJourneyData);
+
+      // 6.1 檢查特殊任務登入提示彈窗 (今日不再顯示記憶機制)
+      checkSpecialTasksPrompt(tasksConfig, currentPId);
 
       // 7. 初始化小組交流
       if (currentGId) {
@@ -903,7 +946,11 @@
   }
 
   function openChests(selectedIdx = null) {
-    const points = (currentUserProfile && (currentUserProfile.totalPoints !== undefined ? currentUserProfile.totalPoints : currentUserProfile.totalScore)) || 0;
+    const prof = (dashboardView && dashboardView.currentUserProfile) || currentUserProfile;
+    const points = (prof && (
+      prof.personalPoints !== undefined ? prof.personalPoints :
+      (prof.totalPoints !== undefined ? prof.totalPoints : prof.totalScore)
+    )) || 0;
     let pMs = [];
     if (currentUserProfile && currentUserProfile.playerId) {
       try {
