@@ -1728,17 +1728,19 @@ button.player-stat-card{
   line-height: 1.4;
 }
 
-/* 聚會摘要標籤佈局 */
+/* 操練與聚會摘要 4 欄格網上下精準對齊 */
+.footprint-practice-summary,
 .footprint-meeting-summary {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 290px;
   gap: 6px;
   margin-top: 3px;
+  align-items: center;
   min-width: 0;
 }
 
-.footprint-meeting-tag {
+.footprint-summary-item {
   display: inline-flex;
   align-items: center;
   white-space: nowrap;
@@ -1746,7 +1748,6 @@ button.player-stat-card{
   line-height: 1.2;
   color: var(--ink-soft, #555);
   font-weight: 600;
-  flex-shrink: 0;
   letter-spacing: -0.2px;
 }
 
@@ -4989,20 +4990,23 @@ body{
     white-space:nowrap;
   }
 
+  .footprint-practice-summary,
   .footprint-meeting-summary{
-    gap:5px;
+    gap:4px;
     margin-top:3px;
+    max-width:100%;
     overflow-x:auto;
     scrollbar-width:none;
   }
 
+  .footprint-practice-summary::-webkit-scrollbar,
   .footprint-meeting-summary::-webkit-scrollbar{
     display:none;
   }
 
-  .footprint-meeting-tag{
+  .footprint-summary-item{
     font-size:11px;
-    gap:1.5px;
+    letter-spacing:-0.25px;
   }
 
   .footprint-week-marker{
@@ -6270,6 +6274,7 @@ body[data-theme="night"] .task-info-popover .popover-text {
 }
 
 /* 足跡聚會標籤深色模式 */
+body[data-theme="night"] .footprint-summary-item,
 body[data-theme="night"] .footprint-meeting-tag {
   color: #cbd5e1;
 }

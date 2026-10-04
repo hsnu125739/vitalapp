@@ -765,11 +765,14 @@
                   <span style="font-weight: normal; color: var(--ink-soft, #777); font-size: 12px;">(${escapeHtml(w.dateRange || '')})</span>
                   ${isCurrent ? '<span class="current-badge">本週</span>' : ''}
                 </h4>
-                <p>
-                  📖 ${w.bibleDays || 0}天 · 🙏 ${w.prayerDays || 0}天 · 🌅 ${w.morningDays || 0}天 · 📚 ${w.readingDays || w.bookDays || 0}天
-                </p>
+                <div class="footprint-practice-summary">
+                  <span class="footprint-summary-item">📖 ${w.bibleDays || 0}天</span>
+                  <span class="footprint-summary-item">🙏 ${w.prayerDays || 0}天</span>
+                  <span class="footprint-summary-item">🌅 ${w.morningDays || 0}天</span>
+                  <span class="footprint-summary-item">📚 ${w.readingDays || w.bookDays || 0}天</span>
+                </div>
                 <div class="footprint-meeting-summary">
-                  ${meetingSummaryParts.map(item => `<span class="footprint-meeting-tag">${item}</span>`).join('')}
+                  ${meetingSummaryParts.map(item => `<span class="footprint-summary-item footprint-meeting-tag">${item}</span>`).join('')}
                 </div>
               </div>
               <div class="footprint-week-points">
