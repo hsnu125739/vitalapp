@@ -824,6 +824,73 @@
         return false;
       }
     }
+
+    updateDailyRecordCache(dateStr, practices = {}, playerId = null) {
+      const pId = playerId || this.getPlayerIdFromToken();
+      if (!this.storage || !dateStr || !pId) return false;
+      try {
+        const cacheKey = `vital_daily_records_${pId}`;
+        let records = {};
+        const raw = this.storage.getItem(cacheKey);
+        if (raw) {
+          try { records = JSON.parse(raw) || {}; } catch (_) {}
+        }
+        const oldRec = records[dateStr] || {};
+        const morningVal = practices.morningRevival !== undefined ? Boolean(practices.morningRevival) : (practices.morning !== undefined ? Boolean(practices.morning) : Boolean(oldRec.morning || oldRec.morningRevival));
+        const bibleVal = practices.bibleReading !== undefined ? Boolean(practices.bibleReading) : (practices.bible !== undefined ? Boolean(practices.bible) : Boolean(oldRec.bible || oldRec.bibleReading));
+        const prayerVal = practices.prayer !== undefined ? Boolean(practices.prayer) : Boolean(oldRec.prayer);
+        const bookVal = practices.bookPursuit !== undefined ? Boolean(practices.bookPursuit) : (practices.book !== undefined ? Boolean(practices.book) : Boolean(oldRec.book || oldRec.bookPursuit));
+
+        records[dateStr] = {
+          ...oldRec,
+          morning: morningVal,
+          morningRevival: morningVal,
+          bible: bibleVal,
+          bibleReading: bibleVal,
+          prayer: prayerVal,
+          book: bookVal,
+          bookPursuit: bookVal
+        };
+        this.storage.setItem(cacheKey, JSON.stringify(records));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    updateMeetingRecordCache(weekKey, meetings = {}, playerId = null) {
+      const pId = playerId || this.getPlayerIdFromToken();
+      if (!this.storage || !weekKey || !pId) return false;
+      try {
+        const cacheKey = `vital_meeting_records_${pId}`;
+        let records = {};
+        const raw = this.storage.getItem(cacheKey);
+        if (raw) {
+          try { records = JSON.parse(raw) || {}; } catch (_) {}
+        }
+        const oldRec = records[weekKey] || {};
+        const groupVal = meetings.group !== undefined ? Boolean(meetings.group) : (meetings.smallGroup !== undefined ? Boolean(meetings.smallGroup) : Boolean(oldRec.group || oldRec.smallGroup));
+        const prayerVal = meetings.prayerMtg !== undefined ? Boolean(meetings.prayerMtg) : (meetings.prayerMeeting !== undefined ? Boolean(meetings.prayerMeeting) : Boolean(oldRec.prayerMtg || oldRec.prayerMeeting));
+        const lordDayVal = meetings.lordDay !== undefined ? Boolean(meetings.lordDay) : (meetings.lordDayMeeting !== undefined ? Boolean(meetings.lordDayMeeting) : Boolean(oldRec.lordDay || oldRec.lordDayMeeting));
+        const outreachVal = meetings.outreach !== undefined ? Boolean(meetings.outreach) : (meetings.outreachVisit !== undefined ? Boolean(meetings.outreachVisit) : Boolean(oldRec.outreach || oldRec.outreachVisit || oldRec.blend || oldRec.mutual));
+
+        records[weekKey] = {
+          ...oldRec,
+          group: groupVal,
+          smallGroup: groupVal,
+          prayerMtg: prayerVal,
+          prayerMeeting: prayerVal,
+          lordDay: lordDayVal,
+          lordDayMeeting: lordDayVal,
+          outreach: outreachVal,
+          outreachVisit: outreachVal
+        };
+        this.storage.setItem(cacheKey, JSON.stringify(records));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
     
     async getProgressBundle(groupId = null) {
       const data = {};

@@ -313,21 +313,40 @@
         if (typeof originalHandler === 'function') {
           originalHandler({ type, key, state });
         }
+        const playerId = (this.currentUserProfile && this.currentUserProfile.playerId) || null;
         if (type === 'DAILY') {
           if (key === this.currentDate) {
             this.renderDailyPracticeState(state);
           }
           if (this.apiClient && typeof this.apiClient.updateFootprintDailyCache === 'function') {
-            const playerId = (this.currentUserProfile && this.currentUserProfile.playerId) || null;
             this.apiClient.updateFootprintDailyCache(key, state, playerId);
+          }
+          if (this.apiClient && typeof this.apiClient.updateDailyRecordCache === 'function') {
+            this.apiClient.updateDailyRecordCache(key, state, playerId);
+          } else if (typeof localStorage !== 'undefined' && playerId) {
+            try {
+              const dKey = `vital_daily_records_${playerId}`;
+              const curRecs = JSON.parse(localStorage.getItem(dKey) || '{}');
+              curRecs[key] = { ...(curRecs[key] || {}), ...state };
+              localStorage.setItem(dKey, JSON.stringify(curRecs));
+            } catch (_) {}
           }
         } else if (type === 'MEETING') {
           if (key === this.currentWeekKey) {
             this.renderMeetingPracticeState(state);
           }
           if (this.apiClient && typeof this.apiClient.updateFootprintMeetingCache === 'function') {
-            const playerId = (this.currentUserProfile && this.currentUserProfile.playerId) || null;
             this.apiClient.updateFootprintMeetingCache(key, state, playerId);
+          }
+          if (this.apiClient && typeof this.apiClient.updateMeetingRecordCache === 'function') {
+            this.apiClient.updateMeetingRecordCache(key, state, playerId);
+          } else if (typeof localStorage !== 'undefined' && playerId) {
+            try {
+              const mKey = `vital_meeting_records_${playerId}`;
+              const curRecs = JSON.parse(localStorage.getItem(mKey) || '{}');
+              curRecs[key] = { ...(curRecs[key] || {}), ...state };
+              localStorage.setItem(mKey, JSON.stringify(curRecs));
+            } catch (_) {}
           }
         }
       };

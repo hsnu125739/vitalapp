@@ -202,16 +202,17 @@
       authView.showAuth();
     } else {
       authView.hideAuth();
-      await loadUserData();
+      await loadUserData(true);
     }
   }
 
-  async function loadUserData() {
+  async function loadUserData(isColdStart = true) {
     try {
-      // 0. 本地水合 (0ms rendering)
-      let cachedPlayer = null;
-      try {
-        const cachedStr = localStorage.getItem('vital_current_player');
+      // 0. 本地水合 (0ms rendering，僅限冷啟動首屏秒開；在線刷新時絕不拿舊快取覆蓋記憶體最新狀態)
+      if (isColdStart) {
+        let cachedPlayer = null;
+        try {
+          const cachedStr = localStorage.getItem('vital_current_player');
         if (cachedStr) {
           cachedPlayer = JSON.parse(cachedStr);
           if (cachedPlayer && cachedPlayer.playerId) {
@@ -314,6 +315,7 @@
           }
         }
       } catch (e) {}
+      }
 
       // 如果既無 token 也無快取 profile，則退出
       if (!currentUserProfile && !apiClient.getSessionToken()) {
@@ -339,48 +341,63 @@
           const yRec = pRes.data.yesterdayDaily || null;
           const mRec = pRes.data.meeting || {};
           
+          const pendingD = (practiceStore.pendingDaily && practiceStore.pendingDaily.get(today)) || null;
           practiceStore.dailyState[today] = {
-            morning: Boolean(dRec.morning || dRec.morningRevival),
-            morningRevival: Boolean(dRec.morning || dRec.morningRevival),
-            bible: Boolean(dRec.bible || dRec.bibleReading),
-            bibleReading: Boolean(dRec.bible || dRec.bibleReading),
-            prayer: Boolean(dRec.prayer),
-            book: Boolean(dRec.book || dRec.bookPursuit),
-            bookPursuit: Boolean(dRec.book || dRec.bookPursuit),
-            syncStatus: 'synced',
+            morning: pendingD ? pendingD.morning : Boolean(dRec.morning || dRec.morningRevival),
+            morningRevival: pendingD ? pendingD.morningRevival : Boolean(dRec.morning || dRec.morningRevival),
+            bible: pendingD ? pendingD.bible : Boolean(dRec.bible || dRec.bibleReading),
+            bibleReading: pendingD ? pendingD.bibleReading : Boolean(dRec.bible || dRec.bibleReading),
+            prayer: pendingD ? pendingD.prayer : Boolean(dRec.prayer),
+            book: pendingD ? pendingD.book : Boolean(dRec.book || dRec.bookPursuit),
+            bookPursuit: pendingD ? pendingD.bookPursuit : Boolean(dRec.book || dRec.bookPursuit),
+            syncStatus: pendingD ? 'pending' : 'synced',
             hasAmberDot: false
           };
 
           if (yesterday && yRec) {
+            const pendingY = (practiceStore.pendingDaily && practiceStore.pendingDaily.get(yesterday)) || null;
             practiceStore.dailyState[yesterday] = {
-              morning: Boolean(yRec.morning || yRec.morningRevival),
-              morningRevival: Boolean(yRec.morning || yRec.morningRevival),
-              bible: Boolean(yRec.bible || yRec.bibleReading),
-              bibleReading: Boolean(yRec.bible || yRec.bibleReading),
-              prayer: Boolean(yRec.prayer),
-              book: Boolean(yRec.book || yRec.bookPursuit),
-              bookPursuit: Boolean(yRec.book || yRec.bookPursuit),
-              syncStatus: 'synced',
+              morning: pendingY ? pendingY.morning : Boolean(yRec.morning || yRec.morningRevival),
+              morningRevival: pendingY ? pendingY.morningRevival : Boolean(yRec.morning || yRec.morningRevival),
+              bible: pendingY ? pendingY.bible : Boolean(yRec.bible || yRec.bibleReading),
+              bibleReading: pendingY ? pendingY.bibleReading : Boolean(yRec.bible || yRec.bibleReading),
+              prayer: pendingY ? pendingY.prayer : Boolean(yRec.prayer),
+              book: pendingY ? pendingY.book : Boolean(yRec.book || yRec.bookPursuit),
+              bookPursuit: pendingY ? pendingY.bookPursuit : Boolean(yRec.book || yRec.bookPursuit),
+              syncStatus: pendingY ? 'pending' : 'synced',
               hasAmberDot: false
             };
           }
 
+          const pendingM = (practiceStore.pendingMeeting && practiceStore.pendingMeeting.get(curWeek)) || null;
           practiceStore.meetingState[curWeek] = {
-            smallGroup: Boolean(mRec.group || mRec.smallGroup),
-            prayerMeeting: Boolean(mRec.prayerMtg || mRec.prayerMeeting),
-            lordDayMeeting: Boolean(mRec.lordDay || mRec.lordDayMeeting),
-            outreachVisit: Boolean(mRec.outreach || mRec.outreachVisit || mRec.blend || mRec.mutual),
-            syncStatus: 'synced',
+            smallGroup: pendingM ? pendingM.smallGroup : Boolean(mRec.group || mRec.smallGroup),
+            prayerMeeting: pendingM ? pendingM.prayerMeeting : Boolean(mRec.prayerMtg || mRec.prayerMeeting),
+            lordDayMeeting: pendingM ? pendingM.lordDayMeeting : Boolean(mRec.lordDay || mRec.lordDayMeeting),
+            outreachVisit: pendingM ? pendingM.outreachVisit : Boolean(mRec.outreach || mRec.outreachVisit || mRec.blend || mRec.mutual),
+            syncStatus: pendingM ? 'pending' : 'synced',
             hasAmberDot: false
           };
           if (pId && typeof localStorage !== 'undefined') {
             try {
-              const dailyToSave = { [today]: practiceStore.dailyState[today] };
+              let dailyToSave = {};
+              const existingDailyStr = localStorage.getItem(`vital_daily_records_${pId}`);
+              if (existingDailyStr) {
+                try { dailyToSave = JSON.parse(existingDailyStr) || {}; } catch(e) {}
+              }
+              dailyToSave[today] = practiceStore.dailyState[today];
               if (yesterday && practiceStore.dailyState[yesterday]) {
                 dailyToSave[yesterday] = practiceStore.dailyState[yesterday];
               }
               localStorage.setItem(`vital_daily_records_${pId}`, JSON.stringify(dailyToSave));
-              localStorage.setItem(`vital_meeting_records_${pId}`, JSON.stringify({ [curWeek]: practiceStore.meetingState[curWeek] }));
+
+              let meetingToSave = {};
+              const existingMtgStr = localStorage.getItem(`vital_meeting_records_${pId}`);
+              if (existingMtgStr) {
+                try { meetingToSave = JSON.parse(existingMtgStr) || {}; } catch(e) {}
+              }
+              meetingToSave[curWeek] = practiceStore.meetingState[curWeek];
+              localStorage.setItem(`vital_meeting_records_${pId}`, JSON.stringify(meetingToSave));
             } catch (e) {}
           }
           if (dashboardView) {
@@ -607,15 +624,16 @@
       if (dailyRecords && Object.keys(dailyRecords).length > 0) {
         const today = dashboardView.currentDate || dashboardView.getTodayDateString();
         const todayRecord = dailyRecords[today] || {};
+        const pendingD = (practiceStore.pendingDaily && practiceStore.pendingDaily.get(today)) || null;
         practiceStore.dailyState[today] = {
-          morning: Boolean(todayRecord.morning || todayRecord.morningRevival),
-          morningRevival: Boolean(todayRecord.morning || todayRecord.morningRevival),
-          bible: Boolean(todayRecord.bible || todayRecord.bibleReading),
-          bibleReading: Boolean(todayRecord.bible || todayRecord.bibleReading),
-          prayer: Boolean(todayRecord.prayer),
-          book: Boolean(todayRecord.book || todayRecord.bookPursuit),
-          bookPursuit: Boolean(todayRecord.book || todayRecord.bookPursuit),
-          syncStatus: 'synced',
+          morning: pendingD ? pendingD.morning : Boolean(todayRecord.morning || todayRecord.morningRevival),
+          morningRevival: pendingD ? pendingD.morningRevival : Boolean(todayRecord.morning || todayRecord.morningRevival),
+          bible: pendingD ? pendingD.bible : Boolean(todayRecord.bible || todayRecord.bibleReading),
+          bibleReading: pendingD ? pendingD.bibleReading : Boolean(todayRecord.bible || todayRecord.bibleReading),
+          prayer: pendingD ? pendingD.prayer : Boolean(todayRecord.prayer),
+          book: pendingD ? pendingD.book : Boolean(todayRecord.book || todayRecord.bookPursuit),
+          bookPursuit: pendingD ? pendingD.bookPursuit : Boolean(todayRecord.book || todayRecord.bookPursuit),
+          syncStatus: pendingD ? 'pending' : 'synced',
           hasAmberDot: false
         };
         dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
@@ -623,12 +641,13 @@
       if (meetingRecords && Object.keys(meetingRecords).length > 0) {
         const currentWeek = dashboardView.currentWeekKey || dashboardView.getCurrentWeekKey();
         const currentMtg = meetingRecords[currentWeek] || {};
+        const pendingM = (practiceStore.pendingMeeting && practiceStore.pendingMeeting.get(currentWeek)) || null;
         practiceStore.meetingState[currentWeek] = {
-          smallGroup: Boolean(currentMtg.group || currentMtg.smallGroup),
-          prayerMeeting: Boolean(currentMtg.prayerMtg || currentMtg.prayerMeeting),
-          lordDayMeeting: Boolean(currentMtg.lordDay || currentMtg.lordDayMeeting),
-          outreachVisit: Boolean(currentMtg.outreach || currentMtg.outreachVisit || currentMtg.blend || currentMtg.mutual),
-          syncStatus: 'synced',
+          smallGroup: pendingM ? pendingM.smallGroup : Boolean(currentMtg.group || currentMtg.smallGroup),
+          prayerMeeting: pendingM ? pendingM.prayerMeeting : Boolean(currentMtg.prayerMtg || currentMtg.prayerMeeting),
+          lordDayMeeting: pendingM ? pendingM.lordDayMeeting : Boolean(currentMtg.lordDay || currentMtg.lordDayMeeting),
+          outreachVisit: pendingM ? pendingM.outreachVisit : Boolean(currentMtg.outreach || currentMtg.outreachVisit || currentMtg.blend || currentMtg.mutual),
+          syncStatus: pendingM ? 'pending' : 'synced',
           hasAmberDot: false
         };
         dashboardView.renderMeetingPracticeState(practiceStore.meetingState[currentWeek]);
@@ -1172,7 +1191,7 @@
   }
 
   async function refreshUserData() {
-    await loadUserData();
+    await loadUserData(false);
   }
 
   function handleLoginSuccess(profile) {
