@@ -385,6 +385,9 @@
       if (this.currentUserProfile.groupId) {
         this.currentUserProfile.contributionPoints = baseContrib + localDelta;
         if (this.currentUserProfile.contribution !== undefined) this.currentUserProfile.contribution = this.currentUserProfile.contributionPoints;
+      } else {
+        this.currentUserProfile.contributionPoints = 0;
+        if (this.currentUserProfile.contribution !== undefined) this.currentUserProfile.contribution = 0;
       }
 
       // 1. 頂部資訊
@@ -444,10 +447,12 @@
       const personalEl = document.getElementById('homePersonalScoreText');
       if (personalEl) personalEl.textContent = Number(personalPoints || 0).toLocaleString();
 
-      // 【貢獻點數】（在目前組別累積貢獻點 contributionPoints + 今日未結算操練分數）
-      const contribution = this.currentUserProfile.contributionPoints !== undefined 
-        ? this.currentUserProfile.contributionPoints 
-        : (this.currentUserProfile.contribution !== undefined ? this.currentUserProfile.contribution : 0);
+      // 【貢獻點數】（未加入活力組則固定為 0；在目前組別累積貢獻點 contributionPoints + 今日未結算操練分數）
+      const contribution = this.currentUserProfile.groupId
+        ? (this.currentUserProfile.contributionPoints !== undefined 
+            ? this.currentUserProfile.contributionPoints 
+            : (this.currentUserProfile.contribution !== undefined ? this.currentUserProfile.contribution : 0))
+        : 0;
       const contribEl = document.getElementById('homeContributionText');
       if (contribEl) contribEl.textContent = Number(contribution || 0).toLocaleString();
 
@@ -483,8 +488,8 @@
       // 3. 小組篇章成長旅程
       this.renderJourneyNodes_(journeyData, chaptersConfig);
 
-      // 4. 公告呈現 (若未傳入 announcements 則維持現有快取，絕不誤清空)
-      if (Array.isArray(announcements) && announcements.length > 0) {
+      // 4. 公告呈現 (若傳入陣列則以最新伺服器結果為準；若未傳入則嘗試從快取讀取)
+      if (Array.isArray(announcements)) {
         this.currentAnnouncements = announcements;
       } else if (!this.currentAnnouncements || this.currentAnnouncements.length === 0) {
         try {
@@ -1117,7 +1122,8 @@
       // 1. 檢查後端是否已經完成昨日結算（比較 _lastSettledDate）
       const lastSettledDate = (this.currentUserProfile && this.currentUserProfile._lastSettledDate) || '';
       const isYesterdaySettled = Boolean(lastSettledDate && lastSettledDate >= yesterdayStr);
-      this.isSettlingYesterday = !isYesterdaySettled;
+      // 若無歷史結算戳記（新用戶），不觸發「結算中」徽章
+      this.isSettlingYesterday = lastSettledDate ? !isYesterdaySettled : false;
 
       // 2. 若後端尚未結算昨日：將昨日操練打卡分數計入補償 Delta（防跨夜分數回退核心！）
       if (!isYesterdaySettled && yesterdayStr && this.practiceStore && this.practiceStore.dailyState) {
@@ -1210,6 +1216,11 @@
         if (this.currentUserProfile.contribution !== undefined) this.currentUserProfile.contribution = nextContrib;
         const contribEl = (typeof document !== 'undefined') ? document.getElementById('homeContributionText') : null;
         if (contribEl) contribEl.textContent = Number(nextContrib).toLocaleString();
+      } else {
+        this.currentUserProfile.contributionPoints = 0;
+        if (this.currentUserProfile.contribution !== undefined) this.currentUserProfile.contribution = 0;
+        const contribEl = (typeof document !== 'undefined') ? document.getElementById('homeContributionText') : null;
+        if (contribEl) contribEl.textContent = '0';
       }
 
       this.renderSettlingBadges_();

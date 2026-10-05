@@ -831,15 +831,18 @@
         );
 
         let groupProfile = null;
+        let groupMembers = null;
         if (typeof localStorage !== 'undefined') {
           try { groupProfile = JSON.parse(localStorage.getItem(`vital_group_profile_${groupId}`) || 'null'); } catch(e){}
+          try { groupMembers = JSON.parse(localStorage.getItem(`vital_group_members_${groupId}`) || 'null'); } catch(e){}
         }
 
         const contribs = (summaryData && (summaryData.memberContribution || summaryData.meberContribution)) || {};
 
-        // 收集小組成員資訊
+        // 收集小組成員資訊 (優先使用 vital_group_members_，兜底使用 groupProfile.members)
         const membersMap = new Map();
-        const membersMeta = (groupProfile && groupProfile.members) || [];
+        const rawMembers = (groupMembers && (groupMembers.members || (Array.isArray(groupMembers) ? groupMembers : null))) || (groupProfile && groupProfile.members) || [];
+        const membersMeta = Array.isArray(rawMembers) ? rawMembers : [];
         if (Array.isArray(membersMeta)) {
           membersMeta.forEach(m => {
             if (m && m.playerId) {

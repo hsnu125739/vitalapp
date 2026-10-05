@@ -255,6 +255,30 @@
       return null;
     }
 
+    getActiveMembersFromStorage(groupId = null) {
+      const gid = groupId || this.getGroupIdFromStorage();
+      if (gid) {
+        try {
+          const cachedGp = this.storage.getItem(`vital_group_profile_${gid}`);
+          if (cachedGp) {
+            const parsed = JSON.parse(cachedGp);
+            if (parsed.activeMembers) return parsed.activeMembers;
+            if (parsed.activeMembersJson) {
+              return typeof parsed.activeMembersJson === 'string' ? JSON.parse(parsed.activeMembersJson) : parsed.activeMembersJson;
+            }
+          }
+        } catch (e) {}
+      }
+      try {
+        const userStr = this.storage.getItem('vital_current_player');
+        if (userStr) {
+          const u = JSON.parse(userStr);
+          if (u.activeMembers) return u.activeMembers;
+        }
+      } catch (e) {}
+      return null;
+    }
+
     clearSessionToken() {
       this.token = null;
       this.storage.removeItem('vital_session_token');
@@ -592,6 +616,12 @@
       return this.request('getPractice');
     }
 
+    getAnnouncements(date = '') {
+      const data = {};
+      if (date) data.currentDate = date;
+      return this.request('getAnnouncements', data);
+    }
+
     getBootstrap() {
       return this.request('getBootstrap');
     }
@@ -892,9 +922,11 @@
       }
     }
     
-    async getProgressBundle(groupId = null) {
+    async getProgressBundle(groupId = null, activeMembers = null) {
       const data = {};
       if (groupId) data.groupId = groupId;
+      const mems = activeMembers || this.getActiveMembersFromStorage(groupId);
+      if (mems) data.activeMembers = mems;
       return await this.request('getProgressBundle', data, true); // true = call progression microservice
     }
 
@@ -914,9 +946,9 @@
       return await this.request('getTasksConfig', {}, true);
     }
 
-    async getMyGroupContributionSummary(groupId = null) {
+    async getMyGroupContributionSummary(groupId = null, activeMembers = null) {
       // 合併至 getGroupProgress，維持相容性
-      return await this.getGroupProgress(groupId);
+      return await this.getGroupProgress(groupId, activeMembers);
     }
 
     async getProfile() {
@@ -988,9 +1020,18 @@
       if (col) data.matrixColIndex = col;
       return this.request('leaveGroup', data);
     }
-    getGroupProfile(groupId = null) {
+    getGroupMembers(groupId = null, activeMembers = null) {
       const data = {};
       if (groupId) data.groupId = groupId;
+      if (activeMembers) data.activeMembers = activeMembers;
+      const col = this.getMatrixColIndexFromStorage();
+      if (col) data.matrixColIndex = col;
+      return this.request('getGroupMembers', data);
+    }
+    getGroupProfile(groupId = null, activeMembers = null) {
+      const data = {};
+      if (groupId) data.groupId = groupId;
+      if (activeMembers) data.activeMembers = activeMembers;
       const col = this.getMatrixColIndexFromStorage();
       if (col) data.matrixColIndex = col;
       return this.request('getGroupProfile', data);
@@ -1005,9 +1046,11 @@
       if (col) data.matrixColIndex = col;
       return this.request('transferGroupLeader', data);
     }
-    getGroupJourney(groupId = null) {
+    getGroupJourney(groupId = null, activeMembers = null) {
       const data = {};
       if (groupId) data.groupId = groupId;
+      const mems = activeMembers || this.getActiveMembersFromStorage(groupId);
+      if (mems) data.activeMembers = mems;
       return this.request('getGroupJourney', data);
     }
     getGroupJourneyList() {
@@ -1018,9 +1061,11 @@
       if (playerId) data.playerId = playerId;
       return this.request('getPlayerProgress', data);
     }
-    getGroupProgress(groupId = null) {
+    getGroupProgress(groupId = null, activeMembers = null) {
       const data = {};
       if (groupId) data.groupId = groupId;
+      const mems = activeMembers || this.getActiveMembersFromStorage(groupId);
+      if (mems) data.activeMembers = mems;
       return this.request('getGroupProgress', data);
     }
     evaluateTargetMilestones(scope = 'PLAYER', targetId = null, dateStr = null) {
@@ -1046,13 +1091,6 @@
       return this.request('getGroupPosts', data);
     }
     deleteGroupPost(postId) { return this.request('deleteGroupPost', { postId }); }
-
-    // 系統公告
-    getAnnouncements(currentDate = null) {
-      const data = {};
-      if (currentDate) data.currentDate = currentDate;
-      return this.request('getAnnouncements', data);
-    }
 
     /**
      * 檢查指定動作是否正在在途執行中

@@ -133,7 +133,7 @@
     if (AuthViewClass) {
       authView = new AuthViewClass({
         apiClient: apiClient,
-        onLoginSuccess: (profile) => handleLoginSuccess(profile)
+        onLoginSuccess: (profile, group) => handleLoginSuccess(profile, group)
       });
     }
 
@@ -337,9 +337,11 @@
           const today = dashboardView.currentDate || pRes.data.todayStr || (dashboardView.getTodayDateString && dashboardView.getTodayDateString());
           const yesterday = pRes.data.yesterdayStr || (dashboardView.getYesterdayDateString && dashboardView.getYesterdayDateString(today));
           const curWeek = dashboardView.currentWeekKey || pRes.data.weekKey || (dashboardView.getCurrentWeekKey && dashboardView.getCurrentWeekKey());
+          const lastWeek = pRes.data.lastWeekKey || '';
           const dRec = pRes.data.daily || {};
           const yRec = pRes.data.yesterdayDaily || null;
           const mRec = pRes.data.meeting || {};
+          const lastMRec = pRes.data.lastWeekMeeting || null;
           
           const pendingD = (practiceStore.pendingDaily && practiceStore.pendingDaily.get(today)) || null;
           practiceStore.dailyState[today] = {
@@ -378,6 +380,18 @@
             syncStatus: pendingM ? 'pending' : 'synced',
             hasAmberDot: false
           };
+
+          if (lastWeek && lastMRec) {
+            practiceStore.meetingState[lastWeek] = {
+              smallGroup: Boolean(lastMRec.group || lastMRec.smallGroup),
+              prayerMeeting: Boolean(lastMRec.prayerMtg || lastMRec.prayerMeeting),
+              lordDayMeeting: Boolean(lastMRec.lordDay || lastMRec.lordDayMeeting),
+              outreachVisit: Boolean(lastMRec.outreach || lastMRec.outreachVisit || lastMRec.blend || lastMRec.mutual),
+              syncStatus: 'synced',
+              hasAmberDot: false
+            };
+          }
+
           if (pId && typeof localStorage !== 'undefined') {
             try {
               let dailyToSave = {};
@@ -397,53 +411,95 @@
                 try { meetingToSave = JSON.parse(existingMtgStr) || {}; } catch(e) {}
               }
               meetingToSave[curWeek] = practiceStore.meetingState[curWeek];
+              if (lastWeek && practiceStore.meetingState[lastWeek]) {
+                meetingToSave[lastWeek] = practiceStore.meetingState[lastWeek];
+              }
               localStorage.setItem(`vital_meeting_records_${pId}`, JSON.stringify(meetingToSave));
             } catch (e) {}
           }
           if (dashboardView) {
             dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
             dashboardView.renderMeetingPracticeState(practiceStore.meetingState[curWeek]);
-            if (currentUserProfile && typeof dashboardView.refreshScoresDisplay === 'function') {
-              dashboardView.refreshScoresDisplay(currentUserProfile);
-            }
             dashboardView.setSyncLock(false);
           }
         }
       }).catch(err => {
         console.warn('[App] getPractice 快速載入略過:', err);
+      }).finally(() => {
+        if (dashboardView && typeof dashboardView.setSyncLock === 'function') {
+          dashboardView.setSyncLock(false);
+        }
       });
 
-      const [bootstrapRes, bundleRes, profileRes] = await Promise.allSettled([
-        apiClient.getBootstrap(),
-        pId ? apiClient.getProgressBundle(gId) : Promise.resolve(null),
-        gId ? apiClient.getGroupProfile(gId) : Promise.resolve(null)
+      // 取得組員名單時，直接帶入登入時取得的 activeMembers，免除後端重查 Groups 表
+      const activeMembersObj = currentUserProfile?.activeMembers || (() => {
+        try {
+          const cachedGp = JSON.parse(localStorage.getItem(`vital_group_profile_${gId}`) || 'null');
+          return cachedGp ? (cachedGp.activeMembers || cachedGp.activeMembersJson) : null;
+        } catch (e) { return null; }
+      })();
+
+      // 針對首頁右上角個人積分&貢獻值面板，設為 getProgressBundle 的專屬 callback
+      const bundlePromise = pId ? apiClient.getProgressBundle(gId, activeMembersObj).then(bRes => {
+        if (bRes && bRes.success) {
+          const bData = bRes.data || bRes;
+          if (bData.playerProgress && currentUserProfile) {
+            if (bData.playerProgress.personalPoints !== undefined) {
+              currentUserProfile.personalPoints = Number(bData.playerProgress.personalPoints || 0);
+              currentUserProfile.basePersonalPoints = currentUserProfile.personalPoints;
+            }
+            if (bData.playerProgress.contributionPoints !== undefined) {
+              currentUserProfile.contributionPoints = Number(bData.playerProgress.contributionPoints || 0);
+              currentUserProfile.baseContributionPoints = currentUserProfile.contributionPoints;
+            }
+            let lastSettled = bData.playerProgress.lastSettledDate || '';
+            const hSummary = bData.playerProgress.historySummary;
+            if (!lastSettled && hSummary) {
+              if (typeof hSummary === 'object' && hSummary._lastSettledDate) {
+                lastSettled = hSummary._lastSettledDate;
+              } else if (typeof hSummary === 'string') {
+                try {
+                  const parsed = JSON.parse(hSummary);
+                  if (parsed._lastSettledDate) lastSettled = parsed._lastSettledDate;
+                } catch (e) {}
+              }
+            }
+            if (lastSettled) {
+              currentUserProfile._lastSettledDate = String(lastSettled).trim();
+            }
+            try { localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile)); } catch(e) {}
+
+            // ★ 專屬 Callback：Progress Bundle 一到達立刻獨立刷新右上角面板，無需等待其他請求
+            if (dashboardView && typeof dashboardView.refreshScoresDisplay === 'function') {
+              dashboardView.refreshScoresDisplay(currentUserProfile);
+            }
+          }
+        }
+        return bRes;
+      }) : Promise.resolve(null);
+
+      const [announcementsRes, bundleRes, profileRes] = await Promise.allSettled([
+        apiClient.getAnnouncements(),
+        bundlePromise,
+        gId ? (typeof apiClient.getGroupMembers === 'function' ? apiClient.getGroupMembers(gId, activeMembersObj) : apiClient.getGroupProfile(gId)) : Promise.resolve(null)
       ]);
 
       let announcements = [];
+      let isAnnouncementsFetched = false;
       let dailyRecords = null;
       let meetingRecords = null;
       
-      // 2. 處理 Bootstrap 回應
-      if (bootstrapRes.status === 'fulfilled' && bootstrapRes.value) {
-        const res = bootstrapRes.value;
+      // 2. 處理公告回應 (取代重複的 Bootstrap Profile 查詢)
+      if (announcementsRes.status === 'fulfilled' && announcementsRes.value) {
+        const res = announcementsRes.value;
         if (res && res.success) {
-          const fetchedPlayer = res.player || res.data?.player || res.data || {};
-          currentUserProfile = { ...currentUserProfile, ...fetchedPlayer };
-          
-          if (res.data?.dailyRecords && Object.keys(res.data.dailyRecords).length > 0) dailyRecords = res.data.dailyRecords;
-          if (res.data?.meetingRecords && Object.keys(res.data.meetingRecords).length > 0) meetingRecords = res.data.meetingRecords;
-          if (res.data?.announcements) announcements = res.data.announcements;
-
+          isAnnouncementsFetched = true;
+          announcements = res.announcements || res.data?.announcements || (Array.isArray(res.data) ? res.data : []);
           if (typeof localStorage !== 'undefined') {
             try {
-              localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
-              if (dailyRecords && Object.keys(dailyRecords).length > 0) localStorage.setItem(`vital_daily_records_${currentUserProfile.playerId}`, JSON.stringify(dailyRecords));
-              if (meetingRecords && Object.keys(meetingRecords).length > 0) localStorage.setItem(`vital_meeting_records_${currentUserProfile.playerId}`, JSON.stringify(meetingRecords));
-              if (announcements.length > 0) localStorage.setItem('vital_announcements', JSON.stringify(announcements));
+              localStorage.setItem('vital_announcements', JSON.stringify(announcements));
             } catch (e) {}
           }
-        } else {
-          console.warn('[App] 取得遠端使用者檔案失敗', bootstrapRes.value);
         }
       }
 
@@ -569,16 +625,16 @@
       }
 
       if (currentGId && profileRes.status === 'fulfilled' && profileRes.value && profileRes.value.success) {
-        const groupProfileData = profileRes.value.data || profileRes.value;
+        const groupMembersData = profileRes.value.data || profileRes.value;
         if (typeof localStorage !== 'undefined') {
           try {
-            localStorage.setItem(`vital_group_profile_${currentGId}`, JSON.stringify(groupProfileData));
+            localStorage.setItem(`vital_group_members_${currentGId}`, JSON.stringify(groupMembersData));
           } catch(e) {}
         }
-        if (groupProfileData && currentUserProfile) {
-          const count = typeof groupProfileData.memberCount === 'number'
-            ? groupProfileData.memberCount
-            : (Array.isArray(groupProfileData.members) ? groupProfileData.members.length : undefined);
+        if (groupMembersData && currentUserProfile) {
+          const count = typeof groupMembersData.memberCount === 'number'
+            ? groupMembersData.memberCount
+            : (Array.isArray(groupMembersData.members) ? groupMembersData.members.length : undefined);
           if (count !== undefined) {
             currentUserProfile.memberCount = count;
           }
@@ -616,41 +672,17 @@
         });
       }
 
-      if (announcements.length === 0 && typeof localStorage !== 'undefined') {
+      // 僅在網路請求失敗或未成功獲取時，才從離線快取兜底
+      if (!isAnnouncementsFetched && announcements.length === 0 && typeof localStorage !== 'undefined') {
         try { announcements = JSON.parse(localStorage.getItem('vital_announcements') || '[]'); } catch(e) { announcements = []; }
       }
 
-      // 5. 處理打卡狀態 (從 dailyRecords / meetingRecords 解析，確保 render 前 practiceStore 已就緒)
+      // 5. 處理打卡狀態防禦 (非空物件防禦，避免覆蓋已水合之 practiceStore)
       if (dailyRecords && Object.keys(dailyRecords).length > 0) {
-        const today = dashboardView.currentDate || dashboardView.getTodayDateString();
-        const todayRecord = dailyRecords[today] || {};
-        const pendingD = (practiceStore.pendingDaily && practiceStore.pendingDaily.get(today)) || null;
-        practiceStore.dailyState[today] = {
-          morning: pendingD ? pendingD.morning : Boolean(todayRecord.morning || todayRecord.morningRevival),
-          morningRevival: pendingD ? pendingD.morningRevival : Boolean(todayRecord.morning || todayRecord.morningRevival),
-          bible: pendingD ? pendingD.bible : Boolean(todayRecord.bible || todayRecord.bibleReading),
-          bibleReading: pendingD ? pendingD.bibleReading : Boolean(todayRecord.bible || todayRecord.bibleReading),
-          prayer: pendingD ? pendingD.prayer : Boolean(todayRecord.prayer),
-          book: pendingD ? pendingD.book : Boolean(todayRecord.book || todayRecord.bookPursuit),
-          bookPursuit: pendingD ? pendingD.bookPursuit : Boolean(todayRecord.book || todayRecord.bookPursuit),
-          syncStatus: pendingD ? 'pending' : 'synced',
-          hasAmberDot: false
-        };
-        dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
+        dashboardView.renderDailyPracticeState(dailyRecords);
       }
       if (meetingRecords && Object.keys(meetingRecords).length > 0) {
-        const currentWeek = dashboardView.currentWeekKey || dashboardView.getCurrentWeekKey();
-        const currentMtg = meetingRecords[currentWeek] || {};
-        const pendingM = (practiceStore.pendingMeeting && practiceStore.pendingMeeting.get(currentWeek)) || null;
-        practiceStore.meetingState[currentWeek] = {
-          smallGroup: pendingM ? pendingM.smallGroup : Boolean(currentMtg.group || currentMtg.smallGroup),
-          prayerMeeting: pendingM ? pendingM.prayerMeeting : Boolean(currentMtg.prayerMtg || currentMtg.prayerMeeting),
-          lordDayMeeting: pendingM ? pendingM.lordDayMeeting : Boolean(currentMtg.lordDay || currentMtg.lordDayMeeting),
-          outreachVisit: pendingM ? pendingM.outreachVisit : Boolean(currentMtg.outreach || currentMtg.outreachVisit || currentMtg.blend || currentMtg.mutual),
-          syncStatus: pendingM ? 'pending' : 'synced',
-          hasAmberDot: false
-        };
-        dashboardView.renderMeetingPracticeState(practiceStore.meetingState[currentWeek]);
+        dashboardView.renderMeetingPracticeState(meetingRecords);
       }
 
       // 6. 差量更新視圖 (此時 practiceStore 已具備最新打卡紀錄，未結算操練分數即時疊加)
@@ -1194,11 +1226,27 @@
     await loadUserData(false);
   }
 
-  function handleLoginSuccess(profile) {
+  function handleLoginSuccess(profile, group = null) {
     currentUserProfile = profile;
-    if (profile && typeof localStorage !== 'undefined') {
+    if (group && typeof group === 'object') {
+      const gid = group.groupId || profile?.groupId;
+      if (gid && typeof localStorage !== 'undefined') {
+        try {
+          localStorage.setItem(`vital_group_profile_${gid}`, JSON.stringify(group));
+        } catch (e) {}
+      }
+      if (currentUserProfile) {
+        if (gid) currentUserProfile.groupId = gid;
+        if (group.groupName) currentUserProfile.groupName = group.groupName;
+        if (group.isLeader !== undefined) currentUserProfile.isLeader = group.isLeader;
+        if (group.postsColIndex) currentUserProfile.postsColIndex = group.postsColIndex;
+        if (group.memberCount !== undefined) currentUserProfile.memberCount = group.memberCount;
+        currentUserProfile.activeMembers = group.activeMembers || null;
+      }
+    }
+    if (currentUserProfile && typeof localStorage !== 'undefined') {
       try {
-        localStorage.setItem('vital_current_player', JSON.stringify(profile));
+        localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
       } catch (e) {}
     }
     if (profileView && typeof profileView.showHome === 'function') {
@@ -1238,6 +1286,7 @@
           localStorage.removeItem(`vital_group_progress_${gid}`);
           localStorage.removeItem(`vital_group_milestones_${gid}`);
           localStorage.removeItem(`vital_group_profile_${gid}`);
+          localStorage.removeItem(`vital_group_members_${gid}`);
         }
       } catch (e) {}
     }
