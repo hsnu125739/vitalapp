@@ -2,6 +2,9 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="icon" type="image/png" href="../UI/app-icon.png?v=20260813-stableasset1">
   <link rel="apple-touch-icon" href="../UI/app-icon.png?v=20260813-stableasset1">
@@ -13,8 +16,8 @@
   <meta name="application-name" content="高雄青職｜活力同行">
   <meta name="theme-color" content="#8fd3ff">
   <link rel="preload" as="image" href="../Chest_Assets/Chest_01.webp" type="image/webp">
-  <link rel="stylesheet" href="style.css?v=20261003-v38">
-  <link rel="stylesheet" href="login-webp-perf.css?v=20261002-v29">
+  <link rel="stylesheet" href="style.css?v=20261005-v52">
+  <link rel="stylesheet" href="login-webp-perf.css?v=20261005-v52">
   <style id="hero-score-override">
     #homeView .home-hero-card .hero-score-grid .hero-score-card strong,
     #homeView .home-hero-card .hero-score-grid .hero-personal-score strong,
@@ -914,22 +917,22 @@
     </div>
   </div>
 
-  <script src="runtime-settings.js?v=20261003-v48"></script>
-  <script src="js/utils/vitalUtils.js?v=20261003-v48"></script>
-  <script src="js/api/apiClient.js?v=20261003-v48"></script>
-  <script src="js/store/practiceStore.js?v=20261003-v48"></script>
-  <script src="js/store/chatStore.js?v=20261003-v48"></script>
-  <script src="js/ui/authView.js?v=20261003-v48"></script>
-  <script src="js/ui/dashboardView.js?v=20261003-v48"></script>
-  <script src="js/ui/chestView.js?v=20261003-v48"></script>
-  <script src="js/ui/footprintsView.js?v=20261003-v48"></script>
-  <script src="js/ui/profileView.js?v=20261003-v48"></script>
-  <script src="js/ui/groupFellowshipView.js?v=20261003-v48"></script>
-  <script src="js/app.js?v=20261003-v48"></script>
+  <script src="runtime-settings.js?v=20261005-v52"></script>
+  <script src="js/utils/vitalUtils.js?v=20261005-v52"></script>
+  <script src="js/api/apiClient.js?v=20261005-v52"></script>
+  <script src="js/store/practiceStore.js?v=20261005-v52"></script>
+  <script src="js/store/chatStore.js?v=20261005-v52"></script>
+  <script src="js/ui/authView.js?v=20261005-v52"></script>
+  <script src="js/ui/dashboardView.js?v=20261005-v52"></script>
+  <script src="js/ui/chestView.js?v=20261005-v52"></script>
+  <script src="js/ui/footprintsView.js?v=20261005-v52"></script>
+  <script src="js/ui/profileView.js?v=20261005-v52"></script>
+  <script src="js/ui/groupFellowshipView.js?v=20261005-v52"></script>
+  <script src="js/app.js?v=20261005-v52"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then(reg => {
+        navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(reg => {
           console.log('SW registered:', reg.scope);
           reg.update();
         }).catch(err => {

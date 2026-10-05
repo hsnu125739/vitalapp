@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vital-cache-v51';
+const CACHE_NAME = 'vital-cache-v52';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -115,26 +115,58 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  if (event.request.url.includes('script.google.com') || event.request.url.includes('script.googleusercontent.com')) return;
+  const url = event.request.url;
+  if (url.includes('script.google.com') || url.includes('script.googleusercontent.com')) return;
 
+  // 判斷是否為核心邏輯層（HTML 導覽、JS 腳本、CSS 樣式表、JSON 設定檔、根路徑）
+  // 這些檔案採用【Network-First（網路優先）】策略，確保使用者一按重新整理就能 100% 即刻載入最新程式碼
+  const isLogicAsset = event.request.mode === 'navigate' ||
+                       url.endsWith('/') ||
+                       url.includes('/html/') ||
+                       url.endsWith('.html') ||
+                       url.includes('.html?') ||
+                       url.includes('/js/') ||
+                       url.endsWith('.js') ||
+                       url.includes('.js?') ||
+                       url.endsWith('.css') ||
+                       url.includes('.css?') ||
+                       url.endsWith('.json') ||
+                       url.includes('.json?');
+
+  if (isLogicAsset) {
+    // 【Network-First 策略】有網路時永遠抓伺服器最新代碼；只有斷網或離線時才退回讀快取
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const resClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, resClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          // 離線回退：從快取中讀取
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) return cachedResponse;
+            // 若找不到且為導覽請求，回退至 index.html
+            if (event.request.mode === 'navigate') {
+              return caches.match('./index.html') || caches.match('./');
+            }
+            return null;
+          });
+        })
+    );
+    return;
+  }
+
+  // 【Cache-First 策略】圖片、圖示、WebP/PNG 等大型靜態資源：快取優先，節省流量並保證秒開
   event.respondWith(
     caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
       if (cachedResponse) {
-        // Stale-while-revalidate for assets
-        event.waitUntil(
-          fetch(event.request).then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              const resClone = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, resClone);
-              });
-            }
-          }).catch(() => {})
-        );
         return cachedResponse;
       }
-
-      // Cache miss: fetch from network and store in cache for subsequent requests
       return fetch(event.request).then((networkResponse) => {
         if (!networkResponse || networkResponse.status !== 200 || (networkResponse.type !== 'basic' && networkResponse.type !== 'cors')) {
           return networkResponse;
@@ -144,8 +176,6 @@ self.addEventListener('fetch', (event) => {
           cache.put(event.request, responseToCache);
         });
         return networkResponse;
-      }).catch(() => {
-        return caches.match(event.request, { ignoreSearch: true });
       });
     })
   );
