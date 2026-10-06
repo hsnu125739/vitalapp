@@ -86,9 +86,11 @@
     return {
       ...groupProgress,
       memberCount: typeof mCount === 'number' ? mCount : undefined,
-      currentChapter: chapterIndex,
+      currentChapter: chapterTitle,
       chapterTitle: chapterTitle,
       chapterName: chapterTitle,
+      chapterIndex: chapterIndex,
+      currentChapterIndex: chapterIndex,
       currentLevel: chapterIndex,
       totalPoints: finalPoints,
       totalScore: finalPoints,
@@ -1043,7 +1045,10 @@
 
     const todayStr = (dashboardView && typeof dashboardView.getTodayDateString === 'function')
       ? dashboardView.getTodayDateString()
-      : new Date().toISOString().slice(0, 10);
+      : (() => {
+          const d = new Date();
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        })();
 
     // 1. 檢查今日是否已開啟過並勾選「今日不再顯示」
     try {

@@ -128,13 +128,18 @@
 
     getCurrentWeekKey() {
       const now = new Date();
-      const year = now.getFullYear();
-      const start = new Date(year, 0, 1);
-      const days = Math.floor((now - start) / (24 * 60 * 60 * 1000));
-      // 轉換 getDay() 使得週一 = 0, 週日 = 6，如此一週的定義即為週一至週日
-      const adjustedStartDay = (start.getDay() + 6) % 7;
-      const week = Math.ceil((days + adjustedStartDay + 1) / 7);
-      return `${year}-W${String(week).padStart(2, '0')}`;
+      // ISO 8601 週四定年原則 (四天規則)
+      const curMs = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+      const curDate = new Date(curMs);
+      const isoDay = (curDate.getUTCDay() + 6) % 7 + 1; // 1=Mon, ..., 7=Sun
+      const thursdayMs = curMs + (4 - isoDay) * 86400000;
+      const thursdayYear = new Date(thursdayMs).getUTCFullYear();
+      const jan4Ms = Date.UTC(thursdayYear, 0, 4);
+      const jan4IsoDay = (new Date(jan4Ms).getUTCDay() + 6) % 7 + 1;
+      const jan4MondayMs = jan4Ms - (jan4IsoDay - 1) * 86400000;
+      const curMondayMs = curMs - (isoDay - 1) * 86400000;
+      const weekNum = 1 + Math.round((curMondayMs - jan4MondayMs) / 604800000);
+      return `${thursdayYear}-W${String(weekNum).padStart(2, '0')}`;
     }
 
     initEvents_() {
@@ -1073,8 +1078,7 @@
             const isMyGroup = Boolean(currentGroupId && grp.groupId === currentGroupId);
             const rankBadge = idx < 3 ? rankIcons[idx] : `<span style="font-size:0.95rem;color:#64748b;font-weight:700;">#${idx + 1}</span>`;
             const score = Number(grp.totalScore || grp.totalPoints || 0);
-            const chapter = grp.currentChapter || {};
-            const chapterName = chapter.title || chapter.name || CHAPTER_NAMES[chapter.index || 0] || '信心';
+            const chapterName = grp.currentChapter || grp.chapterTitle || '起步啟航';
             const progressPercent = Math.min(100, Math.round(grp.progressPercent || (grp.journey && grp.journey.progressPercent) || 0));
 
             return `

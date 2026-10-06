@@ -747,7 +747,9 @@
 
         // 即時增量更新本月成果卡 (monthSummary)
         if (cache.monthSummary) {
-          const mKey = cache.monthSummary.monthKey || new Date().toISOString().slice(0, 7);
+          const dNow = new Date();
+          const fallbackMKey = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}`;
+          const mKey = cache.monthSummary.monthKey || (dateStr ? dateStr.slice(0, 7) : fallbackMKey);
           if (dateStr.startsWith(mKey)) {
             if (morningVal !== Boolean(oldRec.morning)) {
               cache.monthSummary.morningDays = Math.max(0, (cache.monthSummary.morningDays || 0) + (morningVal ? 1 : -1));
@@ -923,27 +925,39 @@
     }
     
     async getProgressBundle(groupId = null, activeMembers = null) {
+      const options = (arguments.length > 2 && typeof arguments[2] === 'object' && arguments[2]) ? arguments[2] : {};
       const data = {};
       if (groupId) data.groupId = groupId;
       const mems = activeMembers || this.getActiveMembersFromStorage(groupId);
       if (mems) data.activeMembers = mems;
-      return await this.request('getProgressBundle', data, true); // true = call progression microservice
+      if (options && typeof options === 'object') {
+        Object.assign(data, options);
+      }
+      if (!data.hintRow && groupId) {
+        try {
+          const cachedGp = JSON.parse(this.storage.getItem(`vital_group_profile_${groupId}`) || 'null');
+          if (cachedGp && (cachedGp.postsColIndex || cachedGp.row)) {
+            data.hintRow = cachedGp.postsColIndex || cachedGp.row;
+          }
+        } catch (e) {}
+      }
+      return await this.request('getProgressBundle', data);
     }
 
     async getPointsConfig(date = '') {
-      return await this.request('getPointsConfig', { date: date || '' }, true);
+      return await this.request('getPointsConfig', { date: date || '' });
     }
 
     async getChapterConfig() {
-      return await this.request('getChapterConfig', {}, true);
+      return await this.request('getChapterConfig', {});
     }
 
     async getAchievementConfig() {
-      return await this.request('getAchievementConfig', {}, true);
+      return await this.request('getAchievementConfig', {});
     }
 
     async getTasksConfig() {
-      return await this.request('getTasksConfig', {}, true);
+      return await this.request('getTasksConfig', {});
     }
 
     async getMyGroupContributionSummary(groupId = null, activeMembers = null) {
@@ -1020,12 +1034,26 @@
       if (col) data.matrixColIndex = col;
       return this.request('leaveGroup', data);
     }
-    getGroupMembers(groupId = null, activeMembers = null) {
+    getGroupMembers(groupId = null, activeMembers = null, options = {}) {
       const data = {};
       if (groupId) data.groupId = groupId;
       if (activeMembers) data.activeMembers = activeMembers;
       const col = this.getMatrixColIndexFromStorage();
       if (col) data.matrixColIndex = col;
+      if (options && typeof options === 'object') {
+        Object.assign(data, options);
+      }
+      if (groupId && (!data.leaderPlayerId || !data.groupName)) {
+        try {
+          const cachedGp = JSON.parse(this.storage.getItem(`vital_group_profile_${groupId}`) || 'null');
+          if (cachedGp) {
+            if (!data.leaderPlayerId && cachedGp.leaderPlayerId) data.leaderPlayerId = cachedGp.leaderPlayerId;
+            if (!data.groupName && cachedGp.groupName) data.groupName = cachedGp.groupName;
+            if (!data.inviteCode && cachedGp.inviteCode) data.inviteCode = cachedGp.inviteCode;
+            if (!data.hintRow && (cachedGp.postsColIndex || cachedGp.row)) data.hintRow = cachedGp.postsColIndex || cachedGp.row;
+          }
+        } catch (e) {}
+      }
       return this.request('getGroupMembers', data);
     }
     getGroupProfile(groupId = null, activeMembers = null) {

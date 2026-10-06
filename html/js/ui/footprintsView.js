@@ -24,6 +24,19 @@
   const DAY_NAMES = ['', '週一', '週二', '週三', '週四', '週五', '週六', '主日'];
   const CHINESE_MONTHS = ['', '一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
 
+  function getLocalDateString(d = new Date()) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function getLocalMonthString(d = new Date()) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+  }
+
   const DEFAULT_POINTS_CONFIG = Object.freeze({
     morning: 50,
     bible: 30,
@@ -144,7 +157,7 @@
     }
     if (!resolvedRules) resolvedRules = DEFAULT_POINTS_CONFIG;
 
-    const todayStr = raw.today || '';
+    const todayStr = raw.today || getLocalDateString();
     const dates = raw.dates || [];
     const weekKeys = raw.weeks || [];
     const teamDaily = raw.teamDaily || {};
@@ -227,8 +240,9 @@
       const weekDates = dates.slice(weekStartIdx, weekStartIdx + 7);
       const wStartDate = weekDates[0] || '';
       // 以該週週四作為代表日取得該週 pointsRule
-      const wThurs = wStartDate ? new Date(new Date(wStartDate + 'T00:00:00Z').getTime() + 3 * 86400000) : new Date();
-      const wRepDate = wThurs.toISOString().slice(0, 10);
+      const wRepDate = wStartDate
+        ? new Date(new Date(wStartDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10)
+        : getLocalDateString();
       const wRule = getRuleForDate(resolvedRules, wRepDate);
 
       // 統計全組外出探訪人數
@@ -519,7 +533,9 @@
      */
     getLiveToday_() {
       if (!this.practiceStore || !this.practiceStore.dailyState) return null;
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = (typeof dashboardView !== 'undefined' && dashboardView && typeof dashboardView.getTodayDateString === 'function')
+        ? dashboardView.getTodayDateString()
+        : getLocalDateString();
       return this.practiceStore.dailyState[todayStr] || null;
     }
 
@@ -613,7 +629,7 @@
      * 本月 8 大成果指標卡區塊
      */
     renderMonthSection_(month) {
-      const monthKey = month.monthKey || new Date().toISOString().slice(0, 7);
+      const monthKey = month.monthKey || getLocalMonthString();
       const totalScore = Number(month.totalScore || month.totalPoints || 0);
 
       // 動態轉換月份中文名稱 (例如 '2026-10' -> '十月成果卡')
