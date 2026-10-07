@@ -18,30 +18,45 @@
   const DEFAULT_TIMEOUT_MS = 45 * 1000;
 
   const CHAT_ACTIONS = new Set([
+    // Canonical Actions (6 端點)
+    'ping',
+    'getMessages',
+    'postMessage',
+    'setGroupAnnouncement',
+    'deleteMessage',
+    'clearGroupChat',
+    // Legacy Aliases
     'getGroupPosts',
     'createGroupPost',
     'pinGroupPost',
     'deleteGroupPost',
-    'setGroupAnnouncement',
     'clearGroupAnnouncement'
   ]);
 
   const PROGRESSION_ACTIONS = new Set([
+    // Canonical Actions (17 端點)
+    'clearProgressionConfigCache',
     'getPointsConfig',
+    'getMilestonesConfig',
+    'getChapterConfigs',
+    'getAchievementConfigs',
+    'getTaskConfigs',
+    'getProgressBundle',
     'getPlayerProgress',
     'getGroupProgress',
-    'getProgressBundle',
-    'getMyGroupContributionSummary',
     'getGroupJourney',
     'getGroupJourneyList',
-    'settleMemberDeparture',
+    'syncGroupMembership',
     'archiveAnnualGroupProgress',
     'grantTargetedReward',
     'evaluateTargetMilestones',
     'runDailyMilestoneSettlement',
+    // Legacy Aliases
     'getChapterConfig',
     'getAchievementConfig',
-    'getTasksConfig'
+    'getTasksConfig',
+    'getMyGroupContributionSummary',
+    'settleMemberDeparture'
   ]);
 
   /**
@@ -50,28 +65,40 @@
    * 注意：每日與每週打卡 (submitDailyPractice, submitMeetingPractice) 具備專屬 OptimisticPracticeStore 佇列，嚴格排除於此鎖之外。
    */
   const MUTATING_EXCLUSIVE_ACTIONS = new Set([
+    // Canonical Actions
     'createGroup',
-    'createVitalGroup',
-    'leaveGroup',
-    'leaveVitalGroup',
     'joinGroup',
-    'joinVitalGroupByInviteCode',
+    'leaveGroup',
     'transferGroupLeader',
-    'updatePlayerAvatar',
-    'updateMyPassword',
+    'updateAvatar',
     'updatePassword',
-    'updateProfile',
     'register',
     'login',
     'adminLogin',
     'updateAdminPassword',
-    'createGroupPost',
+    'createAnnouncement',
+    'clearSystemCache',
+    'postMessage',
     'setGroupAnnouncement',
+    'deleteMessage',
+    'clearGroupChat',
+    'grantTargetedReward',
+    'runDailyMilestoneSettlement',
+    'syncGroupMembership',
+    'archiveAnnualGroupProgress',
+    'clearProgressionConfigCache',
+    // Legacy Aliases
+    'createVitalGroup',
+    'leaveVitalGroup',
+    'joinVitalGroupByInviteCode',
+    'updatePlayerAvatar',
+    'updateMyPassword',
+    'updateProfile',
+    'createGroupPost',
     'pinGroupPost',
     'setPinnedPost',
     'clearGroupAnnouncement',
-    'deleteGroupPost',
-    'createAnnouncement'
+    'deleteGroupPost'
   ]);
 
   const DEFAULT_DISTRICTS = [
@@ -432,6 +459,7 @@
             groupId: payload.groupId,
             matrixColIndex: payload.matrixColIndex,
             postsColIndex: payload.postsColIndex,
+            data: payload,
             payload: payload
           }, '*');
         } catch (err) {
@@ -948,16 +976,36 @@
       return await this.request('getPointsConfig', { date: date || '' });
     }
 
+    async getChapterConfigs() {
+      return await this.request('getChapterConfigs', {});
+    }
+
     async getChapterConfig() {
-      return await this.request('getChapterConfig', {});
+      return await this.getChapterConfigs();
+    }
+
+    async getAchievementConfigs() {
+      return await this.request('getAchievementConfigs', {});
     }
 
     async getAchievementConfig() {
-      return await this.request('getAchievementConfig', {});
+      return await this.getAchievementConfigs();
+    }
+
+    async getTaskConfigs() {
+      return await this.request('getTaskConfigs', {});
     }
 
     async getTasksConfig() {
-      return await this.request('getTasksConfig', {});
+      return await this.getTaskConfigs();
+    }
+
+    async getMilestonesConfig() {
+      return await this.request('getMilestonesConfig', {});
+    }
+
+    async clearProgressionConfigCache() {
+      return await this.request('clearProgressionConfigCache', {});
     }
 
     async getMyGroupContributionSummary(groupId = null, activeMembers = null) {
@@ -973,6 +1021,7 @@
     async updatePassword(currentPassword, newPassword) {
       const pId = this.getPlayerIdFromToken();
       const payload = {
+        oldPassword: currentPassword,
         currentPassword: currentPassword,
         currentPasswordCode: currentPassword,
         newPassword: newPassword,
@@ -981,25 +1030,21 @@
         token: this.token,
         sessionToken: this.token
       };
-      try {
-        const res = await this.request('updateMyPassword', payload);
-        return res;
-      } catch (err) {
-        const msg = String(err.message || '');
-        if (msg.includes('UNKNOWN_ACTION') || msg.includes('未知的 Action') || msg.includes('updateMyPassword')) {
-          try {
-            return await this.request('updatePassword', payload);
-          } catch (err2) {
-            throw new Error('核心微服務尚未部署更新版本（未支援 updateMyPassword）。請管理者至 Google Apps Script 貼上最新 dist/core/Code.gs 並重新部署！');
-          }
-        }
-        throw err;
-      }
+      return await this.request('updatePassword', payload);
+    }
+    updateMyPassword(currentPassword, newPassword) {
+      return this.updatePassword(currentPassword, newPassword);
     }
     updateAvatar(avatarUrl, name) {
       const payload = typeof avatarUrl === 'object' && avatarUrl !== null
         ? { ...avatarUrl }
-        : { avatarKey: avatarUrl };
+        : { avatarUrl: avatarUrl, avatarKey: avatarUrl };
+      if (!payload.avatarUrl && payload.avatarKey) {
+        payload.avatarUrl = payload.avatarKey;
+      }
+      if (!payload.avatarKey && payload.avatarUrl) {
+        payload.avatarKey = payload.avatarUrl;
+      }
       if (name !== undefined && name !== null) {
         const trimmed = String(name).trim();
         if (trimmed) {
@@ -1007,7 +1052,10 @@
           payload.displayName = trimmed;
         }
       }
-      return this.request('updatePlayerAvatar', payload);
+      return this.request('updateAvatar', payload);
+    }
+    updatePlayerAvatar(avatarUrl, name) {
+      return this.updateAvatar(avatarUrl, name);
     }
 
     getRegistrationAreaOptions(forceRefresh = false) {
@@ -1067,9 +1115,15 @@
     getGroupDashboard(groupId = null) {
       return this.getGroupProfile(groupId);
     }
-    transferGroupLeader(targetPlayerId, groupId = null) {
-      const data = { targetPlayerId };
-      if (groupId) data.groupId = groupId;
+    transferGroupLeader(leaderPlayerId, groupId = null) {
+      const targetId = typeof leaderPlayerId === 'object' && leaderPlayerId !== null
+        ? (leaderPlayerId.leaderPlayerId || leaderPlayerId.targetPlayerId)
+        : leaderPlayerId;
+      const gId = typeof leaderPlayerId === 'object' && leaderPlayerId !== null
+        ? leaderPlayerId.groupId
+        : groupId;
+      const data = { leaderPlayerId: targetId, targetPlayerId: targetId };
+      if (gId) data.groupId = gId;
       const col = this.getMatrixColIndexFromStorage();
       if (col) data.matrixColIndex = col;
       return this.request('transferGroupLeader', data);
@@ -1096,29 +1150,99 @@
       if (mems) data.activeMembers = mems;
       return this.request('getGroupProgress', data);
     }
-    evaluateTargetMilestones(scope = 'PLAYER', targetId = null, dateStr = null) {
-      const data = { scope };
-      if (targetId) data.targetId = targetId;
-      if (dateStr) data.dateStr = dateStr;
+    evaluateTargetMilestones(scopeOrType = 'PLAYER', targetId = null, triggerEvent = null) {
+      if (typeof scopeOrType === 'object' && scopeOrType !== null) {
+        const payload = { ...scopeOrType };
+        if (!payload.targetType && payload.scope) payload.targetType = payload.scope;
+        if (!payload.scope && payload.targetType) payload.scope = payload.targetType;
+        return this.request('evaluateTargetMilestones', payload);
+      }
+      let targetType = String(scopeOrType || 'PLAYER').toUpperCase();
+      let event = triggerEvent;
+      let tid = targetId;
+
+      if (scopeOrType && typeof scopeOrType === 'string' && scopeOrType.startsWith('CHP_')) {
+        targetType = 'GROUP';
+        event = scopeOrType;
+      } else if (tid && typeof tid === 'string' && tid.startsWith('GRP_')) {
+        targetType = 'GROUP';
+      }
+
+      const data = {
+        targetType,
+        scope: targetType,
+        targetId: tid
+      };
+      if (event) {
+        data.triggerEvent = event;
+      }
       return this.request('evaluateTargetMilestones', data);
     }
 
-    // 小組交流板
-    createGroupPost(data) { return this.request('createGroupPost', data); }
-    pinGroupPost(data) { return this.request('pinGroupPost', data); }
+    grantTargetedReward(options) {
+      const data = typeof options === 'object' && options !== null ? { ...options } : {};
+      if (data.points !== undefined && data.deltaPoints === undefined) data.deltaPoints = data.points;
+      if (data.deltaPoints !== undefined && data.points === undefined) data.points = data.deltaPoints;
+      if (data.taskName && !data.reason) data.reason = data.taskName;
+      if (!data.targetType) data.targetType = 'PLAYER';
+      return this.request('grantTargetedReward', data);
+    }
+
+    syncGroupMembership(groupId, operation, memberPlayerId) {
+      return this.request('syncGroupMembership', { groupId, operation, memberPlayerId });
+    }
+
+    archiveAnnualGroupProgress(targetYear) {
+      return this.request('archiveAnnualGroupProgress', { targetYear: Number(targetYear) });
+    }
+
+    runDailyMilestoneSettlement(targetDate = null) {
+      const data = targetDate ? { targetDate } : {};
+      return this.request('runDailyMilestoneSettlement', data);
+    }
+
+    // 小組交流板 (Chat 服務)
+    postMessage(data) { return this.request('postMessage', data); }
+    createGroupPost(data) { return this.postMessage(data); }
+
     setGroupAnnouncement(data) { return this.request('setGroupAnnouncement', data); }
+    pinGroupPost(data) { return this.setGroupAnnouncement(data); }
+
+    clearGroupChat(groupId, postsColIndex = null) {
+      const data = typeof groupId === 'object' && groupId !== null
+        ? { ...groupId }
+        : { groupId };
+      if (postsColIndex) data.postsColIndex = postsColIndex;
+      return this.request('clearGroupChat', data);
+    }
     clearGroupAnnouncement(groupId, postsColIndex = null) {
-      const data = { groupId };
+      const data = typeof groupId === 'object' && groupId !== null
+        ? { ...groupId }
+        : { groupId };
       if (postsColIndex) data.postsColIndex = postsColIndex;
       return this.request('clearGroupAnnouncement', data);
     }
-    getGroupPosts(groupId, limit = 30, postsColIndex = null, clientCount = null) {
-      const data = { groupId, limit };
-      if (postsColIndex) data.postsColIndex = postsColIndex;
-      if (clientCount !== null) data.clientCount = clientCount;
-      return this.request('getGroupPosts', data);
+
+    getMessages(groupId, limit = 30, postsColIndex = null, clientCount = null, sinceTimeMs = null) {
+      const data = typeof groupId === 'object' && groupId !== null
+        ? { ...groupId }
+        : { groupId, limit };
+      if (postsColIndex !== null && postsColIndex !== undefined) data.postsColIndex = postsColIndex;
+      if (clientCount !== null && clientCount !== undefined) data.clientCount = clientCount;
+      if (sinceTimeMs !== null && sinceTimeMs !== undefined) data.sinceTimeMs = sinceTimeMs;
+      return this.request('getMessages', data);
     }
-    deleteGroupPost(postId) { return this.request('deleteGroupPost', { postId }); }
+    getGroupPosts(groupId, limit = 30, postsColIndex = null, clientCount = null, sinceTimeMs = null) {
+      return this.getMessages(groupId, limit, postsColIndex, clientCount, sinceTimeMs);
+    }
+
+    deleteMessage(messageId) {
+      const payload = typeof messageId === 'object' && messageId !== null
+        ? messageId
+        : { messageId, postId: messageId };
+      return this.request('deleteMessage', payload);
+    }
+    deleteGroupPost(postId) { return this.deleteMessage(postId); }
 
     /**
      * 檢查指定動作是否正在在途執行中

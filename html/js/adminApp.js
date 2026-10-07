@@ -204,9 +204,14 @@
       if (confirm(`確定為 ${playerIds.length} 位聖徒發放 +${points} 點數嗎？`)) {
         try {
           const res = await apiClient.request('grantTargetedReward', {
-            taskName,
-            points,
-            playerIds
+            targetType: 'PLAYER',
+            targetId: playerIds[0],
+            targetIds: playerIds,
+            playerIds: playerIds,
+            deltaPoints: points,
+            points: points,
+            reason: taskName,
+            taskName: taskName
           });
           if (res && res.success) {
             alert(`獎勵發放成功！共獎勵 ${playerIds.length} 位聖徒。`);
@@ -242,6 +247,7 @@
 
       try {
         const res = await apiClient.request('updateAdminPassword', {
+          adminPassword: curr,
           currentPassword: curr,
           newPassword: n1
         });

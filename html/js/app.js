@@ -53,9 +53,10 @@
     const chapterTitle = CHAPTER_NAMES[chapterIndex - 1] || '起步啟航';
 
     let totalScore = Number(
-      groupProgress.totalPoints !== undefined ? groupProgress.totalPoints :
-      (groupProgress.groupTotalPoints !== undefined ? groupProgress.groupTotalPoints :
-      (groupProgress.totalScore !== undefined ? groupProgress.totalScore : 0))
+      groupProgress.groupTotalPoints !== undefined ? groupProgress.groupTotalPoints :
+      (groupProgress.journeyPoints !== undefined ? groupProgress.journeyPoints :
+      (groupProgress.totalPoints !== undefined ? groupProgress.totalPoints :
+      (groupProgress.totalScore !== undefined ? groupProgress.totalScore : 0)))
     );
     if (!totalScore && groupProgress.memberContribution && typeof groupProgress.memberContribution === 'object') {
       const sum = Object.values(groupProgress.memberContribution).reduce((acc, v) => acc + (Number(v) || 0), 0);
@@ -81,7 +82,7 @@
       fallbackProfile.memberCount = mCount;
     }
 
-    const finalPoints = totalScore || (fallbackProfile && (fallbackProfile.groupTotalPoints || fallbackProfile.totalPoints || fallbackProfile.totalScore)) || 0;
+    const finalPoints = totalScore || (fallbackProfile && (fallbackProfile.groupTotalPoints || fallbackProfile.journeyPoints || fallbackProfile.totalPoints || fallbackProfile.totalScore)) || 0;
 
     return {
       ...groupProgress,
@@ -454,6 +455,12 @@
               currentUserProfile.contributionPoints = Number(bData.playerProgress.contributionPoints || 0);
               currentUserProfile.baseContributionPoints = currentUserProfile.contributionPoints;
             }
+            if (bData.playerProgress.joinBasePoints !== undefined) {
+              currentUserProfile.joinBasePoints = Number(bData.playerProgress.joinBasePoints || 0);
+            }
+            if (bData.playerProgress.currentYearPoints !== undefined) {
+              currentUserProfile.currentYearPoints = Number(bData.playerProgress.currentYearPoints || 0);
+            }
             let lastSettled = bData.playerProgress.lastSettledDate || '';
             const hSummary = bData.playerProgress.historySummary;
             if (!lastSettled && hSummary) {
@@ -539,6 +546,12 @@
             if (data.playerProgress.contributionPoints !== undefined) {
               currentUserProfile.contributionPoints = Number(data.playerProgress.contributionPoints || 0);
               currentUserProfile.baseContributionPoints = currentUserProfile.contributionPoints;
+            }
+            if (data.playerProgress.joinBasePoints !== undefined) {
+              currentUserProfile.joinBasePoints = Number(data.playerProgress.joinBasePoints || 0);
+            }
+            if (data.playerProgress.currentYearPoints !== undefined) {
+              currentUserProfile.currentYearPoints = Number(data.playerProgress.currentYearPoints || 0);
             }
             // 擷取昨日結算日期時間戳記，供跨夜結算期間平滑補償判定使用
             let lastSettled = data.playerProgress.lastSettledDate || '';

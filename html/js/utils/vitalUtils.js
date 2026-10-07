@@ -29,14 +29,7 @@
     return String(str).replace(HTML_ESCAPE_REGEX, (char) => HTML_ESCAPE_MAP[char]);
   }
 
-  /**
-   * 安全轉義 HTML 屬性值
-   * @param {any} str 要轉義的屬性值
-   * @returns {string} 轉義後的屬性字串
-   */
-  function escapeAttr(str) {
-    return escapeHtml(str);
-  }
+  const escapeAttr = escapeHtml;
 
   const VitalUtils = {
     escapeHtml,

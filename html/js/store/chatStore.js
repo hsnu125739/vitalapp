@@ -103,15 +103,19 @@ class ChatStore {
   async fetchLatestPosts_() {
     if (!this.groupId) return;
     try {
-      const res = await this.apiClient.getGroupPosts(this.groupId, 20, this.postsColIndex, this.lastMessageCount || null);
+      const getFn = typeof this.apiClient.getMessages === 'function'
+        ? this.apiClient.getMessages.bind(this.apiClient)
+        : this.apiClient.getGroupPosts.bind(this.apiClient);
+      const res = await getFn(this.groupId, 20, this.postsColIndex, this.lastMessageCount || null);
       if (res && res.success) {
         const d = res.data || res;
-        if (d.status === 304 || res.status === 304) return;
+        if (d.status === 304 || res.status === 304 || res.code === 'NOT_MODIFIED' || (d && d.hasUpdate === false)) return;
         if (d.postsColIndex) this.postsColIndex = Number(d.postsColIndex);
-        if (d.messageCount !== undefined) this.lastMessageCount = d.messageCount;
+        const incomingCount = d.totalCount !== undefined ? d.totalCount : (d.totalMessagesCount !== undefined ? d.totalMessagesCount : d.messageCount);
+        if (incomingCount !== undefined) this.lastMessageCount = incomingCount;
 
-        const incomingPosts = Array.isArray(d) ? d : (d.posts || []);
-        const ann = d.announcement !== undefined ? d.announcement : d.pinnedPost;
+        const incomingPosts = Array.isArray(d) ? d : (d.messages || d.posts || []);
+        const ann = d.pinnedAnnouncement !== undefined ? d.pinnedAnnouncement : (d.announcement !== undefined ? d.announcement : d.pinnedPost);
         this.mergeIncomingPosts(incomingPosts, ann);
       }
     } catch (err) {
@@ -153,12 +157,14 @@ class ChatStore {
     const tempId = `TEMP_${Date.now()}`;
     const optimisticPost = {
       id: tempId,
+      messageId: tempId,
       groupId: this.groupId,
+      authorId: authorPlayerId,
       authorPlayerId: authorPlayerId,
       authorName: authorName || '聖徒',
       content: content.trim(),
       isPinned: false, // 留言發布與置頂解耦，所有留言皆發布為常態留言
-      timestamp: new Date().toISOString(),
+      timestamp: Date.now(),
       isPending: true
     };
 
@@ -167,8 +173,13 @@ class ChatStore {
     this.notify();
 
     try {
-      const res = await this.apiClient.createGroupPost({
+      const postFn = typeof this.apiClient.postMessage === 'function'
+        ? this.apiClient.postMessage.bind(this.apiClient)
+        : this.apiClient.createGroupPost.bind(this.apiClient);
+
+      const res = await postFn({
         groupId: this.groupId,
+        authorId: authorPlayerId,
         authorPlayerId: authorPlayerId,
         authorName: authorName,
         content: optimisticPost.content,
@@ -178,16 +189,19 @@ class ChatStore {
       if (res && res.success) {
         const d = res.data || res;
         if (d.postsColIndex) this.postsColIndex = Number(d.postsColIndex);
-        const confirmedPost = d.post || d;
+        const confirmedPost = d.message || d.post || d;
         // 替換暫存留言為正式權威物件
-        const idx = this.messages.findIndex(m => m.id === tempId);
+        const idx = this.messages.findIndex(m => m.id === tempId || m.messageId === tempId);
         if (idx !== -1) {
-          const ts = confirmedPost.timestamp || (confirmedPost.createdAt ? new Date(confirmedPost.createdAt).toISOString() : this.messages[idx].timestamp);
+          const mid = confirmedPost.messageId || confirmedPost.id || confirmedPost.postId || tempId;
+          const ts = confirmedPost.timestamp || (confirmedPost.createdAt ? new Date(confirmedPost.createdAt).getTime() : this.messages[idx].timestamp);
           this.messages[idx] = {
             ...confirmedPost,
-            id: confirmedPost.id || confirmedPost.postId || tempId,
+            id: mid,
+            messageId: mid,
             timestamp: ts,
             authorPlayerId: confirmedPost.authorPlayerId || confirmedPost.authorId || authorPlayerId,
+            authorId: confirmedPost.authorId || confirmedPost.authorPlayerId || authorPlayerId,
             authorName: confirmedPost.authorName || authorName || '聖徒',
             isPending: false
           };
@@ -196,17 +210,17 @@ class ChatStore {
         this.notify();
       } else {
         // 業務拒絕（例如組別不存在或權限不足）
-        const idx = this.messages.findIndex(m => m.id === tempId);
+        const idx = this.messages.findIndex(m => m.id === tempId || m.messageId === tempId);
         if (idx !== -1) {
           this.messages[idx].isPending = false;
           this.messages[idx].isFailed = true;
-          this.messages[idx].errorMessage = (res && res.error) || '發送失敗';
+          this.messages[idx].errorMessage = (res && (res.error || res.message)) || '發送失敗';
           this.notify();
         }
       }
     } catch (err) {
       // 標記失敗
-      const idx = this.messages.findIndex(m => m.id === tempId);
+      const idx = this.messages.findIndex(m => m.id === tempId || m.messageId === tempId);
       if (idx !== -1) {
         this.messages[idx].isFailed = true;
         this.notify();
@@ -255,12 +269,19 @@ class ChatStore {
     this.notify();
 
     try {
-      const res = await this.apiClient.clearGroupAnnouncement(this.groupId, col);
-      const d = res && (res.data || res);
-      if (d && d.postsColIndex) {
-        this.postsColIndex = Number(d.postsColIndex);
+      const clearFn = typeof this.apiClient.clearGroupAnnouncement === 'function'
+        ? this.apiClient.clearGroupAnnouncement.bind(this.apiClient)
+        : (typeof this.apiClient.setGroupAnnouncement === 'function'
+            ? (gid, col) => this.apiClient.setGroupAnnouncement({ groupId: gid, content: '', postsColIndex: col })
+            : null);
+      if (clearFn) {
+        const res = await clearFn(this.groupId, col);
+        const d = res && (res.data || res);
+        if (d && d.postsColIndex) {
+          this.postsColIndex = Number(d.postsColIndex);
+        }
+        return res;
       }
-      return res;
     } catch (err) {
       console.warn('[ChatStore] 清除小組公告失敗', err);
     }
@@ -289,19 +310,19 @@ class ChatStore {
     const regular = posts.filter(p => !p.isPinned);
     const map = new Map();
     for (const p of this.messages) {
-      const pid = p.id || p.postId;
-      const ts = p.timestamp || (p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString());
-      map.set(pid, { ...p, id: pid, timestamp: ts, authorPlayerId: p.authorPlayerId || p.authorId || '' });
+      const pid = p.messageId || p.id || p.postId;
+      const ts = p.timestamp || (p.createdAt ? new Date(p.createdAt).getTime() : Date.now());
+      map.set(pid, { ...p, id: pid, messageId: pid, timestamp: ts, authorPlayerId: p.authorPlayerId || p.authorId || '', authorId: p.authorId || p.authorPlayerId || '' });
     }
     for (const p of regular) {
-      const pid = p.id || p.postId;
-      const ts = p.timestamp || (p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString());
-      map.set(pid, { ...p, id: pid, timestamp: ts, authorPlayerId: p.authorPlayerId || p.authorId || '' });
+      const pid = p.messageId || p.id || p.postId;
+      const ts = p.timestamp || (p.createdAt ? new Date(p.createdAt).getTime() : Date.now());
+      map.set(pid, { ...p, id: pid, messageId: pid, timestamp: ts, authorPlayerId: p.authorPlayerId || p.authorId || '', authorId: p.authorId || p.authorPlayerId || '' });
     }
 
     this.messages = Array.from(map.values())
       .filter(p => !p.isPinned)
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     this.saveToCache();
     this.notify();
@@ -319,15 +340,19 @@ class ChatStore {
       if (typeof document !== 'undefined' && document.hidden) return;
 
       try {
-        const res = await this.apiClient.getGroupPosts(this.groupId, 20, this.postsColIndex, this.lastMessageCount || null);
+        const getFn = typeof this.apiClient.getMessages === 'function'
+          ? this.apiClient.getMessages.bind(this.apiClient)
+          : this.apiClient.getGroupPosts.bind(this.apiClient);
+        const res = await getFn(this.groupId, 20, this.postsColIndex, this.lastMessageCount || null);
         if (res && res.success) {
           const d = res.data || res;
-          if (d.status === 304 || res.status === 304) return;
+          if (d.status === 304 || res.status === 304 || res.code === 'NOT_MODIFIED' || (d && d.hasUpdate === false)) return;
           if (d.postsColIndex) this.postsColIndex = Number(d.postsColIndex);
-          if (d.messageCount !== undefined) this.lastMessageCount = d.messageCount;
+          const incomingCount = d.totalCount !== undefined ? d.totalCount : (d.totalMessagesCount !== undefined ? d.totalMessagesCount : d.messageCount);
+          if (incomingCount !== undefined) this.lastMessageCount = incomingCount;
 
-          const incomingPosts = Array.isArray(d) ? d : (d.posts || []);
-          const ann = d.announcement !== undefined ? d.announcement : d.pinnedPost;
+          const incomingPosts = Array.isArray(d) ? d : (d.messages || d.posts || []);
+          const ann = d.pinnedAnnouncement !== undefined ? d.pinnedAnnouncement : (d.announcement !== undefined ? d.announcement : d.pinnedPost);
           this.mergeIncomingPosts(incomingPosts, ann);
         }
       } catch (e) {

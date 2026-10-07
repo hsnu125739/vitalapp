@@ -200,12 +200,15 @@
             const avatarUrl = this.updateRegisterAvatar_();
 
             const res = await this.apiClient.register({
+              playerId: username,
               username,
               password,
               name,
               realName,
               phone,
+              district,
               careDistrict: district,
+              area,
               careArea: area,
               birthYear,
               gender: gender === 'female' ? 'SISTER' : 'BROTHER',
@@ -256,9 +259,8 @@
       const no = this.registerAvatarNo || 1;
       const genderLabel = gender === 'female' ? '姊妹' : '弟兄';
       const folder = gender === 'female' ? 'avatar-female' : 'avatar-male';
-      const prefix = gender === 'female' ? 'avatar-female-direct' : 'avatar-male-direct';
       const padNo = String(no).padStart(3, '0');
-      const url = `../${folder}/${prefix}-${padNo}.png`;
+      const url = `../${folder}/${folder}-direct-${padNo}.png`;
 
       if (img) img.src = url;
       if (info) info.textContent = `${genderLabel}｜第 ${no} 號`;

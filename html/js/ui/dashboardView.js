@@ -590,8 +590,9 @@
 
       let groupScore = Number(
         (journeyData && (
-          journeyData.totalPoints !== undefined ? journeyData.totalPoints :
-          (journeyData.groupTotalPoints !== undefined ? journeyData.groupTotalPoints : journeyData.totalScore)
+          journeyData.groupTotalPoints !== undefined ? journeyData.groupTotalPoints :
+          (journeyData.journeyPoints !== undefined ? journeyData.journeyPoints :
+          (journeyData.totalPoints !== undefined ? journeyData.totalPoints : journeyData.totalScore))
         )) || 0
       );
 
@@ -602,7 +603,7 @@
           try {
             const cachedGp = JSON.parse(localStorage.getItem(`vital_group_progress_${gid}`) || 'null');
             if (cachedGp) {
-              const cp = Number(cachedGp.totalPoints !== undefined ? cachedGp.totalPoints : (cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : cachedGp.totalScore));
+              const cp = Number(cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : (cachedGp.journeyPoints !== undefined ? cachedGp.journeyPoints : (cachedGp.totalPoints !== undefined ? cachedGp.totalPoints : cachedGp.totalScore)));
               if (cp > 0) groupScore = cp;
             }
           } catch (e) {}
@@ -1062,10 +1063,10 @@
         return;
       }
 
-      // 依總分由高至低排序
+      // 依旅程積分由高至低排序 (優先採用 journeyPoints，次為 groupTotalPoints)
       const sorted = [...groups].sort((a, b) => {
-        const scoreA = Number(a.totalScore || a.totalPoints || 0);
-        const scoreB = Number(b.totalScore || b.totalPoints || 0);
+        const scoreA = Number(a.journeyPoints !== undefined ? a.journeyPoints : (a.groupTotalPoints !== undefined ? a.groupTotalPoints : (a.totalScore || a.totalPoints || 0)));
+        const scoreB = Number(b.journeyPoints !== undefined ? b.journeyPoints : (b.groupTotalPoints !== undefined ? b.groupTotalPoints : (b.totalScore || b.totalPoints || 0)));
         return scoreB - scoreA;
       });
 
@@ -1077,7 +1078,7 @@
           ${sorted.map((grp, idx) => {
             const isMyGroup = Boolean(currentGroupId && grp.groupId === currentGroupId);
             const rankBadge = idx < 3 ? rankIcons[idx] : `<span style="font-size:0.95rem;color:#64748b;font-weight:700;">#${idx + 1}</span>`;
-            const score = Number(grp.totalScore || grp.totalPoints || 0);
+            const score = Number(grp.journeyPoints !== undefined ? grp.journeyPoints : (grp.groupTotalPoints !== undefined ? grp.groupTotalPoints : (grp.totalScore || grp.totalPoints || 0)));
             const chapterName = grp.currentChapter || grp.chapterTitle || '起步啟航';
             const progressPercent = Math.min(100, Math.round(grp.progressPercent || (grp.journey && grp.journey.progressPercent) || 0));
 
