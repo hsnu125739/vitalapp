@@ -368,18 +368,10 @@
       const localDelta = this.calculateTodayLocalPointsDelta_();
       
       // 保存未加上 localDelta 的基礎結算分數 (防止重複疊加)
-      const basePersonal = this.currentUserProfile.basePersonalPoints !== undefined
-        ? Number(this.currentUserProfile.basePersonalPoints || 0)
-        : Number(this.currentUserProfile.personalPoints !== undefined 
-            ? this.currentUserProfile.personalPoints 
-            : (this.currentUserProfile.totalPoints !== undefined ? this.currentUserProfile.totalPoints : (this.currentUserProfile.totalScore || 0)));
+      const basePersonal = Number(this.currentUserProfile.basePersonalPoints ?? this.currentUserProfile.personalPoints ?? 0);
       this.currentUserProfile.basePersonalPoints = basePersonal;
 
-      const baseContrib = this.currentUserProfile.baseContributionPoints !== undefined
-        ? Number(this.currentUserProfile.baseContributionPoints || 0)
-        : Number(this.currentUserProfile.contributionPoints !== undefined 
-            ? this.currentUserProfile.contributionPoints 
-            : (this.currentUserProfile.contribution !== undefined ? this.currentUserProfile.contribution : 0));
+      const baseContrib = Number(this.currentUserProfile.baseContributionPoints ?? this.currentUserProfile.contributionPoints ?? 0);
       this.currentUserProfile.baseContributionPoints = baseContrib;
 
       // 將未結算分數疊加到基礎分數上
@@ -446,20 +438,16 @@
       }
 
       // 【個人點數】（整年操練分 + 歷史結算沉澱分 personalPoints + 今日未結算操練分數）
-      const personalPoints = this.currentUserProfile.personalPoints !== undefined 
-        ? this.currentUserProfile.personalPoints 
-        : (this.currentUserProfile.totalPoints !== undefined ? this.currentUserProfile.totalPoints : (this.currentUserProfile.totalScore || 0));
+      const personalPoints = Number(this.currentUserProfile.personalPoints || 0);
       const personalEl = document.getElementById('homePersonalScoreText');
-      if (personalEl) personalEl.textContent = Number(personalPoints || 0).toLocaleString();
+      if (personalEl) personalEl.textContent = personalPoints.toLocaleString();
 
       // 【貢獻點數】（未加入活力組則固定為 0；在目前組別累積貢獻點 contributionPoints + 今日未結算操練分數）
       const contribution = this.currentUserProfile.groupId
-        ? (this.currentUserProfile.contributionPoints !== undefined 
-            ? this.currentUserProfile.contributionPoints 
-            : (this.currentUserProfile.contribution !== undefined ? this.currentUserProfile.contribution : 0))
+        ? Number(this.currentUserProfile.contributionPoints || 0)
         : 0;
       const contribEl = document.getElementById('homeContributionText');
-      if (contribEl) contribEl.textContent = Number(contribution || 0).toLocaleString();
+      if (contribEl) contribEl.textContent = contribution.toLocaleString();
 
       this.renderSettlingBadges_();
 
@@ -590,9 +578,7 @@
 
       let groupScore = Number(
         (journeyData && (
-          journeyData.groupTotalPoints !== undefined ? journeyData.groupTotalPoints :
-          (journeyData.journeyPoints !== undefined ? journeyData.journeyPoints :
-          (journeyData.totalPoints !== undefined ? journeyData.totalPoints : journeyData.totalScore))
+          journeyData.groupTotalPoints !== undefined ? journeyData.groupTotalPoints : journeyData.journeyPoints
         )) || 0
       );
 
@@ -603,7 +589,7 @@
           try {
             const cachedGp = JSON.parse(localStorage.getItem(`vital_group_progress_${gid}`) || 'null');
             if (cachedGp) {
-              const cp = Number(cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : (cachedGp.journeyPoints !== undefined ? cachedGp.journeyPoints : (cachedGp.totalPoints !== undefined ? cachedGp.totalPoints : cachedGp.totalScore)));
+              const cp = Number(cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : (cachedGp.journeyPoints || 0));
               if (cp > 0) groupScore = cp;
             }
           } catch (e) {}
@@ -699,7 +685,7 @@
           try {
             const cachedGp = JSON.parse(localStorage.getItem(`vital_group_progress_${gid}`) || 'null');
             if (cachedGp) {
-              const cp = Number(cachedGp.totalPoints !== undefined ? cachedGp.totalPoints : (cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : 0));
+              const cp = Number(cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : (cachedGp.journeyPoints || 0));
               if (cp > 0) score = cp;
             }
           } catch (e) {}
@@ -1065,8 +1051,8 @@
 
       // 依旅程積分由高至低排序 (優先採用 journeyPoints，次為 groupTotalPoints)
       const sorted = [...groups].sort((a, b) => {
-        const scoreA = Number(a.journeyPoints !== undefined ? a.journeyPoints : (a.groupTotalPoints !== undefined ? a.groupTotalPoints : (a.totalScore || a.totalPoints || 0)));
-        const scoreB = Number(b.journeyPoints !== undefined ? b.journeyPoints : (b.groupTotalPoints !== undefined ? b.groupTotalPoints : (b.totalScore || b.totalPoints || 0)));
+        const scoreA = Number(a.journeyPoints !== undefined ? a.journeyPoints : (a.groupTotalPoints || 0));
+        const scoreB = Number(b.journeyPoints !== undefined ? b.journeyPoints : (b.groupTotalPoints || 0));
         return scoreB - scoreA;
       });
 
@@ -1078,11 +1064,7 @@
           ${sorted.map((grp, idx) => {
             const isMyGroup = Boolean(currentGroupId && grp.groupId === currentGroupId);
             const rankBadge = idx < 3 ? rankIcons[idx] : `<span style="font-size:0.95rem;color:#64748b;font-weight:700;">#${idx + 1}</span>`;
-            const score = Number(
-              grp.journeyPoints !== undefined ? grp.journeyPoints :
-              (grp.groupTotalPoints !== undefined ? grp.groupTotalPoints :
-              (grp.totalPoints !== undefined ? grp.totalPoints : (grp.totalScore || 0)))
-            );
+            const score = Number(grp.journeyPoints !== undefined ? grp.journeyPoints : (grp.groupTotalPoints || 0));
             if (grp.currentChapter && typeof grp.currentChapter === 'object') {
               grp.currentChapter = grp.currentChapter.name || grp.currentChapter.title || '起步啟航';
             }
@@ -1223,20 +1205,16 @@
       const nextContrib = baseContrib + localDelta;
 
       this.currentUserProfile.personalPoints = nextPersonal;
-      if (this.currentUserProfile.totalPoints !== undefined) this.currentUserProfile.totalPoints = nextPersonal;
-      if (this.currentUserProfile.totalScore !== undefined) this.currentUserProfile.totalScore = nextPersonal;
 
       const personalEl = (typeof document !== 'undefined') ? document.getElementById('homePersonalScoreText') : null;
       if (personalEl) personalEl.textContent = Number(nextPersonal).toLocaleString();
 
       if (this.currentUserProfile.groupId) {
         this.currentUserProfile.contributionPoints = nextContrib;
-        if (this.currentUserProfile.contribution !== undefined) this.currentUserProfile.contribution = nextContrib;
         const contribEl = (typeof document !== 'undefined') ? document.getElementById('homeContributionText') : null;
         if (contribEl) contribEl.textContent = Number(nextContrib).toLocaleString();
       } else {
         this.currentUserProfile.contributionPoints = 0;
-        if (this.currentUserProfile.contribution !== undefined) this.currentUserProfile.contribution = 0;
         const contribEl = (typeof document !== 'undefined') ? document.getElementById('homeContributionText') : null;
         if (contribEl) contribEl.textContent = '0';
       }
@@ -1266,15 +1244,9 @@
       const delta = isDone ? pts : -pts;
 
       // 1. 更新【個人點數】（永遠累計）
-      const currentPersonal = Number(
-        this.currentUserProfile.personalPoints !== undefined
-          ? this.currentUserProfile.personalPoints
-          : (this.currentUserProfile.totalPoints !== undefined ? this.currentUserProfile.totalPoints : (this.currentUserProfile.totalScore || 0))
-      );
+      const currentPersonal = Number(this.currentUserProfile.personalPoints || 0);
       const nextPersonal = Math.max(0, currentPersonal + delta);
       this.currentUserProfile.personalPoints = nextPersonal;
-      if (this.currentUserProfile.totalPoints !== undefined) this.currentUserProfile.totalPoints = nextPersonal;
-      if (this.currentUserProfile.totalScore !== undefined) this.currentUserProfile.totalScore = nextPersonal;
 
       const personalEl = document.getElementById('homePersonalScoreText');
       if (personalEl) personalEl.textContent = nextPersonal.toLocaleString();
@@ -1282,14 +1254,9 @@
       // 2. 更新【貢獻點數】（若已加入活力組，則同仁在小組內的年度貢獻亦同步累計）
       const hasGroup = Boolean(this.currentUserProfile.groupId);
       if (hasGroup) {
-        const currentContrib = Number(
-          this.currentUserProfile.contributionPoints !== undefined
-            ? this.currentUserProfile.contributionPoints
-            : (this.currentUserProfile.contribution !== undefined ? this.currentUserProfile.contribution : 0)
-        );
+        const currentContrib = Number(this.currentUserProfile.contributionPoints || 0);
         const nextContrib = Math.max(0, currentContrib + delta);
         this.currentUserProfile.contributionPoints = nextContrib;
-        if (this.currentUserProfile.contribution !== undefined) this.currentUserProfile.contribution = nextContrib;
 
         const contribEl = document.getElementById('homeContributionText');
         if (contribEl) contribEl.textContent = nextContrib.toLocaleString();

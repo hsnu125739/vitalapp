@@ -869,8 +869,8 @@
         if (!this.infoModalContent) return;
 
         const totalGroupScore = Number(
-          (summaryData && (summaryData.groupTotalPoints !== undefined ? summaryData.groupTotalPoints : summaryData.totalPoints)) ||
-          (journeyData && (journeyData.totalPoints || journeyData.totalScore)) ||
+          (summaryData && summaryData.groupTotalPoints !== undefined ? summaryData.groupTotalPoints : 0) ||
+          (journeyData && journeyData.groupTotalPoints !== undefined ? journeyData.groupTotalPoints : 0) ||
           0
         );
 
@@ -881,7 +881,7 @@
           try { groupMembers = JSON.parse(localStorage.getItem(`vital_group_members_${groupId}`) || 'null'); } catch(e){}
         }
 
-        const contribs = (summaryData && (summaryData.memberContribution || summaryData.meberContribution)) || {};
+        const contribs = (summaryData && summaryData.memberContribution) || {};
 
         // 收集小組成員資訊 (優先使用 vital_group_members_，兜底使用 groupProfile.members)
         const membersMap = new Map();
@@ -1021,7 +1021,7 @@
       };
 
       // 1. 若有快取，先立即展示快取，提供秒開體驗
-      if (cachedSummary && (cachedSummary.groupTotalPoints !== undefined || cachedSummary.totalPoints !== undefined)) {
+      if (cachedSummary && cachedSummary.groupTotalPoints !== undefined) {
         renderModalContent(cachedSummary, true);
       } else {
         if (this.infoModalContent) {
@@ -1062,11 +1062,10 @@
 
           // 即時同步最新小組點數至首頁旅程 (currentJourneyData 與 dashboardView)
           try {
-            const latestPts = Number(latestProgress.totalPoints !== undefined ? latestProgress.totalPoints : (latestProgress.groupTotalPoints !== undefined ? latestProgress.groupTotalPoints : 0));
+            const latestPts = Number(latestProgress.groupTotalPoints !== undefined ? latestProgress.groupTotalPoints : 0);
             if (latestPts > 0 && typeof window !== 'undefined') {
               if (window.currentJourneyData) {
-                window.currentJourneyData.totalPoints = latestPts;
-                window.currentJourneyData.totalScore = latestPts;
+                window.currentJourneyData.journeyPoints = latestPts;
                 window.currentJourneyData.groupTotalPoints = latestPts;
               }
               if (window.dashboardView && typeof window.dashboardView.render === 'function') {
@@ -1077,7 +1076,7 @@
         }
       } catch (err) {
         console.warn('[ProfileView] 獲取最新小組進度失敗:', err);
-        if (!cachedSummary || (cachedSummary.groupTotalPoints === undefined && cachedSummary.totalPoints === undefined)) {
+        if (!cachedSummary || cachedSummary.groupTotalPoints === undefined) {
           if (this.infoModalContent) {
             this.infoModalContent.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444;">讀取同行貢獻失敗：${this.escapeHtml(err.message || '連線逾時')}</div>`;
           }

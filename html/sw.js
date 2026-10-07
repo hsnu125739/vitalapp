@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vital-cache-v55';
+const CACHE_NAME = 'vital-cache-v56';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

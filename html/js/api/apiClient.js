@@ -623,16 +623,8 @@
       const cleanUser = String(username || '').trim();
       const cleanPass = String(password || '').trim();
       const res = await this.request('login', {
-        username: cleanUser,
-        password: cleanPass,
         playerId: cleanUser,
-        identifier: cleanUser,
-        data: {
-          username: cleanUser,
-          password: cleanPass,
-          playerId: cleanUser,
-          identifier: cleanUser
-        }
+        password: cleanPass
       });
 
       const token = res && (res.token || res.sessionToken || (res.data && (res.data.token || res.data.sessionToken)));
@@ -1019,37 +1011,22 @@
 
     updateProfile(updates) { return this.request('updateProfile', { updates }); }
     async updatePassword(currentPassword, newPassword) {
-      const pId = this.getPlayerIdFromToken();
-      const payload = {
-        oldPassword: currentPassword,
+      return await this.request('updatePassword', {
         currentPassword: currentPassword,
-        currentPasswordCode: currentPassword,
-        newPassword: newPassword,
-        newPasswordCode: newPassword,
-        playerId: pId,
-        token: this.token,
-        sessionToken: this.token
-      };
-      return await this.request('updatePassword', payload);
+        newPassword: newPassword
+      });
     }
     updateMyPassword(currentPassword, newPassword) {
       return this.updatePassword(currentPassword, newPassword);
     }
     updateAvatar(avatarUrl, name) {
       const payload = typeof avatarUrl === 'object' && avatarUrl !== null
-        ? { ...avatarUrl }
-        : { avatarUrl: avatarUrl, avatarKey: avatarUrl };
-      if (!payload.avatarUrl && payload.avatarKey) {
-        payload.avatarUrl = payload.avatarKey;
-      }
-      if (!payload.avatarKey && payload.avatarUrl) {
-        payload.avatarKey = payload.avatarUrl;
-      }
+        ? { avatarUrl: avatarUrl.avatarUrl, name: avatarUrl.name }
+        : { avatarUrl: avatarUrl };
       if (name !== undefined && name !== null) {
         const trimmed = String(name).trim();
         if (trimmed) {
           payload.name = trimmed;
-          payload.displayName = trimmed;
         }
       }
       return this.request('updateAvatar', payload);
@@ -1122,7 +1099,7 @@
       const gId = typeof leaderPlayerId === 'object' && leaderPlayerId !== null
         ? leaderPlayerId.groupId
         : groupId;
-      const data = { leaderPlayerId: targetId, targetPlayerId: targetId };
+      const data = { leaderPlayerId: targetId };
       if (gId) data.groupId = gId;
       const col = this.getMatrixColIndexFromStorage();
       if (col) data.matrixColIndex = col;
@@ -1154,7 +1131,6 @@
       if (typeof scopeOrType === 'object' && scopeOrType !== null) {
         const payload = { ...scopeOrType };
         if (!payload.targetType && payload.scope) payload.targetType = payload.scope;
-        if (!payload.scope && payload.targetType) payload.scope = payload.targetType;
         return this.request('evaluateTargetMilestones', payload);
       }
       let targetType = String(scopeOrType || 'PLAYER').toUpperCase();
@@ -1170,7 +1146,6 @@
 
       const data = {
         targetType,
-        scope: targetType,
         targetId: tid
       };
       if (event) {
@@ -1181,11 +1156,18 @@
 
     grantTargetedReward(options) {
       const data = typeof options === 'object' && options !== null ? { ...options } : {};
-      if (data.points !== undefined && data.deltaPoints === undefined) data.deltaPoints = data.points;
-      if (data.deltaPoints !== undefined && data.points === undefined) data.points = data.deltaPoints;
-      if (data.taskName && !data.reason) data.reason = data.taskName;
-      if (!data.targetType) data.targetType = 'PLAYER';
-      return this.request('grantTargetedReward', data);
+      const deltaPoints = Number(data.deltaPoints !== undefined ? data.deltaPoints : data.points) || 0;
+      const reason = String(data.reason || data.taskName || '管理者發放特殊同行獎勵').trim();
+      const cleanData = {
+        targetType: data.targetType || 'PLAYER',
+        targetId: data.targetId || (Array.isArray(data.targetIds) ? data.targetIds[0] : ''),
+        deltaPoints: deltaPoints,
+        reason: reason
+      };
+      if (data.adminPlayerId) cleanData.adminPlayerId = data.adminPlayerId;
+      if (data.taskId) cleanData.taskId = data.taskId;
+      if (data.targetIds) cleanData.targetIds = data.targetIds;
+      return this.request('grantTargetedReward', cleanData);
     }
 
     syncGroupMembership(groupId, operation, memberPlayerId) {
@@ -1237,10 +1219,10 @@
     }
 
     deleteMessage(messageId) {
-      const payload = typeof messageId === 'object' && messageId !== null
-        ? messageId
-        : { messageId, postId: messageId };
-      return this.request('deleteMessage', payload);
+      const mId = typeof messageId === 'object' && messageId !== null
+        ? (messageId.messageId || messageId.postId)
+        : messageId;
+      return this.request('deleteMessage', { messageId: mId });
     }
     deleteGroupPost(postId) { return this.deleteMessage(postId); }
 

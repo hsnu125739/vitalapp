@@ -53,10 +53,7 @@
     const chapterTitle = CHAPTER_NAMES[chapterIndex - 1] || '起步啟航';
 
     let totalScore = Number(
-      groupProgress.groupTotalPoints !== undefined ? groupProgress.groupTotalPoints :
-      (groupProgress.journeyPoints !== undefined ? groupProgress.journeyPoints :
-      (groupProgress.totalPoints !== undefined ? groupProgress.totalPoints :
-      (groupProgress.totalScore !== undefined ? groupProgress.totalScore : 0)))
+      groupProgress.groupTotalPoints !== undefined ? groupProgress.groupTotalPoints : (groupProgress.journeyPoints || 0)
     );
     if (!totalScore && groupProgress.memberContribution && typeof groupProgress.memberContribution === 'object') {
       const sum = Object.values(groupProgress.memberContribution).reduce((acc, v) => acc + (Number(v) || 0), 0);
@@ -82,7 +79,7 @@
       fallbackProfile.memberCount = mCount;
     }
 
-    const finalPoints = totalScore || (fallbackProfile && (fallbackProfile.groupTotalPoints || fallbackProfile.journeyPoints || fallbackProfile.totalPoints || fallbackProfile.totalScore)) || 0;
+    const finalPoints = totalScore || (fallbackProfile && (fallbackProfile.groupTotalPoints || fallbackProfile.journeyPoints)) || 0;
 
     return {
       ...groupProgress,
@@ -582,14 +579,13 @@
         }
 
         // 若仍未取得點數，嘗試從本地快取中救回既有點數
-        if (currentGId && (!groupProgress || (groupProgress.totalPoints === undefined && groupProgress.groupTotalPoints === undefined))) {
+        if (currentGId && (!groupProgress || groupProgress.groupTotalPoints === undefined)) {
           try {
             const cachedGp = JSON.parse(localStorage.getItem(`vital_group_progress_${currentGId}`) || 'null');
             if (cachedGp) {
-              const cp = Number(cachedGp.totalPoints !== undefined ? cachedGp.totalPoints : (cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : 0));
+              const cp = Number(cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : (cachedGp.journeyPoints || 0));
               if (cp > 0) {
                 if (!groupProgress) groupProgress = cachedGp;
-                groupProgress.totalPoints = cp;
                 groupProgress.groupTotalPoints = cp;
                 if (cachedGp.memberContribution) groupProgress.memberContribution = cachedGp.memberContribution;
               }
@@ -1038,10 +1034,7 @@
 
   function openChests(selectedIdx = null) {
     const prof = (dashboardView && dashboardView.currentUserProfile) || currentUserProfile;
-    const points = (prof && (
-      prof.personalPoints !== undefined ? prof.personalPoints :
-      (prof.totalPoints !== undefined ? prof.totalPoints : prof.totalScore)
-    )) || 0;
+    const points = (prof && Number(prof.personalPoints || 0)) || 0;
     let pMs = [];
     if (currentUserProfile && currentUserProfile.playerId) {
       try {
