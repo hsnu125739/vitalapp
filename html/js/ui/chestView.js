@@ -15,7 +15,9 @@
     { achievementId: 'tier_5', order: 5, status: 'ACTIVE', name: '忍耐寶箱', subtitle: '在節制上供應忍耐', description: '個人累積達到 1,500 點操練分', rewardDesc: '解鎖忍耐階梯徽章', pictureKey: 'Chest_05.webp', minPoints: 1500, isHidden: false },
     { achievementId: 'tier_6', order: 6, status: 'ACTIVE', name: '敬虔寶箱', subtitle: '在忍耐上供應敬虔', description: '個人累積達到 2,100 點操練分', rewardDesc: '解鎖敬虔階梯徽章', pictureKey: 'Chest_06.webp', minPoints: 2100, isHidden: false },
     { achievementId: 'tier_7', order: 7, status: 'ACTIVE', name: '弟兄相愛寶箱', subtitle: '在敬虔上供應弟兄相愛', description: '個人累積達到 2,800 點操練分', rewardDesc: '解鎖弟兄相愛階梯徽章', pictureKey: 'Chest_07.webp', minPoints: 2800, isHidden: false },
-    { achievementId: 'tier_8', order: 8, status: 'ACTIVE', name: '愛之榮耀寶箱', subtitle: '在弟兄相愛上供應愛', description: '個人累積達到 3,600 點操練分', rewardDesc: '解鎖愛之榮耀徽章', pictureKey: 'Chest_08.webp', minPoints: 3600, isHidden: false }
+    { achievementId: 'tier_8', order: 8, status: 'ACTIVE', name: '愛之榮耀寶箱', subtitle: '在弟兄相愛上供應愛', description: '個人累積達到 3,600 點操練分', rewardDesc: '解鎖愛之榮耀徽章', pictureKey: 'Chest_08.webp', minPoints: 3600, isHidden: false },
+    { achievementId: 'tier_9', order: 9, status: 'ACTIVE', name: '錫安寶箱', subtitle: '心中想往錫安大道', description: '個人累積達到 4,500 點操練分', rewardDesc: '解鎖錫安朝聖徽章', pictureKey: 'Chest_09.webp', minPoints: 4500, isHidden: false },
+    { achievementId: 'tier_10', order: 10, status: 'ACTIVE', name: '冠冕寶箱', subtitle: '得著生命的冠冕', description: '個人累積達到 5,500 點操練分', rewardDesc: '解鎖生命冠冕徽章', pictureKey: 'Chest_10.webp', minPoints: 5500, isHidden: false }
   ];
 
   // 向後相容既有參照
@@ -29,11 +31,11 @@
   const PRELOADED_CHEST_IMAGES = [];
 
   /**
-   * 預先載入 WebP 寶箱資源（嚴格排除 PNG，避免拖慢效能）
+   * 預先載入 WebP 寶箱資源（全部 10 個階層，嚴格排除 PNG 以免拖慢效能）
    */
   function preloadChestAssets() {
     if (typeof window === 'undefined' || typeof Image === 'undefined') return [];
-    for (let i = 1; i <= 8; i++) {
+    for (let i = 1; i <= 10; i++) {
       const num = String(i).padStart(2, '0');
       const imgWebp = new Image();
       imgWebp.src = `../Chest_Assets/Chest_${num}.webp`;
@@ -61,22 +63,20 @@
           const matched = trimmed.replace(/^Chapter_/, 'Chest_');
           return `../Chest_Assets/${matched}`.replace(/\.(png|webp)$/i, `.${ext}`);
         }
-        if (trimmed.startsWith('Cute_Icon_')) {
-          return `../Cute_Icons/${trimmed}`;
-        }
         return `../Chest_Assets/${trimmed}`.replace(/\.(png|webp)$/i, `.${ext}`);
       }
     }
     const raw = String((c && (c.icon || c.tierId || c.achievementId || c.tier || c.name || c.title)) || '');
     const match = raw.match(/\d+/);
-    let num = (index % 8) + 1;
+    let num = (index % 10) + 1;
     if (match) {
       const parsed = parseInt(match[0], 10);
       if (!isNaN(parsed) && parsed >= 1) {
-        num = ((parsed - 1) % 8) + 1;
+        num = ((parsed - 1) % 10) + 1;
       }
     }
-    return `../Chest_Assets/Chest_0${num}.${ext}`;
+    const numStr = String(num).padStart(2, '0');
+    return `../Chest_Assets/Chest_${numStr}.${ext}`;
   }
 
   const escapeHtml = (typeof VitalUtils !== 'undefined' && VitalUtils.escapeHtml)

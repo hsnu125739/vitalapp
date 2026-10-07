@@ -1236,7 +1236,6 @@
         const matched = p.replace(/^Chapter_/, 'Chest_');
         return `../Chest_Assets/${matched}`;
       }
-      if (p.startsWith('Cute_Icon_')) return `../Cute_Icons/${p}`;
       return `../Chest_Assets/${p}`;
     };
 

@@ -785,9 +785,6 @@
       if (p.startsWith('Chest_')) {
         return `../Chest_Assets/${p}`;
       }
-      if (p.startsWith('Cute_Icon_')) {
-        return `../Cute_Icons/${p}`;
-      }
       if (p.startsWith('../')) {
         return p;
       }

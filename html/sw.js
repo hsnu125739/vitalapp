@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vital-cache-v58';
+const CACHE_NAME = 'vital-cache-v59';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -16,7 +16,7 @@ const ASSETS_TO_CACHE = [
   './js/ui/groupFellowshipView.js',
   './js/ui/profileView.js',
   './js/app.js',
-  // Chest Assets (WebP only - PNG preloading removed to prevent performance degradation)
+  // Chest Assets (WebP only - 10 tiers, PNG preloading removed to prevent performance degradation)
   '../Chest_Assets/Chest_01.webp',
   '../Chest_Assets/Chest_02.webp',
   '../Chest_Assets/Chest_03.webp',
@@ -25,6 +25,8 @@ const ASSETS_TO_CACHE = [
   '../Chest_Assets/Chest_06.webp',
   '../Chest_Assets/Chest_07.webp',
   '../Chest_Assets/Chest_08.webp',
+  '../Chest_Assets/Chest_09.webp',
+  '../Chest_Assets/Chest_10.webp',
   './Chest_Assets/Chest_01.webp',
   './Chest_Assets/Chest_02.webp',
   './Chest_Assets/Chest_03.webp',
@@ -33,6 +35,8 @@ const ASSETS_TO_CACHE = [
   './Chest_Assets/Chest_06.webp',
   './Chest_Assets/Chest_07.webp',
   './Chest_Assets/Chest_08.webp',
+  './Chest_Assets/Chest_09.webp',
+  './Chest_Assets/Chest_10.webp',
   // Journey Assets (WebP)
   '../Chest_Assets/journey_1.webp',
   '../Chest_Assets/journey_2.webp',
@@ -49,17 +53,7 @@ const ASSETS_TO_CACHE = [
   './Chest_Assets/journey_5.webp',
   './Chest_Assets/journey_6.webp',
   './Chest_Assets/journey_7.webp',
-  './Chest_Assets/journey_8.webp',
-  // Cute Icons (Achievements & Special Tasks)
-  '../Cute_Icons/Cute_Icon_01.png',
-  '../Cute_Icons/Cute_Icon_02.png',
-  '../Cute_Icons/Cute_Icon_03.png',
-  '../Cute_Icons/Cute_Icon_04.png',
-  '../Cute_Icons/Cute_Icon_05.png',
-  '../Cute_Icons/Cute_Icon_06.png',
-  '../Cute_Icons/Cute_Icon_07.png',
-  '../Cute_Icons/Cute_Icon_08.png',
-  '../Cute_Icons/Cute_Icon_09.png'
+  './Chest_Assets/journey_8.webp'
 ];
 
 self.addEventListener('install', (event) => {
