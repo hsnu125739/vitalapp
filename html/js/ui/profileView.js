@@ -153,6 +153,24 @@
         });
       }
 
+      // 同行手冊右上角更新按鈕
+      const myRefreshBtn = document.getElementById('myRefreshBtn');
+      if (myRefreshBtn) {
+        myRefreshBtn.addEventListener('click', async () => {
+          myRefreshBtn.disabled = true;
+          const oldText = myRefreshBtn.textContent;
+          myRefreshBtn.textContent = '更新中...';
+          try {
+            if (typeof window.AppCoordinator?.refreshUserData === 'function') {
+              await window.AppCoordinator.refreshUserData();
+            }
+          } finally {
+            myRefreshBtn.textContent = oldText || '更新';
+            myRefreshBtn.disabled = false;
+          }
+        });
+      }
+
       const changePwdForm = document.getElementById('changePasswordForm');
       if (changePwdForm) {
         changePwdForm.addEventListener('submit', async (e) => {
@@ -403,6 +421,11 @@
                     try {
                       const res = await this.apiClient.transferGroupLeader(m.playerId, groupId);
                       if (res && res.success) {
+                        if (this.currentUserProfile) {
+                          this.currentUserProfile.isLeader = false;
+                          this.currentUserProfile.leaderPlayerId = m.playerId;
+                          try { localStorage.setItem('vital_current_player', JSON.stringify(this.currentUserProfile)); } catch(e) {}
+                        }
                         alert('交接成功！您已卸任組長。');
                         if (typeof window.AppCoordinator?.refreshUserData === 'function') {
                           window.AppCoordinator.refreshUserData();
@@ -677,6 +700,27 @@
         myAvatarImg.classList.remove('hidden');
         if (myAvatarPlaceholder) myAvatarPlaceholder.classList.add('hidden');
       }
+
+      // 補齊個資欄位顯示 (若 DOM 元素存在)
+      const setElText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val !== undefined && val !== null && String(val).trim() !== '' ? String(val) : '未填寫';
+      };
+      setElText('myPlayerId', userProfile.playerId);
+      setElText('myRealName', userProfile.realName);
+      setElText('myGender', (userProfile.gender === 'SISTER' || userProfile.gender === 'female') ? '姊妹' : '弟兄');
+      setElText('myBirthYear', userProfile.birthYear ? `${userProfile.birthYear} 年` : '');
+      const districtArea = `${userProfile.careDistrict || userProfile.district || ''}照顧區 ｜ ${userProfile.careArea || userProfile.area || ''}`;
+      setElText('myDistrictArea', districtArea.trim() !== '照顧區 ｜' ? districtArea : '');
+      setElText('myPhone', userProfile.phone);
+
+      // 補齊點數顯示 (若 DOM 元素存在)
+      const personalPts = userProfile.personalPoints !== undefined ? userProfile.personalPoints : (userProfile.totalPoints || 0);
+      const contribPts = hasGroup ? (userProfile.contributionPoints !== undefined ? userProfile.contributionPoints : (userProfile.contribution || 0)) : 0;
+      const currentYearPts = userProfile.currentYearPoints !== undefined ? userProfile.currentYearPoints : personalPts;
+      setElText('myPersonalPoints', Number(personalPts).toLocaleString());
+      setElText('myContributionPoints', Number(contribPts).toLocaleString());
+      setElText('myCurrentYearPoints', Number(currentYearPts).toLocaleString());
     }
 
     updateAvatarPreview_() {

@@ -653,6 +653,10 @@
           if (count !== undefined) {
             currentUserProfile.memberCount = count;
           }
+          if (groupMembersData.leaderPlayerId) {
+            currentUserProfile.leaderPlayerId = groupMembersData.leaderPlayerId;
+            currentUserProfile.isLeader = (groupMembersData.leaderPlayerId === currentUserProfile.playerId);
+          }
         }
       }
 

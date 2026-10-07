@@ -614,7 +614,7 @@
 
     async register(userData) {
       const res = await this.request('register', userData);
-      const token = res && res.token;
+      const token = res && (res.token || res.sessionToken || (res.data && (res.data.token || res.data.sessionToken)));
       if (token) this.setSessionToken(token);
       return res;
     }

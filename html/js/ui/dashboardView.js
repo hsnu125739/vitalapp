@@ -1078,9 +1078,21 @@
           ${sorted.map((grp, idx) => {
             const isMyGroup = Boolean(currentGroupId && grp.groupId === currentGroupId);
             const rankBadge = idx < 3 ? rankIcons[idx] : `<span style="font-size:0.95rem;color:#64748b;font-weight:700;">#${idx + 1}</span>`;
-            const score = Number(grp.journeyPoints !== undefined ? grp.journeyPoints : (grp.groupTotalPoints !== undefined ? grp.groupTotalPoints : (grp.totalScore || grp.totalPoints || 0)));
+            const score = Number(
+              grp.journeyPoints !== undefined ? grp.journeyPoints :
+              (grp.groupTotalPoints !== undefined ? grp.groupTotalPoints :
+              (grp.totalPoints !== undefined ? grp.totalPoints : (grp.totalScore || 0)))
+            );
+            if (grp.currentChapter && typeof grp.currentChapter === 'object') {
+              grp.currentChapter = grp.currentChapter.name || grp.currentChapter.title || '起步啟航';
+            }
             const chapterName = grp.currentChapter || grp.chapterTitle || '起步啟航';
-            const progressPercent = Math.min(100, Math.round(grp.progressPercent || (grp.journey && grp.journey.progressPercent) || 0));
+
+            const progressPercent = Math.min(100, Math.round(
+              grp.progressPercent !== undefined ? grp.progressPercent :
+              (grp.progressPercentage !== undefined ? grp.progressPercentage :
+              ((grp.journey && (grp.journey.progressPercent !== undefined ? grp.journey.progressPercent : grp.journey.progressPercentage)) || 0))
+            ));
 
             return `
               <div style="background:${isMyGroup ? '#ecfdf5' : '#ffffff'}; border:2px solid ${isMyGroup ? '#10b981' : '#e2e8f0'}; border-radius:14px; padding:12px 16px; box-shadow:0 2px 4px rgba(0,0,0,0.04); display:flex; flex-direction:column; gap:8px;">

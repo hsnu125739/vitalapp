@@ -4982,11 +4982,33 @@ body[data-theme="night"] #homeView .hero-score-card .score-sync-badge.is-settlin
     white-space:nowrap;
 }
 
-#homeView .home-hero-card .hero-score-grid .hero-score-card .score-sync-badge{
+#homeView .home-hero-card .hero-score-grid .hero-score-card .score-sync-badge:not(.is-settling){
   left:10px;
   bottom:2px;
   max-width:104px;
   transform:none;
+}
+
+#homeView .home-hero-card .hero-score-grid .hero-score-card .score-sync-badge.is-settling{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:3px !important;
+  position:absolute !important;
+  left:44px !important;
+  top:50% !important;
+  bottom:auto !important;
+  transform:translateY(-50%) !important;
+  background:rgba(245, 158, 11, 0.16) !important;
+  color:#b45309 !important;
+  border:1px solid rgba(245, 158, 11, 0.4) !important;
+  border-radius:999px !important;
+  padding:1.5px 6px !important;
+  font-size:8.5px !important;
+  font-weight:850 !important;
+  line-height:1.2 !important;
+  white-space:nowrap !important;
+  box-shadow:0 1px 3px rgba(245, 158, 11, 0.18) !important;
+  z-index:5 !important;
 }
 
 #homeView .home-hero-card .hero-score-grid .hero-score-card .hero-meter{

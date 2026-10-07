@@ -176,7 +176,15 @@ class OptimisticPracticeStore {
       if (res && res.success) {
         currentState.syncStatus = 'synced';
         currentState.hasAmberDot = false;
-        this.notify('DAILY', date, { ...currentState });
+        const resData = res.data || res;
+        this.notify('DAILY', date, {
+          ...currentState,
+          serverPoints: {
+            groupTotalPoints: resData.groupTotalPoints,
+            personalPoints: resData.personalPoints,
+            deltaPoints: resData.deltaPoints
+          }
+        });
         return;
       }
       throw new Error((res && res.error) || 'Daily practice submit failed');
@@ -280,7 +288,15 @@ class OptimisticPracticeStore {
       if (res && res.success) {
         currentState.syncStatus = 'synced';
         currentState.hasAmberDot = false;
-        this.notify('MEETING', weekKey, { ...currentState });
+        const resData = res.data || res;
+        this.notify('MEETING', weekKey, {
+          ...currentState,
+          serverPoints: {
+            groupTotalPoints: resData.groupTotalPoints,
+            personalPoints: resData.personalPoints,
+            deltaPoints: resData.deltaPoints
+          }
+        });
       } else {
         throw new Error('Meeting practice failed');
       }

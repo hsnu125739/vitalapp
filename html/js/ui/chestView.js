@@ -167,7 +167,7 @@
       const claimedSet = new Set();
       const repeatInfo = new Map(); // baseId -> { count, last }
       milestones.forEach(m => {
-        const raw = m && String(m.id || m.tierId || m.achievementId || '').trim();
+        const raw = m && String((typeof m === 'string' ? m : (m.id || m.tierId || m.achievementId)) || '').trim();
         if (!raw) return;
         claimedSet.add(raw);
         const dm = raw.match(/^(.+)_(\d{4}-\d{2}-\d{2})$/);
