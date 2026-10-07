@@ -1100,6 +1100,7 @@
                   <div style="display:flex; align-items:center; gap:8px;">
                     <div style="font-size:1.25rem; font-weight:700; width:30px; text-align:center; display:flex; align-items:center; justify-content:center;">${rankBadge}</div>
                     <strong style="font-size:1.05rem; color:#1e293b;">${this.escapeHtml_(grp.groupName || '未命名小組')}</strong>
+                    ${grp.district ? `<span style="font-size:0.75rem; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:12px; font-weight:500;">${this.escapeHtml_(grp.district)}</span>` : ''}
                     ${isMyGroup ? '<span style="font-size:0.75rem; background:#10b981; color:#ffffff; padding:2px 8px; border-radius:12px; font-weight:600;">您的小組</span>' : ''}
                   </div>
                   <div style="font-weight:700; color:#d97706; font-size:1.1rem;">
