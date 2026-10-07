@@ -538,8 +538,23 @@
         return bRes;
       }) : Promise.resolve(null);
 
+      // ★ 專屬 Callback：Announcements 一到達立刻獨立刷新跑馬燈，無需等待其他請求
+      const announcementsPromise = apiClient.getAnnouncements().then(res => {
+        if (res && res.success) {
+          const list = res.announcements || res.data?.announcements || (Array.isArray(res.data) ? res.data : []);
+          if (Array.isArray(list) && list.length > 0) {
+            try { localStorage.setItem('vital_announcements', JSON.stringify(list)); } catch (e) {}
+            if (dashboardView && typeof dashboardView.renderAnnouncements_ === 'function') {
+              dashboardView.currentAnnouncements = list;
+              dashboardView.renderAnnouncements_(list);
+            }
+          }
+        }
+        return res;
+      });
+
       const [announcementsRes, bundleRes, profileRes] = await Promise.allSettled([
-        apiClient.getAnnouncements(),
+        announcementsPromise,
         bundlePromise,
         gId ? (typeof apiClient.getGroupMembers === 'function' ? apiClient.getGroupMembers(gId, activeMembersObj) : apiClient.getGroupProfile(gId)) : Promise.resolve(null)
       ]);

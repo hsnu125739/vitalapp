@@ -28,37 +28,18 @@
 
   const PRELOADED_CHEST_IMAGES = [];
 
+  /**
+   * 預先載入 WebP 寶箱資源（嚴格排除 PNG，避免拖慢效能）
+   */
   function preloadChestAssets() {
-    if (typeof window === 'undefined' || typeof Image === 'undefined') return;
+    if (typeof window === 'undefined' || typeof Image === 'undefined') return [];
     for (let i = 1; i <= 8; i++) {
       const num = String(i).padStart(2, '0');
-      // Preload WebP first
       const imgWebp = new Image();
       imgWebp.src = `../Chest_Assets/Chest_${num}.webp`;
       PRELOADED_CHEST_IMAGES.push(imgWebp);
-
-      // Preload PNG fallback
-      const imgPng = new Image();
-      imgPng.src = `../Chest_Assets/Chest_${num}.png`;
-      PRELOADED_CHEST_IMAGES.push(imgPng);
     }
-  }
-
-  // 瀏覽器閒置時預載入資產
-  if (typeof window !== 'undefined') {
-    const schedulePreload = () => {
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(preloadChestAssets, { timeout: 1500 });
-      } else {
-        setTimeout(preloadChestAssets, 200);
-      }
-    };
-
-    if (document.readyState === 'loading') {
-      window.addEventListener('DOMContentLoaded', schedulePreload);
-    } else {
-      schedulePreload();
-    }
+    return PRELOADED_CHEST_IMAGES;
   }
 
   function resolveChestImg(c, index, format = 'webp') {

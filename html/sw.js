@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vital-cache-v57';
+const CACHE_NAME = 'vital-cache-v58';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -16,7 +16,7 @@ const ASSETS_TO_CACHE = [
   './js/ui/groupFellowshipView.js',
   './js/ui/profileView.js',
   './js/app.js',
-  // Chest Assets (WebP & PNG)
+  // Chest Assets (WebP only - PNG preloading removed to prevent performance degradation)
   '../Chest_Assets/Chest_01.webp',
   '../Chest_Assets/Chest_02.webp',
   '../Chest_Assets/Chest_03.webp',
@@ -25,14 +25,6 @@ const ASSETS_TO_CACHE = [
   '../Chest_Assets/Chest_06.webp',
   '../Chest_Assets/Chest_07.webp',
   '../Chest_Assets/Chest_08.webp',
-  '../Chest_Assets/Chest_01.png',
-  '../Chest_Assets/Chest_02.png',
-  '../Chest_Assets/Chest_03.png',
-  '../Chest_Assets/Chest_04.png',
-  '../Chest_Assets/Chest_05.png',
-  '../Chest_Assets/Chest_06.png',
-  '../Chest_Assets/Chest_07.png',
-  '../Chest_Assets/Chest_08.png',
   './Chest_Assets/Chest_01.webp',
   './Chest_Assets/Chest_02.webp',
   './Chest_Assets/Chest_03.webp',
@@ -41,14 +33,6 @@ const ASSETS_TO_CACHE = [
   './Chest_Assets/Chest_06.webp',
   './Chest_Assets/Chest_07.webp',
   './Chest_Assets/Chest_08.webp',
-  './Chest_Assets/Chest_01.png',
-  './Chest_Assets/Chest_02.png',
-  './Chest_Assets/Chest_03.png',
-  './Chest_Assets/Chest_04.png',
-  './Chest_Assets/Chest_05.png',
-  './Chest_Assets/Chest_06.png',
-  './Chest_Assets/Chest_07.png',
-  './Chest_Assets/Chest_08.png',
   // Journey Assets (WebP)
   '../Chest_Assets/journey_1.webp',
   '../Chest_Assets/journey_2.webp',
