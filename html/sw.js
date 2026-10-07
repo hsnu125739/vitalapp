@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vital-cache-v59';
+const CACHE_NAME = 'vital-cache-v60';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const ASSETS_TO_CACHE = [
   './login-webp-perf.css',
   './runtime-settings.js',
   './js/utils/vitalUtils.js',
+  './js/utils/avatarManager.js',
   './js/api/apiClient.js',
   './js/store/practiceStore.js',
   './js/store/chatStore.js',

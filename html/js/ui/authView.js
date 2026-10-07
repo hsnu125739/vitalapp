@@ -240,15 +240,25 @@
     }
 
     stepRegisterAvatar_(delta) {
-      let no = this.registerAvatarNo + delta;
-      if (no < 1) no = 8;
-      if (no > 8) no = 1;
-      this.registerAvatarNo = no;
+      const mgr = (typeof global !== 'undefined' && global.avatarManager) || (typeof window !== 'undefined' && window.avatarManager);
+      if (mgr && typeof mgr.step === 'function') {
+        this.registerAvatarNo = mgr.step(this.registerAvatarNo, delta);
+      } else {
+        let no = this.registerAvatarNo + delta;
+        if (no < 1) no = 80;
+        if (no > 80) no = 1;
+        this.registerAvatarNo = no;
+      }
       this.updateRegisterAvatar_();
     }
 
     randomizeRegisterAvatar_() {
-      this.registerAvatarNo = Math.floor(Math.random() * 8) + 1;
+      const mgr = (typeof global !== 'undefined' && global.avatarManager) || (typeof window !== 'undefined' && window.avatarManager);
+      if (mgr && typeof mgr.nextRandom === 'function') {
+        this.registerAvatarNo = mgr.nextRandom();
+      } else {
+        this.registerAvatarNo = Math.floor(Math.random() * 80) + 1;
+      }
       this.updateRegisterAvatar_();
     }
 
@@ -282,7 +292,15 @@
       if (this.registerModal) {
         this.registerModal.classList.remove('hidden');
       }
-      this.registerAvatarNo = 1;
+      const mgr = (typeof global !== 'undefined' && global.avatarManager) || (typeof window !== 'undefined' && window.avatarManager);
+      if (mgr && typeof mgr.getInitialRegisterNo === 'function') {
+        this.registerAvatarNo = mgr.getInitialRegisterNo();
+        if (typeof mgr.prefetchSurroundings === 'function') {
+          mgr.prefetchSurroundings(this.registerAvatarNo);
+        }
+      } else {
+        this.registerAvatarNo = 1;
+      }
       const gSel = document.getElementById('registerAvatarGender');
       if (gSel) this.registerAvatarGender = gSel.value || 'male';
       this.updateRegisterAvatar_();

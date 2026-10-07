@@ -124,7 +124,12 @@
       const prevBtn = document.getElementById('avatarPrevBtn');
       if (prevBtn) {
         prevBtn.addEventListener('click', () => {
-          this.avatarNo = this.avatarNo > 1 ? this.avatarNo - 1 : 8;
+          const mgr = (typeof global !== 'undefined' && global.avatarManager) || (typeof window !== 'undefined' && window.avatarManager);
+          if (mgr && typeof mgr.step === 'function') {
+            this.avatarNo = mgr.step(this.avatarNo, -1);
+          } else {
+            this.avatarNo = this.avatarNo > 1 ? this.avatarNo - 1 : 80;
+          }
           this.updateAvatarPreview_();
         });
       }
@@ -132,7 +137,12 @@
       const nextBtn = document.getElementById('avatarNextBtn');
       if (nextBtn) {
         nextBtn.addEventListener('click', () => {
-          this.avatarNo = this.avatarNo < 8 ? this.avatarNo + 1 : 1;
+          const mgr = (typeof global !== 'undefined' && global.avatarManager) || (typeof window !== 'undefined' && window.avatarManager);
+          if (mgr && typeof mgr.step === 'function') {
+            this.avatarNo = mgr.step(this.avatarNo, 1);
+          } else {
+            this.avatarNo = this.avatarNo < 80 ? this.avatarNo + 1 : 1;
+          }
           this.updateAvatarPreview_();
         });
       }
@@ -140,7 +150,12 @@
       const randomBtn = document.getElementById('avatarRandomBtn');
       if (randomBtn) {
         randomBtn.addEventListener('click', () => {
-          this.avatarNo = Math.floor(Math.random() * 8) + 1;
+          const mgr = (typeof global !== 'undefined' && global.avatarManager) || (typeof window !== 'undefined' && window.avatarManager);
+          if (mgr && typeof mgr.nextRandom === 'function') {
+            this.avatarNo = mgr.nextRandom();
+          } else {
+            this.avatarNo = Math.floor(Math.random() * 80) + 1;
+          }
           this.updateAvatarPreview_();
         });
       }
@@ -779,12 +794,17 @@
         const numMatch = currentAvatar.match(/(\d+)\.png/i);
         if (numMatch) {
           const parsed = parseInt(numMatch[1], 10);
-          if (!isNaN(parsed) && parsed >= 1 && parsed <= 8) {
+          if (!isNaN(parsed) && parsed >= 1 && parsed <= 80) {
             this.avatarNo = parsed;
           }
         }
         const genderSel = document.getElementById('avatarGenderSelect');
         if (genderSel) genderSel.value = this.avatarGender;
+      }
+
+      const mgr = (typeof global !== 'undefined' && global.avatarManager) || (typeof window !== 'undefined' && window.avatarManager);
+      if (mgr && typeof mgr.prefetchSurroundings === 'function') {
+        mgr.prefetchSurroundings(this.avatarNo);
       }
 
       this.updateAvatarPreview_();
