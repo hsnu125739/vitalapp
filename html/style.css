@@ -6334,3 +6334,8 @@ body[data-theme="night"] .footprint-summary-item,
 body[data-theme="night"] .footprint-meeting-tag {
   color: #cbd5e1;
 }
+
+/* 轉讓組長按鈕平坦化：嚴格排除底層陰影且不影響其他按鈕 */
+#btnToggleTransferLeader {
+  box-shadow: none !important;
+}
