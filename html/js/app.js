@@ -23,6 +23,17 @@
 
   const CHAPTER_NAMES = ['信心', '美德', '知識', '節制', '忍耐', '敬虔', '弟兄相愛', '愛'];
 
+  const DEFAULT_CHAPTER_CONFIG = [
+    { chapterId: 'CHP_01', order: 1, status: 'ACTIVE', targetPoint: 0, name: '信心篇' },
+    { chapterId: 'CHP_02', order: 2, status: 'ACTIVE', targetPoint: 2000, name: '美德篇' },
+    { chapterId: 'CHP_03', order: 3, status: 'ACTIVE', targetPoint: 5500, name: '知識篇' },
+    { chapterId: 'CHP_04', order: 4, status: 'ACTIVE', targetPoint: 10000, name: '節制篇' },
+    { chapterId: 'CHP_05', order: 5, status: 'ACTIVE', targetPoint: 16000, name: '忍耐篇' },
+    { chapterId: 'CHP_06', order: 6, status: 'ACTIVE', targetPoint: 24000, name: '敬虔篇' },
+    { chapterId: 'CHP_07', order: 7, status: 'ACTIVE', targetPoint: 35000, name: '弟兄相愛篇' },
+    { chapterId: 'CHP_08', order: 8, status: 'ACTIVE', targetPoint: 50000, name: '愛篇' }
+  ];
+
   function resolveAvatarUrl(gender, avatarKey) {
     const isFemale = gender === 'SISTER' || gender === 'female';
     const folder = isFemale ? 'avatar-female' : 'avatar-male';
@@ -32,25 +43,68 @@
     return `../${folder}/${prefix}-${no}.png`;
   }
 
-  function deriveJourneyFromGroupProgress(groupProgress, fallbackProfile = null) {
+  function deriveJourneyFromGroupProgress(groupProgress, fallbackProfile = null, chaptersConfig = null) {
     if (!groupProgress) return null;
     let milestones = groupProgress.milestones || [];
     if (typeof milestones === 'string') {
       try { milestones = JSON.parse(milestones); } catch (e) { milestones = []; }
     }
+    if (!Array.isArray(milestones)) milestones = [];
 
-    let maxChapterLevel = 1;
-    milestones.forEach(m => {
-      const id = String((m && m.id) || '');
-      const match = id.match(/(?:CHP_|CHAPTER_|CH)(\d+)/i);
-      if (match) {
-        const lvl = parseInt(match[1], 10);
-        if (lvl > maxChapterLevel) maxChapterLevel = lvl;
+    // 1. 取得 ChapterConfig（優先使用傳入設定，次為本地持久化快取，最後採用標準保底設定）
+    let chapters = chaptersConfig;
+    if (!Array.isArray(chapters) || chapters.length === 0) {
+      if (typeof localStorage !== 'undefined') {
+        try {
+          const stored = localStorage.getItem('vital_chapters_config');
+          if (stored) chapters = JSON.parse(stored);
+        } catch (e) {}
       }
-    });
+    }
+    if (!Array.isArray(chapters) || chapters.length === 0) {
+      chapters = DEFAULT_CHAPTER_CONFIG;
+    }
 
-    const chapterIndex = Math.min(8, Math.max(1, maxChapterLevel));
-    const chapterTitle = CHAPTER_NAMES[chapterIndex - 1] || '起步啟航';
+    // 嚴格依 order 升冪排序（數值越小越靠前）
+    const activeChapters = (Array.isArray(chapters) ? chapters : [])
+      .filter(c => c && c.status === 'ACTIVE' && (c.chapterId || c.id))
+      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+
+    // 2. 收集已達成之里程碑 ID（純字串精確比對，嚴格禁止以 ID 值進行數值或正規解析）
+    const achievedIds = new Set();
+    const registerId = (m) => {
+      if (!m) return;
+      if (typeof m === 'string') {
+        const s = m.trim().toUpperCase();
+        if (s) achievedIds.add(s);
+      } else if (typeof m === 'object') {
+        const id = String(m.id || m.chapterId || m.taskId || m.achievementId || '').trim().toUpperCase();
+        if (id) achievedIds.add(id);
+      }
+    };
+    milestones.forEach(registerId);
+    if (Array.isArray(groupProgress.chapterHistory)) {
+      groupProgress.chapterHistory.forEach(registerId);
+    }
+
+    // 3. 依據 ChapterConfig 定義之 order 與 chapterId 判定各篇章是否已達成
+    const isChapterPassed = (ch) => {
+      const cid = String(ch.chapterId || ch.id || '').trim().toUpperCase();
+      return cid ? achievedIds.has(cid) : false;
+    };
+
+    // 4. 尋找當前正在挑戰的目標篇章（第一個尚未達成之篇章；若全數達成則為最後一個篇章）
+    const completedChapters = activeChapters.filter(isChapterPassed);
+    let targetChapter = activeChapters.find(ch => !isChapterPassed(ch));
+    const allPassed = !targetChapter;
+    if (!targetChapter) {
+      targetChapter = activeChapters[activeChapters.length - 1] || DEFAULT_CHAPTER_CONFIG[0];
+    }
+
+    const chapterIndex = Number(targetChapter.order) || 1;
+    const chapterTitle = targetChapter.name || targetChapter.title || (CHAPTER_NAMES[chapterIndex - 1] ? (CHAPTER_NAMES[chapterIndex - 1] + '篇') : '起步啟航');
+    const totalChaptersCount = activeChapters.length || 8;
+    const progressPercent = allPassed ? 100 : Math.min(100, Math.round((completedChapters.length / totalChaptersCount) * 100));
 
     let totalScore = Number(
       groupProgress.groupTotalPoints !== undefined ? groupProgress.groupTotalPoints : (groupProgress.journeyPoints || 0)
@@ -93,7 +147,7 @@
       totalPoints: finalPoints,
       totalScore: finalPoints,
       groupTotalPoints: finalPoints,
-      progressPercent: Math.min(100, Math.round((chapterIndex / 8) * 100)),
+      progressPercent: progressPercent,
       milestones: milestones
     };
   }
@@ -230,22 +284,22 @@
               } catch (e) {}
             }
 
-            let cachedGroupProgress = null;
-            if (gId) {
-              const cgStr = localStorage.getItem(`vital_group_progress_${gId}`);
-              if (cgStr) cachedGroupProgress = JSON.parse(cgStr);
-              currentJourneyData = deriveJourneyFromGroupProgress(cachedGroupProgress, currentUserProfile);
-            }
-            
-            let cachedAnnouncements = [];
-            const caStr = localStorage.getItem('vital_announcements');
-            if (caStr) cachedAnnouncements = JSON.parse(caStr);
-
             let cachedChapters = null;
             try {
               const chStr = localStorage.getItem('vital_chapters_config');
               if (chStr) cachedChapters = JSON.parse(chStr);
             } catch (e) {}
+
+            let cachedGroupProgress = null;
+            if (gId) {
+              const cgStr = localStorage.getItem(`vital_group_progress_${gId}`);
+              if (cgStr) cachedGroupProgress = JSON.parse(cgStr);
+              currentJourneyData = deriveJourneyFromGroupProgress(cachedGroupProgress, currentUserProfile, cachedChapters);
+            }
+            
+            let cachedAnnouncements = [];
+            const caStr = localStorage.getItem('vital_announcements');
+            if (caStr) cachedAnnouncements = JSON.parse(caStr);
 
             // 嘗試從本地操練快取水合 practiceStore，確保 0ms 首屏即可精確算出今日未結算點數
             if (practiceStore) {
@@ -657,7 +711,7 @@
       }
 
       if (currentGId) {
-        currentJourneyData = deriveJourneyFromGroupProgress(groupProgress, currentUserProfile);
+        currentJourneyData = deriveJourneyFromGroupProgress(groupProgress, currentUserProfile, chaptersConfig);
       } else {
         currentJourneyData = null;
         if (currentUserProfile) {

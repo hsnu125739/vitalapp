@@ -527,8 +527,18 @@
     isChapterPassed_(chapId, journeyData = null) {
       if (!chapId) return false;
       const jData = journeyData || this.currentJourneyData || {};
-      const chapterHistory = jData.chapterHistory || [];
-      const milestones = jData.milestones || [];
+      let chapterHistory = jData.chapterHistory || [];
+      if (typeof chapterHistory === 'string') {
+        try { chapterHistory = JSON.parse(chapterHistory); } catch (e) { chapterHistory = []; }
+      }
+      if (!Array.isArray(chapterHistory)) chapterHistory = [];
+
+      let milestones = jData.milestones || [];
+      if (typeof milestones === 'string') {
+        try { milestones = JSON.parse(milestones); } catch (e) { milestones = []; }
+      }
+      if (!Array.isArray(milestones)) milestones = [];
+
       const targetId = String(chapId).trim().toUpperCase();
       const normTarget = targetId.replace(/^(?:CHAPTER_|CHP_|CH)/i, '');
 
