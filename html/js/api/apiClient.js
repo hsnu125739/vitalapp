@@ -646,6 +646,19 @@
       return this.request('getBootstrap');
     }
 
+    _resolveAssembleFootprintsFn() {
+      if (typeof assembleFootprintsData === 'function') return assembleFootprintsData;
+      if (typeof window !== 'undefined' && typeof window.assembleFootprintsData === 'function') return window.assembleFootprintsData;
+      if (typeof global !== 'undefined' && typeof global.assembleFootprintsData === 'function') return global.assembleFootprintsData;
+      if (typeof require === 'function') {
+        try {
+          const mod = require('../ui/footprintsView');
+          if (mod && typeof mod.assembleFootprintsData === 'function') return mod.assembleFootprintsData;
+        } catch (_) {}
+      }
+      return null;
+    }
+
     async getFootprints(options = {}) {
       const pId = options.playerId || this.getPlayerIdFromToken();
       const weeks = options.weeks || 10;
@@ -653,10 +666,26 @@
 
       const cacheKey = `vital_footprints_cache_${pId || 'guest'}`;
       let cached = null;
+      const assembleFootprintPayload = (payload) => {
+        if (!payload) return payload;
+        const assembleFn = this._resolveAssembleFootprintsFn();
+        if (assembleFn && (payload.teamDaily || (Array.isArray(payload.weeks) && typeof payload.weeks[0] === 'string'))) {
+          try {
+            return assembleFn(payload);
+          } catch (e) {
+            console.warn('[ApiClient] 裝配足跡資料失敗:', e);
+          }
+        }
+        return payload;
+      };
+
       if (!forceRefresh && this.storage) {
         try {
           const raw = this.storage.getItem(cacheKey);
-          if (raw) cached = JSON.parse(raw);
+          if (raw) {
+            cached = JSON.parse(raw);
+            cached = assembleFootprintPayload(cached);
+          }
         } catch (e) {
           console.warn('[ApiClient] 足跡快取解析失敗，自動清除損毀快取:', e);
           try { this.storage.removeItem(cacheKey); } catch (_) {}
@@ -671,7 +700,8 @@
         matrixColIndex: options.matrixColIndex || this.getMatrixColIndexFromStorage()
       }).then((res) => {
         if (res && res.success) {
-          const data = res.data || res;
+          let data = res.data || res;
+          data = assembleFootprintPayload(data);
           if (this.storage) {
             try {
               this.storage.setItem(cacheKey, JSON.stringify({
@@ -682,7 +712,11 @@
               console.warn('[ApiClient] 寫入足跡快取失敗 (可能配額已滿):', e);
             }
           }
-          return res;
+          return {
+            ...res,
+            data,
+            ...data
+          };
         }
         return res;
       }).catch((err) => {
@@ -711,7 +745,15 @@
       if (!this.storage) return null;
       try {
         const raw = this.storage.getItem(cacheKey);
-        return raw ? JSON.parse(raw) : null;
+        if (!raw) return null;
+        let cached = JSON.parse(raw);
+        const assembleFn = this._resolveAssembleFootprintsFn();
+        if (assembleFn && cached && (cached.teamDaily || (Array.isArray(cached.weeks) && typeof cached.weeks[0] === 'string'))) {
+          try {
+            cached = assembleFn(cached);
+          } catch (_) {}
+        }
+        return cached;
       } catch (e) {
         try { this.storage.removeItem(cacheKey); } catch (_) {}
         return null;
@@ -725,9 +767,31 @@
       try {
         const raw = this.storage.getItem(cacheKey);
         if (!raw) return false;
-        const cache = JSON.parse(raw);
+        let cache = JSON.parse(raw);
+        const assembleFn = this._resolveAssembleFootprintsFn();
+        if (assembleFn && cache && (cache.teamDaily || (Array.isArray(cache.weeks) && typeof cache.weeks[0] === 'string'))) {
+          try { cache = assembleFn(cache); } catch (_) {}
+        }
+
         if (!cache.dailyRecords) cache.dailyRecords = {};
-        const oldRec = cache.dailyRecords[dateStr] || {};
+        let oldRec = cache.dailyRecords[dateStr] || null;
+        if (!oldRec && Array.isArray(cache.weeks)) {
+          for (const w of cache.weeks) {
+            if (Array.isArray(w.days)) {
+              const d = w.days.find(day => day.date === dateStr || day.recordDate === dateStr);
+              if (d) {
+                oldRec = {
+                  morning: Boolean(d.morningCompleted),
+                  bible: Boolean(d.bibleCompleted),
+                  prayer: Boolean(d.prayerCompleted),
+                  book: Boolean(d.readingCompleted)
+                };
+                break;
+              }
+            }
+          }
+        }
+        if (!oldRec) oldRec = {};
 
         const morningVal = practices.morningRevival !== undefined ? Boolean(practices.morningRevival) : (practices.morning !== undefined ? Boolean(practices.morning) : Boolean(oldRec.morning));
         const bibleVal = practices.bibleReading !== undefined ? Boolean(practices.bibleReading) : (practices.bible !== undefined ? Boolean(practices.bible) : Boolean(oldRec.bible));
@@ -766,39 +830,37 @@
         }
 
         // 即時增量更新本月成果卡 (monthSummary)
-        if (cache.monthSummary) {
-          const dNow = new Date();
-          const fallbackMKey = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}`;
-          const targetMonthKey = dateStr ? dateStr.slice(0, 7) : (cache.monthSummary.monthKey || fallbackMKey);
+        const dNow = new Date();
+        const fallbackMKey = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}`;
+        const targetMonthKey = dateStr ? dateStr.slice(0, 7) : ((cache.monthSummary && cache.monthSummary.monthKey) || fallbackMKey);
 
-          // 跨月打卡時自動翻頁，重置 monthSummary 為新月份乾淨骨架
-          if (cache.monthSummary.monthKey !== targetMonthKey) {
-            cache.monthSummary = {
-              monthKey: targetMonthKey,
-              completedDays: 0,
-              fullAttendanceDays: 0,
-              perfectDays: 0,
-              fullDays: 0,
-              morningDays: 0,
-              bibleDays: 0,
-              prayerDays: 0,
-              bookDays: 0,
-              readingDays: 0,
-              meetingCount: 0,
-              visitCount: 0,
-              groupMeetingCount: 0,
-              prayerMeetingCount: 0,
-              lordDayMeetingCount: 0,
-              totalScore: 0,
-              longestStreak: 0
-            };
+        if (!cache.monthSummary || cache.monthSummary.monthKey !== targetMonthKey) {
+          cache.monthSummary = {
+            monthKey: targetMonthKey,
+            completedDays: 0,
+            fullAttendanceDays: 0,
+            perfectDays: 0,
+            fullDays: 0,
+            morningDays: 0,
+            bibleDays: 0,
+            prayerDays: 0,
+            bookDays: 0,
+            readingDays: 0,
+            meetingCount: 0,
+            visitCount: 0,
+            groupMeetingCount: 0,
+            prayerMeetingCount: 0,
+            lordDayMeetingCount: 0,
+            totalScore: 0,
+            longestStreak: 0
+          };
+        }
+
+        const mKey = targetMonthKey;
+        if (dateStr.startsWith(mKey)) {
+          if (morningVal !== Boolean(oldRec.morning)) {
+            cache.monthSummary.morningDays = Math.max(0, (cache.monthSummary.morningDays || 0) + (morningVal ? 1 : -1));
           }
-
-          const mKey = targetMonthKey;
-          if (dateStr.startsWith(mKey)) {
-            if (morningVal !== Boolean(oldRec.morning)) {
-              cache.monthSummary.morningDays = Math.max(0, (cache.monthSummary.morningDays || 0) + (morningVal ? 1 : -1));
-            }
             if (bibleVal !== Boolean(oldRec.bible)) {
               cache.monthSummary.bibleDays = Math.max(0, (cache.monthSummary.bibleDays || 0) + (bibleVal ? 1 : -1));
             }
@@ -824,7 +886,6 @@
               cache.monthSummary.fullDays = cache.monthSummary.fullAttendanceDays;
             }
           }
-        }
 
         cache._cachedAt = Date.now();
         this.storage.setItem(cacheKey, JSON.stringify(cache));

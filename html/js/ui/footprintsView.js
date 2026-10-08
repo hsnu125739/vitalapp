@@ -424,12 +424,27 @@
       longestStreak: maxStreak
     };
 
+    const dailyRecords = {};
+    for (const dStr of Object.keys(dailyResults)) {
+      const u = dailyResults[dStr].unpacked;
+      dailyRecords[dStr] = {
+        morning: Boolean(u.morning),
+        morningRevival: Boolean(u.morning),
+        bible: Boolean(u.bible),
+        bibleReading: Boolean(u.bible),
+        prayer: Boolean(u.prayer),
+        book: Boolean(u.book),
+        bookPursuit: Boolean(u.book)
+      };
+    }
+
     return {
       today: todayStr,
       monthKey: currentMonthKey,
       monthSummary,
       monthly: monthSummary,
-      weeks: formattedWeeks
+      weeks: formattedWeeks,
+      dailyRecords
     };
   }
 

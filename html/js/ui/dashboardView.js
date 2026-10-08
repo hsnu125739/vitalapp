@@ -1196,29 +1196,69 @@
         const playerId = (this.currentUserProfile && this.currentUserProfile.playerId)
           || (this.apiClient && typeof this.apiClient.getPlayerIdFromToken === 'function' && this.apiClient.getPlayerIdFromToken());
 
-        let cachedMonth = null;
+        let cached = null;
         if (this.apiClient && typeof this.apiClient.getCachedFootprints === 'function') {
-          const cached = this.apiClient.getCachedFootprints(playerId);
-          cachedMonth = cached && (cached.monthSummary || cached.monthly || cached.month);
+          cached = this.apiClient.getCachedFootprints(playerId);
         } else if (typeof localStorage !== 'undefined' && playerId) {
           try {
             const raw = localStorage.getItem(`vital_footprints_cache_${playerId}`);
-            if (raw) {
-              const cached = JSON.parse(raw);
-              cachedMonth = cached && (cached.monthSummary || cached.monthly || cached.month);
-            }
+            if (raw) cached = JSON.parse(raw);
           } catch (_) {}
         }
 
-        // 跨月快取防禦：若快取的 monthKey 仍屬於上個月，則不能繼承上月天數
+        // 容錯防禦：若快取仍為 raw 結構，調用 assembleFootprintsData 自動裝配
+        if (cached && (cached.teamDaily || (Array.isArray(cached.weeks) && typeof cached.weeks[0] === 'string'))) {
+          const assembleFn = (typeof assembleFootprintsData === 'function')
+            ? assembleFootprintsData
+            : ((typeof window !== 'undefined' && typeof window.assembleFootprintsData === 'function')
+                ? window.assembleFootprintsData
+                : ((typeof global !== 'undefined' && typeof global.assembleFootprintsData === 'function')
+                    ? global.assembleFootprintsData
+                    : (typeof require === 'function' ? (require('./footprintsView')?.assembleFootprintsData || null) : null)));
+          if (assembleFn) {
+            try { cached = assembleFn(cached); } catch (_) {}
+          }
+        }
+
+        const cachedMonth = cached && (cached.monthSummary || cached.monthly || cached.month);
         const isStaleMonth = Boolean(cachedMonth && cachedMonth.monthKey && cachedMonth.monthKey !== currentMonthKey);
+
+        let baseDays = 0;
         if (cachedMonth && !isStaleMonth && typeof cachedMonth.fullAttendanceDays === 'number' && !isNaN(cachedMonth.fullAttendanceDays)) {
-          finalDays = cachedMonth.fullAttendanceDays;
+          baseDays = cachedMonth.fullAttendanceDays;
         } else if (!isStaleMonth && this.currentUserProfile && this.currentUserProfile.fullAttendanceMonthKey === currentMonthKey && typeof this.currentUserProfile.fullAttendanceDays === 'number') {
-          finalDays = this.currentUserProfile.fullAttendanceDays;
+          baseDays = this.currentUserProfile.fullAttendanceDays;
+        }
+
+        // 檢查快取中「今日」是否已被算作全勤
+        let cachedTodayIsFull = false;
+        if (cached && this.currentDate) {
+          if (cached.dailyRecords && cached.dailyRecords[this.currentDate]) {
+            const rec = cached.dailyRecords[this.currentDate];
+            cachedTodayIsFull = Boolean(
+              (rec.morning || rec.morningRevival) &&
+              (rec.bible || rec.bibleReading) &&
+              rec.prayer &&
+              (rec.book || rec.bookPursuit)
+            );
+          } else if (Array.isArray(cached.weeks)) {
+            for (const w of cached.weeks) {
+              if (Array.isArray(w.days)) {
+                const d = w.days.find(day => day.date === this.currentDate || day.recordDate === this.currentDate);
+                if (d) {
+                  cachedTodayIsFull = (d.completedCount === 4) || Boolean(d.morningCompleted && d.bibleCompleted && d.prayerCompleted && d.readingCompleted);
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        // 若本地今日已滿，但快取今日未滿，動態補償 +1；反之維持 baseDays
+        if (isTodayLocallyFull && !cachedTodayIsFull && this.currentDate && this.currentDate.startsWith(currentMonthKey)) {
+          finalDays = baseDays + 1;
         } else {
-          // 快取為舊月份或未初始化：新月份首日全勤天數由本地今日是否已打滿決定
-          finalDays = isTodayLocallyFull ? 1 : 0;
+          finalDays = baseDays;
         }
       } else {
         // ---- 階段 2：SWR 背景網路資料抵達對帳 (Reconciliation) ----
@@ -1240,6 +1280,18 @@
               backendHasCountedToday = (found.completedCount === 4) || Boolean(
                 found.morningCompleted && found.bibleCompleted && found.prayerCompleted && found.readingCompleted
               );
+            }
+          } else if (Array.isArray(backendData.weeks)) {
+            for (const w of backendData.weeks) {
+              if (Array.isArray(w.days)) {
+                const found = w.days.find(d => d.date === this.currentDate || d.recordDate === this.currentDate);
+                if (found) {
+                  backendHasCountedToday = (found.completedCount === 4) || Boolean(
+                    found.morningCompleted && found.bibleCompleted && found.prayerCompleted && found.readingCompleted
+                  );
+                  break;
+                }
+              }
             }
           }
         }
