@@ -64,32 +64,17 @@
     if (Array.isArray(rulesOrConfig)) {
       if (rulesOrConfig.length === 0) return DEFAULT_POINTS_CONFIG;
       const dStr = String(targetDateStr || '').slice(0, 10);
-      for (let i = 0; i < rulesOrConfig.length; i++) {
-        const r = rulesOrConfig[i];
-        if (!r) continue;
-        if (r.startDate && dStr < r.startDate) continue;
-        if (r.endDate && dStr > r.endDate) continue;
-        return {
-          morning: extractRuleField_(r, 'morning', DEFAULT_POINTS_CONFIG.morning),
-          bible: extractRuleField_(r, 'bible', DEFAULT_POINTS_CONFIG.bible),
-          prayer: extractRuleField_(r, 'prayer', DEFAULT_POINTS_CONFIG.prayer),
-          book: extractRuleField_(r, 'book', DEFAULT_POINTS_CONFIG.book),
-          group: extractRuleField_(r, 'group', DEFAULT_POINTS_CONFIG.group),
-          prayerMtg: extractRuleField_(r, 'prayerMtg', DEFAULT_POINTS_CONFIG.prayerMtg),
-          lordDay: extractRuleField_(r, 'lordDay', DEFAULT_POINTS_CONFIG.lordDay),
-          outreach: extractRuleField_(r, 'outreach', DEFAULT_POINTS_CONFIG.outreach)
-        };
-      }
-      const first = rulesOrConfig[0];
+      const matched = rulesOrConfig.find(r => r && (!r.startDate || dStr >= r.startDate) && (!r.endDate || dStr <= r.endDate)) || rulesOrConfig[0];
+      if (!matched) return DEFAULT_POINTS_CONFIG;
       return {
-        morning: extractRuleField_(first, 'morning', DEFAULT_POINTS_CONFIG.morning),
-        bible: extractRuleField_(first, 'bible', DEFAULT_POINTS_CONFIG.bible),
-        prayer: extractRuleField_(first, 'prayer', DEFAULT_POINTS_CONFIG.prayer),
-        book: extractRuleField_(first, 'book', DEFAULT_POINTS_CONFIG.book),
-        group: extractRuleField_(first, 'group', DEFAULT_POINTS_CONFIG.group),
-        prayerMtg: extractRuleField_(first, 'prayerMtg', DEFAULT_POINTS_CONFIG.prayerMtg),
-        lordDay: extractRuleField_(first, 'lordDay', DEFAULT_POINTS_CONFIG.lordDay),
-        outreach: extractRuleField_(first, 'outreach', DEFAULT_POINTS_CONFIG.outreach)
+        morning: extractRuleField_(matched, 'morning', DEFAULT_POINTS_CONFIG.morning),
+        bible: extractRuleField_(matched, 'bible', DEFAULT_POINTS_CONFIG.bible),
+        prayer: extractRuleField_(matched, 'prayer', DEFAULT_POINTS_CONFIG.prayer),
+        book: extractRuleField_(matched, 'book', DEFAULT_POINTS_CONFIG.book),
+        group: extractRuleField_(matched, 'group', DEFAULT_POINTS_CONFIG.group),
+        prayerMtg: extractRuleField_(matched, 'prayerMtg', DEFAULT_POINTS_CONFIG.prayerMtg),
+        lordDay: extractRuleField_(matched, 'lordDay', DEFAULT_POINTS_CONFIG.lordDay),
+        outreach: extractRuleField_(matched, 'outreach', DEFAULT_POINTS_CONFIG.outreach)
       };
     }
     return Object.assign({}, DEFAULT_POINTS_CONFIG, rulesOrConfig);

@@ -326,6 +326,7 @@
           if (this.apiClient && typeof this.apiClient.updateFootprintDailyCache === 'function') {
             this.apiClient.updateFootprintDailyCache(key, state, playerId);
           }
+          this.updateFullAttendanceDays();
           if (this.apiClient && typeof this.apiClient.updateDailyRecordCache === 'function') {
             this.apiClient.updateDailyRecordCache(key, state, playerId);
           } else if (typeof localStorage !== 'undefined' && playerId) {
@@ -451,8 +452,11 @@
 
       this.renderSettlingBadges_();
 
-      const streakEl = document.getElementById('homeStreakText');
-      if (streakEl) streakEl.textContent = `${userProfile.streakDays || 0} 天`;
+      const currentMonthKey = (this.currentDate && this.currentDate.slice(0, 7)) || new Date().toISOString().slice(0, 7);
+      const profileFullDays = (userProfile && (!userProfile.fullAttendanceMonthKey || userProfile.fullAttendanceMonthKey === currentMonthKey))
+        ? userProfile.fullAttendanceDays
+        : null;
+      this.updateFullAttendanceDays(profileFullDays);
 
       let mCount = 0;
       if (hasGroup) {
@@ -586,21 +590,20 @@
 
       if (chapters.length === 0) chapters = defaultChapters;
 
-      let groupScore = Number(
-        (journeyData && (
-          journeyData.groupTotalPoints !== undefined ? journeyData.groupTotalPoints : journeyData.journeyPoints
-        )) || 0
-      );
+      const hasJourneyScore = journeyData && (journeyData.groupTotalPoints !== undefined || journeyData.journeyPoints !== undefined);
+      let groupScore = hasJourneyScore
+        ? Number(journeyData.groupTotalPoints !== undefined ? journeyData.groupTotalPoints : journeyData.journeyPoints)
+        : 0;
 
-      // 兜底防禦：若分數仍為 0，嘗試從本地小組快取讀取已取得的分數
-      if (!groupScore && typeof localStorage !== 'undefined') {
+      // 兜底防禦：若後端尚未提供分數，嘗試從本地小組快取讀取已取得的分數
+      if (!hasJourneyScore && typeof localStorage !== 'undefined') {
         const gid = (journeyData && journeyData.groupId) || (this.currentUserProfile && this.currentUserProfile.groupId);
         if (gid) {
           try {
             const cachedGp = JSON.parse(localStorage.getItem(`vital_group_progress_${gid}`) || 'null');
             if (cachedGp) {
               const cp = Number(cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : (cachedGp.journeyPoints || 0));
-              if (cp > 0) groupScore = cp;
+              if (!isNaN(cp)) groupScore = cp;
             }
           } catch (e) {}
         }
@@ -1168,6 +1171,93 @@
       return this.calculateUnsettledPointsDelta_();
     }
 
+    updateFullAttendanceDays(days = null, backendData = null) {
+      if (typeof document === 'undefined') return;
+      const el = document.getElementById('homeStreakText');
+      if (!el) return;
+
+      const currentMonthKey = (this.currentDate && this.currentDate.slice(0, 7)) || new Date().toISOString().slice(0, 7);
+      let finalDays = (typeof days === 'number' && !isNaN(days)) ? days : null;
+
+      // 檢查本地今日在 practiceStore 是否已達成 4/4 全勤（晨、讀、禱、書）
+      const todaySt = (this.practiceStore && this.practiceStore.dailyState && this.currentDate)
+        ? this.practiceStore.dailyState[this.currentDate]
+        : null;
+      const isTodayLocallyFull = Boolean(
+        todaySt &&
+        (todaySt.morningRevival || todaySt.morning) &&
+        (todaySt.bibleReading || todaySt.bible) &&
+        todaySt.prayer &&
+        (todaySt.bookPursuit || todaySt.book)
+      );
+
+      if (finalDays === null) {
+        // ---- 階段 1：首屏 0ms 快取水合 / 本地增量更新 ----
+        const playerId = (this.currentUserProfile && this.currentUserProfile.playerId)
+          || (this.apiClient && typeof this.apiClient.getPlayerIdFromToken === 'function' && this.apiClient.getPlayerIdFromToken());
+
+        let cachedMonth = null;
+        if (this.apiClient && typeof this.apiClient.getCachedFootprints === 'function') {
+          const cached = this.apiClient.getCachedFootprints(playerId);
+          cachedMonth = cached && (cached.monthSummary || cached.monthly || cached.month);
+        } else if (typeof localStorage !== 'undefined' && playerId) {
+          try {
+            const raw = localStorage.getItem(`vital_footprints_cache_${playerId}`);
+            if (raw) {
+              const cached = JSON.parse(raw);
+              cachedMonth = cached && (cached.monthSummary || cached.monthly || cached.month);
+            }
+          } catch (_) {}
+        }
+
+        // 跨月快取防禦：若快取的 monthKey 仍屬於上個月，則不能繼承上月天數
+        const isStaleMonth = Boolean(cachedMonth && cachedMonth.monthKey && cachedMonth.monthKey !== currentMonthKey);
+        if (cachedMonth && !isStaleMonth && typeof cachedMonth.fullAttendanceDays === 'number' && !isNaN(cachedMonth.fullAttendanceDays)) {
+          finalDays = cachedMonth.fullAttendanceDays;
+        } else if (!isStaleMonth && this.currentUserProfile && this.currentUserProfile.fullAttendanceMonthKey === currentMonthKey && typeof this.currentUserProfile.fullAttendanceDays === 'number') {
+          finalDays = this.currentUserProfile.fullAttendanceDays;
+        } else {
+          // 快取為舊月份或未初始化：新月份首日全勤天數由本地今日是否已打滿決定
+          finalDays = isTodayLocallyFull ? 1 : 0;
+        }
+      } else {
+        // ---- 階段 2：SWR 背景網路資料抵達對帳 (Reconciliation) ----
+        // 精準檢查後端封包中的「今日」是否已算入全勤
+        let backendHasCountedToday = false;
+        if (backendData) {
+          const dailyRecs = backendData.dailyRecords || {};
+          const todayRec = dailyRecs[this.currentDate];
+          if (todayRec) {
+            backendHasCountedToday = Boolean(
+              (todayRec.morningRevival || todayRec.morning) &&
+              (todayRec.bibleReading || todayRec.bible) &&
+              todayRec.prayer &&
+              (todayRec.bookPursuit || todayRec.book)
+            );
+          } else if (Array.isArray(backendData.daily)) {
+            const found = backendData.daily.find(d => d.date === this.currentDate || d.recordDate === this.currentDate);
+            if (found) {
+              backendHasCountedToday = (found.completedCount === 4) || Boolean(
+                found.morningCompleted && found.bibleCompleted && found.prayerCompleted && found.readingCompleted
+              );
+            }
+          }
+        }
+
+        // 若本地今日已打滿 4/4，但後端過期封包尚未算入今日 ➔ 補償 +1 (保留使用者剛剛打卡的成果)
+        if (isTodayLocallyFull && !backendHasCountedToday && this.currentDate && this.currentDate.startsWith(currentMonthKey)) {
+          finalDays = finalDays + 1;
+        }
+      }
+
+      const count = Math.max(0, Number(finalDays || 0));
+      el.textContent = `${count} 天`;
+      if (this.currentUserProfile) {
+        this.currentUserProfile.fullAttendanceDays = count;
+        this.currentUserProfile.fullAttendanceMonthKey = currentMonthKey;
+      }
+    }
+
     renderSettlingBadges_() {
       if (typeof document === 'undefined') return;
       const pSyncEl = document.getElementById('homePersonalSyncText');
@@ -1321,7 +1411,7 @@
     }
 
     openGroupPracticeRequiredModal(lockReason) {
-      if (this.apiClient && !this.apiClient.getSessionToken()) return;
+      if (this.apiClient && typeof this.apiClient.getSessionToken === 'function' && !this.apiClient.getSessionToken()) return;
       if (!this.infoModal) return;
       if (this.infoModalTitle) {
         this.infoModalTitle.textContent = '需要活力組同行';

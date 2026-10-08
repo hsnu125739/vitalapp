@@ -106,20 +106,25 @@
     const totalChaptersCount = activeChapters.length || 8;
     const progressPercent = allPassed ? 100 : Math.min(100, Math.round((completedChapters.length / totalChaptersCount) * 100));
 
-    let totalScore = Number(
-      groupProgress.groupTotalPoints !== undefined ? groupProgress.groupTotalPoints : (groupProgress.journeyPoints || 0)
-    );
-    if (!totalScore && groupProgress.memberContribution && typeof groupProgress.memberContribution === 'object') {
-      const sum = Object.values(groupProgress.memberContribution).reduce((acc, v) => acc + (Number(v) || 0), 0);
-      if (sum > 0) totalScore = sum;
-    }
-    if (!totalScore && groupProgress.historySummary) {
-      let hs = groupProgress.historySummary;
-      if (typeof hs === 'string') {
-        try { hs = JSON.parse(hs); } catch (e) { hs = {}; }
+    const hasExplicitPoints = (groupProgress.groupTotalPoints !== undefined || groupProgress.journeyPoints !== undefined);
+    let totalScore = hasExplicitPoints
+      ? Number(groupProgress.groupTotalPoints !== undefined ? groupProgress.groupTotalPoints : groupProgress.journeyPoints)
+      : null;
+
+    if (totalScore === null || isNaN(totalScore)) {
+      if (groupProgress.memberContribution && typeof groupProgress.memberContribution === 'object') {
+        const sum = Object.values(groupProgress.memberContribution).reduce((acc, v) => acc + (Number(v) || 0), 0);
+        if (sum > 0) totalScore = sum;
       }
-      const currYear = String(new Date().getFullYear());
-      totalScore = Number(hs[currYear] || hs.totalScore || 0);
+      if (totalScore === null && groupProgress.historySummary) {
+        let hs = groupProgress.historySummary;
+        if (typeof hs === 'string') {
+          try { hs = JSON.parse(hs); } catch (e) { hs = {}; }
+        }
+        const currYear = String(new Date().getFullYear());
+        const hsScore = Number(hs[currYear] || hs.totalScore);
+        if (!isNaN(hsScore)) totalScore = hsScore;
+      }
     }
 
     let mCount = groupProgress.memberCount;
@@ -133,7 +138,9 @@
       fallbackProfile.memberCount = mCount;
     }
 
-    const finalPoints = totalScore || (fallbackProfile && (fallbackProfile.groupTotalPoints || fallbackProfile.journeyPoints)) || 0;
+    const finalPoints = (typeof totalScore === 'number' && !isNaN(totalScore))
+      ? totalScore
+      : ((fallbackProfile && (fallbackProfile.groupTotalPoints !== undefined ? fallbackProfile.groupTotalPoints : fallbackProfile.journeyPoints)) || 0);
 
     return {
       ...groupProgress,
@@ -794,11 +801,29 @@
         }
       }
 
-      // 9. 背景預熱同行足跡快取 (SWR 預載，100% 零阻塞登入與首屏)
+      // 9. 背景預熱同行足跡快取 (SWR 預載，100% 零阻塞登入與首屏，背景資料抵達時自動水合更新)
       if (currentPId && typeof setTimeout !== 'undefined') {
         setTimeout(() => {
           if (apiClient && apiClient.getSessionToken() && typeof apiClient.getFootprints === 'function') {
-            apiClient.getFootprints({ playerId: currentPId, weeks: 10 }).catch(() => {});
+            apiClient.getFootprints({ playerId: currentPId, weeks: 10 }).then(res => {
+              const handleFootprintUpdate = (data) => {
+                const month = data && (data.monthSummary || data.monthly || data.month);
+                const fullDays = month && month.fullAttendanceDays;
+                if (typeof fullDays === 'number' && dashboardView && typeof dashboardView.updateFullAttendanceDays === 'function') {
+                  dashboardView.updateFullAttendanceDays(fullDays, data);
+                }
+              };
+              if (res && res.success) {
+                handleFootprintUpdate(res.data || res);
+              }
+              if (res && res.revalidatePromise) {
+                res.revalidatePromise.then(netRes => {
+                  if (netRes && netRes.success) {
+                    handleFootprintUpdate(netRes.data || netRes);
+                  }
+                }).catch(() => {});
+              }
+            }).catch(() => {});
           }
         }, 1500);
       }

@@ -449,18 +449,19 @@
         this.pendingRequests.set(reqId, { resolve, reject, timer });
 
         try {
+          const { token, playerId, groupId, matrixColIndex, postsColIndex } = payload || {};
           channel.source.postMessage({
             type: 'GAS_CALL',
             id: reqId,
             targetService: serviceName,
-            action: action,
-            token: payload.token,
-            playerId: payload.playerId,
-            groupId: payload.groupId,
-            matrixColIndex: payload.matrixColIndex,
-            postsColIndex: payload.postsColIndex,
+            action,
+            token,
+            playerId,
+            groupId,
+            matrixColIndex,
+            postsColIndex,
             data: payload,
-            payload: payload
+            payload
           }, '*');
         } catch (err) {
           clearTimeout(timer);
@@ -576,8 +577,7 @@
 
       if (hasBridgeConfig) {
         try {
-          const res = await this.invokeIframeRpc_(action, payload);
-          return res;
+          return await this.invokeIframeRpc_(action, payload);
         } catch (rpcErr) {
           // 若為 Session 錯誤，觸發清理
           if (rpcErr.code === 401 || String(rpcErr.message).includes('SESSION')) {
@@ -769,7 +769,32 @@
         if (cache.monthSummary) {
           const dNow = new Date();
           const fallbackMKey = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}`;
-          const mKey = cache.monthSummary.monthKey || (dateStr ? dateStr.slice(0, 7) : fallbackMKey);
+          const targetMonthKey = dateStr ? dateStr.slice(0, 7) : (cache.monthSummary.monthKey || fallbackMKey);
+
+          // 跨月打卡時自動翻頁，重置 monthSummary 為新月份乾淨骨架
+          if (cache.monthSummary.monthKey !== targetMonthKey) {
+            cache.monthSummary = {
+              monthKey: targetMonthKey,
+              completedDays: 0,
+              fullAttendanceDays: 0,
+              perfectDays: 0,
+              fullDays: 0,
+              morningDays: 0,
+              bibleDays: 0,
+              prayerDays: 0,
+              bookDays: 0,
+              readingDays: 0,
+              meetingCount: 0,
+              visitCount: 0,
+              groupMeetingCount: 0,
+              prayerMeetingCount: 0,
+              lordDayMeetingCount: 0,
+              totalScore: 0,
+              longestStreak: 0
+            };
+          }
+
+          const mKey = targetMonthKey;
           if (dateStr.startsWith(mKey)) {
             if (morningVal !== Boolean(oldRec.morning)) {
               cache.monthSummary.morningDays = Math.max(0, (cache.monthSummary.morningDays || 0) + (morningVal ? 1 : -1));

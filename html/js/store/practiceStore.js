@@ -176,14 +176,10 @@ class OptimisticPracticeStore {
       if (res && res.success) {
         currentState.syncStatus = 'synced';
         currentState.hasAmberDot = false;
-        const resData = res.data || res;
+        const { groupTotalPoints, personalPoints, deltaPoints } = res.data || res;
         this.notify('DAILY', date, {
           ...currentState,
-          serverPoints: {
-            groupTotalPoints: resData.groupTotalPoints,
-            personalPoints: resData.personalPoints,
-            deltaPoints: resData.deltaPoints
-          }
+          serverPoints: { groupTotalPoints, personalPoints, deltaPoints }
         });
         return;
       }
@@ -288,14 +284,10 @@ class OptimisticPracticeStore {
       if (res && res.success) {
         currentState.syncStatus = 'synced';
         currentState.hasAmberDot = false;
-        const resData = res.data || res;
+        const { groupTotalPoints, personalPoints, deltaPoints } = res.data || res;
         this.notify('MEETING', weekKey, {
           ...currentState,
-          serverPoints: {
-            groupTotalPoints: resData.groupTotalPoints,
-            personalPoints: resData.personalPoints,
-            deltaPoints: resData.deltaPoints
-          }
+          serverPoints: { groupTotalPoints, personalPoints, deltaPoints }
         });
       } else {
         throw new Error('Meeting practice failed');

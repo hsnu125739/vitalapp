@@ -244,13 +244,11 @@ class ChatStore {
     this.notify();
 
     try {
+      const { updatedAt: _, ...annPayload } = annObj;
       const res = await this.apiClient.setGroupAnnouncement({
         groupId: this.groupId,
-        content: annObj.content,
-        authorName: annObj.authorName,
-        authorPlayerId: annObj.authorPlayerId,
-        sourcePostId: annObj.sourcePostId,
-        postsColIndex: col
+        postsColIndex: col,
+        ...annPayload
       });
       const d = res && (res.data || res);
       if (d && d.postsColIndex) {
