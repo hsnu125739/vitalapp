@@ -660,9 +660,15 @@
 
       return `
         <section class="footprint-section">
-          <div class="footprint-heading">
-            <h3>🏆 ${monthName}成果卡 <span>(${escapeHtml(monthKey)})</span></h3>
-            <span>累計 ⭐ <strong>${formatNumber(totalScore)}</strong> 點 · 全勤 🔥 ${formatNumber(fullAttendanceDays)} 天</span>
+          <div class="footprint-heading footprint-month-heading">
+            <div class="footprint-title-group">
+              <h3>🏆 ${monthName}成果卡</h3>
+              <span class="footprint-month-key">(${escapeHtml(monthKey)})</span>
+            </div>
+            <div class="footprint-summary-group">
+              <span class="footprint-total-points">累計 ⭐ <strong>${formatNumber(totalScore)}</strong> 點</span>
+              <span class="footprint-total-attendance">全勤 🔥 ${formatNumber(fullAttendanceDays)} 天</span>
+            </div>
           </div>
           <div class="footprint-stats">
             ${statsCards}
@@ -782,9 +788,9 @@
                   ${isCurrent ? '<span class="current-badge">本週</span>' : ''}
                 </h4>
                 <div class="footprint-practice-summary">
+                  <span class="footprint-summary-item">🌅 ${w.morningDays || 0}天</span>
                   <span class="footprint-summary-item">📖 ${w.bibleDays || 0}天</span>
                   <span class="footprint-summary-item">🙏 ${w.prayerDays || 0}天</span>
-                  <span class="footprint-summary-item">🌅 ${w.morningDays || 0}天</span>
                   <span class="footprint-summary-item">📚 ${w.readingDays || w.bookDays || 0}天</span>
                 </div>
                 <div class="footprint-meeting-summary">

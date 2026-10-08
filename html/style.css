@@ -1606,6 +1606,34 @@ button.player-stat-card{
   font-weight: 500;
 }
 
+.footprint-month-heading {
+  align-items: flex-start;
+}
+
+.footprint-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.footprint-title-group .footprint-month-key {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft, #777);
+}
+
+.footprint-summary-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  gap: 2px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft, #777);
+  white-space: nowrap;
+}
+
 /* 本月 8 大成果卡 (4x2 桌面, 2x4 手機) */
 .footprint-stats {
   display: grid;
