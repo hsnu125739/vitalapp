@@ -5343,33 +5343,32 @@ body[data-theme="night"] #homeView .hero-score-card .score-sync-badge.is-settlin
 }
 
 #homeView .task-section .section-heading{
-  margin-bottom:8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#homeView .task-section .section-heading h2{
+  white-space: nowrap;
+}
+
+#homeView .weekly-task-subdate{
+  margin: 3px 0 0 0;
+  color: #65757b;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 #homeView .weekly-task-title-row{
   display:flex;
-    align-items:center;
-    gap:10px;
-    min-width:0;
-}
-
-#homeView .weekly-task-title-row h2{
-  flex:0 0 auto;
-    margin:0;
-    white-space:nowrap;
-}
-
-#homeView .weekly-task-title-row #homeWeeklyDateText{
-  flex:1 1 auto;
-    min-width:0;
-    margin:0;
-    color:#65757b;
-    font-size:14px;
-    font-weight:900;
-    line-height:1.2;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
+  align-items:center;
+  gap:10px;
+  min-width:0;
 }
 
 #myView .my-menu-list{
@@ -6435,9 +6434,65 @@ body[data-theme="night"] .task-prompt-dismiss-label {
   position: relative;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  white-space: nowrap;
   z-index: 10;
-  transform: translateY(-5.5px);
+  transform: translateY(-2px);
+}
+
+/* 待結算分數膠囊 (方案 A 排版 1) */
+.task-pending-chip {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 3.5px 8.5px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1.5px solid rgba(168, 135, 123, 0.35);
+  background: rgba(255, 255, 255, 0.92);
+  color: #786259;
+  box-shadow: 0 1.5px 4px rgba(91, 70, 62, 0.08);
+  white-space: nowrap !important;
+  user-select: none;
+  flex-shrink: 0;
+  line-height: 1.2;
+  transition: all 0.2s ease;
+}
+
+.task-pending-chip .pending-chip-icon {
+  font-size: 11.5px;
+  line-height: 1;
+}
+
+.task-pending-chip .pending-chip-label {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #6b514d;
+}
+
+.task-pending-chip .pending-chip-pts {
+  font-size: 12.5px;
+  font-weight: 950;
+  color: #8b6e62;
+}
+
+.task-pending-chip.has-points {
+  border-color: #48bb78;
+  background: linear-gradient(135deg, rgba(240, 253, 244, 0.98), rgba(220, 252, 231, 0.95));
+  box-shadow: 0 2px 7px rgba(72, 187, 120, 0.22);
+}
+
+.task-pending-chip.has-points .pending-chip-label {
+  color: #166534;
+}
+
+.task-pending-chip.has-points .pending-chip-pts {
+  color: #15803d;
 }
 
 .task-info-btn {
