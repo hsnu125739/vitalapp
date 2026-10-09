@@ -49,12 +49,12 @@ function unpackBase100(val) {
 class OptimisticPracticeStore {
   constructor({ apiClient, storage = null, onStateChange = null, retryDelayMs = 2000 }) {
     this.apiClient = apiClient;
-    this.storage = storage || (typeof localStorage !== 'undefined' ? localStorage : {
+    this.storage = storage || ((typeof StorageGateway !== 'undefined' && StorageGateway.getInstance) ? StorageGateway.getInstance() : (typeof localStorage !== 'undefined' ? localStorage : {
       store: {},
       getItem(k) { return this.store[k] || null; },
       setItem(k, v) { this.store[k] = String(v); },
       removeItem(k) { delete this.store[k]; }
-    });
+    }));
     this.onStateChange = onStateChange;
     this.retryDelayMs = retryDelayMs;
 

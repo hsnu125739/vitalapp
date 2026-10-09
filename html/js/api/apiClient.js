@@ -162,12 +162,12 @@
       this.directGateway = directGateway;
       this.onSessionExpired = onSessionExpired;
 
-      this.storage = storage || (typeof localStorage !== 'undefined' ? localStorage : {
+      this.storage = storage || ((typeof StorageGateway !== 'undefined' && StorageGateway.getInstance) ? StorageGateway.getInstance() : (typeof localStorage !== 'undefined' ? localStorage : {
         store: {},
         getItem(k) { return this.store[k] || null; },
         setItem(k, v) { this.store[k] = String(v); },
         removeItem(k) { delete this.store[k]; }
-      });
+      }));
 
       this.token = this.storage.getItem('vital_session_token') || null;
       this.requestSeq = 0;

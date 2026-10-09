@@ -1363,6 +1363,11 @@
     const pid = currentUserProfile?.playerId;
     const gid = currentUserProfile?.groupId;
     
+    if (typeof StorageGateway !== 'undefined') {
+      try {
+        StorageGateway.purgeUserSession(pid, gid);
+      } catch (e) {}
+    }
     if (typeof localStorage !== 'undefined') {
       try {
         localStorage.removeItem('vital_current_player');
@@ -1379,6 +1384,7 @@
           localStorage.removeItem(`vital_group_profile_${gid}`);
           localStorage.removeItem(`vital_group_members_${gid}`);
         }
+        localStorage.removeItem('vital_offline_queue');
       } catch (e) {}
     }
     

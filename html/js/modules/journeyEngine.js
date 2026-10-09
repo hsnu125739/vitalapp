@@ -39,7 +39,11 @@
     // 1. 取得 ChapterConfig（優先使用傳入設定，次為本地持久化快取，最後採用標準保底設定）
     let chapters = chaptersConfig;
     if (!Array.isArray(chapters) || chapters.length === 0) {
-      if (typeof localStorage !== 'undefined') {
+      if (typeof StorageGateway !== 'undefined' && typeof StorageGateway.getJSON === 'function') {
+        try {
+          chapters = StorageGateway.getJSON('vital_chapters_config');
+        } catch (_) {}
+      } else if (typeof localStorage !== 'undefined') {
         try {
           const stored = localStorage.getItem('vital_chapters_config');
           if (stored) chapters = JSON.parse(stored);
