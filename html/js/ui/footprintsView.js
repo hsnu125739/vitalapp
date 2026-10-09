@@ -129,6 +129,22 @@
     if (!raw) return { monthSummary: {}, weeks: [] };
     // 若傳入之物件已是組裝完成的足跡結構（具備 monthSummary 與物件格式的 weeks 陣列，且無 teamDaily），直接回傳
     if (raw.monthSummary && Array.isArray(raw.weeks) && raw.weeks.length > 0 && typeof raw.weeks[0] === 'object' && !raw.teamDaily) {
+      if (liveStore && Array.isArray(raw.weeks[0].days)) {
+        const todayStr = raw.today || getLocalDateString();
+        const todayItem = raw.weeks[0].days.find(d => d.isToday || d.date === todayStr);
+        if (todayItem) {
+          const m = Boolean(liveStore.morning || liveStore.morningRevival);
+          const b = Boolean(liveStore.bible || liveStore.bibleReading);
+          const p = Boolean(liveStore.prayer);
+          const k = Boolean(liveStore.book || liveStore.bookPursuit);
+          todayItem.morningCompleted = m;
+          todayItem.bibleCompleted = b;
+          todayItem.prayerCompleted = p;
+          todayItem.readingCompleted = k;
+          todayItem.completedCount = (m ? 1 : 0) + (b ? 1 : 0) + (p ? 1 : 0) + (k ? 1 : 0);
+          todayItem.hasRecord = todayItem.completedCount > 0;
+        }
+      }
       return raw;
     }
 
@@ -362,7 +378,7 @@
 
     for (const dStr of dates) {
       if (dStr.indexOf(currentMonthKey) !== 0) continue;
-      if (dStr > todayStr) break;
+      if (dStr >= todayStr) continue; // 核心架構契約：月度成果卡嚴格只統計至昨日
       const dr = dailyResults[dStr];
       if (!dr) continue;
       const u = dr.unpacked;
@@ -389,11 +405,11 @@
       }
     }
 
-    // 最長連續打卡天數
+    // 最長連續打卡天數 (嚴格計算至昨日)
     let maxStreak = 0, streak = 0;
     for (let s = 1; s <= 31; s++) {
       const checkDate = currentMonthKey + '-' + (s < 10 ? '0' + s : s);
-      if (checkDate > todayStr) break;
+      if (checkDate >= todayStr) break;
       const dr = dailyResults[checkDate];
       const u = dr && dr.unpacked;
       const hasPrac = u && ((u.morning ? 1 : 0) + (u.bible ? 1 : 0) + (u.prayer ? 1 : 0) + (u.book ? 1 : 0) > 0);
@@ -529,14 +545,20 @@
     }
 
     /**
+     * 取得今日日期字串
+     */
+    getTodayDateString_() {
+      return (typeof dashboardView !== 'undefined' && dashboardView && typeof dashboardView.getTodayDateString === 'function')
+        ? dashboardView.getTodayDateString()
+        : getLocalDateString();
+    }
+
+    /**
      * 取得今日的即時打卡狀態（from practiceStore）
      */
     getLiveToday_() {
       if (!this.practiceStore || !this.practiceStore.dailyState) return null;
-      const todayStr = (typeof dashboardView !== 'undefined' && dashboardView && typeof dashboardView.getTodayDateString === 'function')
-        ? dashboardView.getTodayDateString()
-        : getLocalDateString();
-      return this.practiceStore.dailyState[todayStr] || null;
+      return this.practiceStore.dailyState[this.getTodayDateString_()] || null;
     }
 
     /**
@@ -635,15 +657,26 @@
       // 動態轉換月份中文名稱 (例如 '2026-10' -> '十月成果卡')
       const monthName = getChineseMonthName(monthKey);
 
-      // 當月全勤天數 (四項每日操練皆完成，由後端與快取統一維護)
-      const fullAttendanceDays = Number(month.fullAttendanceDays ?? month.perfectDays ?? month.fullDays ?? 0);
+      // 取得今日即時操練水合狀態 (from practiceStore)
+      const live = this.getLiveToday_();
+      const todayStr = this.getTodayDateString_();
+      const isTodayCurrentMonth = Boolean(todayStr && todayStr.startsWith(monthKey));
+      const isLiveMorning = Boolean(isTodayCurrentMonth && live && (live.morning || live.morningRevival));
+      const isLiveBible = Boolean(isTodayCurrentMonth && live && (live.bible || live.bibleReading));
+      const isLivePrayer = Boolean(isTodayCurrentMonth && live && live.prayer);
+      const isLiveBook = Boolean(isTodayCurrentMonth && live && (live.book || live.bookPursuit));
+      const isLiveFull = Boolean(isLiveMorning && isLiveBible && isLivePrayer && isLiveBook);
 
-      // 8 大成果項目定義 (4 每日操練天數 + 4 每週聚會次數)
+      // 當月全勤天數 (昨日純淨基準 + 今日動態水合)
+      const baseFullAttendanceDays = Number(month.fullAttendanceDays ?? month.perfectDays ?? month.fullDays ?? 0);
+      const fullAttendanceDays = baseFullAttendanceDays + (isLiveFull ? 1 : 0);
+
+      // 8 大成果項目定義 (4 每日操練天數動態水合 + 4 每週聚會次數)
       const statsList = [
-        { label: '晨興天數', value: month.morningDays || 0, icon: '🌅', unit: '天' },
-        { label: '讀經天數', value: month.bibleDays || 0, icon: '📖', unit: '天' },
-        { label: '禱告天數', value: month.prayerDays || 0, icon: '🙏', unit: '天' },
-        { label: '書報天數', value: month.bookDays || month.readingDays || 0, icon: '📚', unit: '天' },
+        { label: '晨興天數', value: Number(month.morningDays || 0) + (isLiveMorning ? 1 : 0), icon: '🌅', unit: '天' },
+        { label: '讀經天數', value: Number(month.bibleDays || 0) + (isLiveBible ? 1 : 0), icon: '📖', unit: '天' },
+        { label: '禱告天數', value: Number(month.prayerDays || 0) + (isLivePrayer ? 1 : 0), icon: '🙏', unit: '天' },
+        { label: '書報天數', value: Number(month.bookDays || month.readingDays || 0) + (isLiveBook ? 1 : 0), icon: '📚', unit: '天' },
         { label: '小排聚會', value: month.groupMeetingCount || month.groupDays || 0, icon: '👥', unit: '次' },
         { label: '禱告聚會', value: month.prayerMeetingCount || month.prayerMeetingDays || 0, icon: '🔥', unit: '次' },
         { label: '主日聚會', value: month.lordDayMeetingCount || month.lordDayDays || 0, icon: '🍞', unit: '次' },
@@ -737,10 +770,19 @@
           const isToday = Boolean(d.isToday);
           const score = Number(d.dailyScore || 0);
 
-          const mActive = Boolean(d.morningCompleted || d.morningRevival || d.morning);
-          const bActive = Boolean(d.bibleCompleted || d.bibleReading || d.bible);
-          const pActive = Boolean(d.prayerCompleted || d.prayer);
-          const rActive = Boolean(d.readingCompleted || d.bookCompleted || d.bookPursuit || d.book);
+          const liveToday = isToday ? this.getLiveToday_() : null;
+          const mActive = liveToday
+            ? Boolean(liveToday.morning || liveToday.morningRevival)
+            : Boolean(d.morningCompleted || d.morningRevival || d.morning);
+          const bActive = liveToday
+            ? Boolean(liveToday.bible || liveToday.bibleReading)
+            : Boolean(d.bibleCompleted || d.bibleReading || d.bible);
+          const pActive = liveToday
+            ? Boolean(liveToday.prayer)
+            : Boolean(d.prayerCompleted || d.prayer);
+          const rActive = liveToday
+            ? Boolean(liveToday.book || liveToday.bookPursuit)
+            : Boolean(d.readingCompleted || d.bookCompleted || d.bookPursuit || d.book);
 
           // 晨興狀態判斷（方案二選項 C：語意樣式分流，零符號雜訊，尺寸完全對齊）
           let morningClass = '';
