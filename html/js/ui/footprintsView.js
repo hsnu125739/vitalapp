@@ -466,9 +466,10 @@
 
 
   class FootprintsView {
-    constructor({ apiClient, practiceStore } = {}) {
+    constructor({ apiClient, practiceStore, currentDate } = {}) {
       this.apiClient = apiClient;
       this.practiceStore = practiceStore || null;
+      this.currentDate = currentDate || null;
       this.infoModal = typeof document !== 'undefined' ? document.getElementById('infoModal') : null;
       this.infoModalTitle = typeof document !== 'undefined' ? document.getElementById('infoModalTitle') : null;
       this.infoModalContent = typeof document !== 'undefined' ? document.getElementById('infoModalContent') : null;
@@ -507,7 +508,7 @@
       if (!forceRefresh && this.apiClient && typeof this.apiClient.getCachedFootprints === 'function') {
         const cached = this.apiClient.getCachedFootprints(targetPlayerId);
         if (cached && (cached.teamDaily || (cached.weeks && cached.monthSummary))) {
-          const assembled = assembleFootprintsData(cached, null, this.getLiveToday_());
+          const assembled = assembleFootprintsData(cached, null, this.getLiveToday_(cached.today));
           this.render(assembled);
           hasRenderedCache = true;
         }
@@ -529,7 +530,7 @@
           const res = await this.apiClient.getFootprints({ playerId: targetPlayerId, weeks: 10, forceRefresh });
           if (res && res.success) {
             const freshRaw = res.data || res;
-            const assembled = assembleFootprintsData(freshRaw, null, this.getLiveToday_());
+            const assembled = assembleFootprintsData(freshRaw, null, this.getLiveToday_(freshRaw.today));
             this.render(assembled);
 
             // 若為 SWR 快取返回且帶有背景 revalidatePromise，等網路返回時無縫更新畫面
@@ -537,7 +538,7 @@
               res.revalidatePromise.then(freshRes => {
                 if (freshRes && freshRes.success) {
                   const latestRaw = freshRes.data || freshRes;
-                  const latestAssembled = assembleFootprintsData(latestRaw, null, this.getLiveToday_());
+                  const latestAssembled = assembleFootprintsData(latestRaw, null, this.getLiveToday_(latestRaw.today));
                   this.render(latestAssembled);
                 }
               }).catch(() => {});
@@ -556,7 +557,9 @@
     /**
      * 取得今日日期字串
      */
-    getTodayDateString_() {
+    getTodayDateString_(fallbackDate) {
+      if (fallbackDate) return fallbackDate;
+      if (this.currentDate) return this.currentDate;
       return (typeof dashboardView !== 'undefined' && dashboardView && typeof dashboardView.getTodayDateString === 'function')
         ? dashboardView.getTodayDateString()
         : getLocalDateString();
@@ -565,7 +568,7 @@
     /**
      * 取得今日的即時打卡狀態（from practiceStore）
      */
-    getLiveToday_() {
+    getLiveToday_(fallbackDate) {
       const store = this.practiceStore
         || (typeof window !== 'undefined' && window.practiceStore)
         || (typeof global !== 'undefined' && global.practiceStore)
@@ -573,7 +576,7 @@
         || (typeof dashboardView !== 'undefined' && dashboardView && dashboardView.practiceStore)
         || null;
       if (!store || !store.dailyState) return null;
-      return store.dailyState[this.getTodayDateString_()] || null;
+      return store.dailyState[this.getTodayDateString_(fallbackDate)] || null;
     }
 
     /**
@@ -673,8 +676,8 @@
       const monthName = getChineseMonthName(monthKey);
 
       // 取得今日即時操練水合狀態 (from practiceStore)
-      const live = this.getLiveToday_();
-      const todayStr = this.getTodayDateString_();
+      const todayStr = (this.currentData && this.currentData.today) || this.getTodayDateString_();
+      const live = this.getLiveToday_(todayStr);
       const isTodayCurrentMonth = Boolean(todayStr && todayStr.startsWith(monthKey));
       const isLiveMorning = Boolean(isTodayCurrentMonth && live && (live.morning || live.morningRevival));
       const isLiveBible = Boolean(isTodayCurrentMonth && live && (live.bible || live.bibleReading));
