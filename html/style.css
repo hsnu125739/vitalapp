@@ -6449,9 +6449,9 @@ body[data-theme="night"] .task-prompt-dismiss-label {
   flex-direction: row;
   align-items: center;
   gap: 4px;
-  padding: 3.5px 8.5px;
+  padding: 3.5px 9px;
   border-radius: 9999px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   border: 1.5px solid rgba(168, 135, 123, 0.35);
   background: rgba(255, 255, 255, 0.92);
@@ -6465,19 +6465,19 @@ body[data-theme="night"] .task-prompt-dismiss-label {
 }
 
 .task-pending-chip .pending-chip-icon {
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1;
 }
 
 .task-pending-chip .pending-chip-label {
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 800;
   color: #6b514d;
 }
 
 .task-pending-chip .pending-chip-pts {
-  font-size: 12.5px;
-  font-weight: 950;
+  font-size: 13px;
+  font-weight: 900;
   color: #8b6e62;
 }
 
