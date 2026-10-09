@@ -34,8 +34,9 @@
   ]);
 
   const PROGRESSION_ACTIONS = new Set([
-    // Canonical Actions (17 端點)
+    // Canonical Actions (18 端點)
     'clearProgressionConfigCache',
+    'getAppConfigs',
     'getPointsConfig',
     'getMilestonesConfig',
     'getChapterConfigs',
@@ -1039,6 +1040,14 @@
       if (options && typeof options === 'object') {
         Object.assign(data, options);
       }
+      // 智慧瘦身：若本地已具備四大設定快取且未明確指定 skipConfigs，自動啟用 skipConfigs: true 減重 70%
+      if (data.skipConfigs === undefined) {
+        try {
+          if (this.storage.getItem('vital_chapters_config') && this.storage.getItem('vital_points_config')) {
+            data.skipConfigs = true;
+          }
+        } catch (_) {}
+      }
       if (!data.hintRow && groupId) {
         try {
           const cachedGp = JSON.parse(this.storage.getItem(`vital_group_profile_${groupId}`) || 'null');
@@ -1048,6 +1057,43 @@
         } catch (e) {}
       }
       return await this.request('getProgressBundle', data);
+    }
+
+    async getAppConfigs(forceRefresh = false) {
+      const today = (new Date()).toISOString().slice(0, 10);
+      if (!forceRefresh) {
+        try {
+          const cachedPoints = this.storage.getItem('vital_points_config');
+          const cachedChapters = this.storage.getItem('vital_chapters_config');
+          const cachedAchievements = this.storage.getItem('vital_achievements_config');
+          const cachedTasks = this.storage.getItem('vital_tasks_config');
+          const cachedDate = this.storage.getItem('vital_configs_cached_date');
+          if (cachedPoints && cachedChapters && cachedAchievements && cachedTasks && cachedDate === today) {
+            return {
+              success: true,
+              data: {
+                pointsConfig: JSON.parse(cachedPoints),
+                chapters: JSON.parse(cachedChapters),
+                achievements: JSON.parse(cachedAchievements),
+                tasks: JSON.parse(cachedTasks)
+              }
+            };
+          }
+        } catch (_) {}
+      }
+
+      const res = await this.request('getAppConfigs', {});
+      if (res && res.success && res.data) {
+        const d = res.data;
+        try {
+          if (d.pointsConfig) this.storage.setItem('vital_points_config', JSON.stringify(d.pointsConfig));
+          if (d.chapters) this.storage.setItem('vital_chapters_config', JSON.stringify(d.chapters));
+          if (d.achievements) this.storage.setItem('vital_achievements_config', JSON.stringify(d.achievements));
+          if (d.tasks) this.storage.setItem('vital_tasks_config', JSON.stringify(d.tasks));
+          this.storage.setItem('vital_configs_cached_date', today);
+        } catch (_) {}
+      }
+      return res;
     }
 
     async getPointsConfig(date = '') {

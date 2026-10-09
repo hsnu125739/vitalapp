@@ -20,6 +20,7 @@
 
   let currentUserProfile = null;
   let currentJourneyData = null;
+  let preloadConfigsPromise = null;
 
   function resolveAvatarUrl(gender, avatarKey) {
     const isFemale = gender === 'SISTER' || gender === 'female';
@@ -60,6 +61,11 @@
     });
     if (typeof window !== 'undefined') {
       window.activeApiClient = apiClient;
+    }
+
+    // 1.1 獨立預載四大靜態設定（公開無機密，使用者輸入帳密前於背景搶先載入）
+    if (typeof apiClient.getAppConfigs === 'function') {
+      preloadConfigsPromise = apiClient.getAppConfigs().catch(() => null);
     }
 
     // 2. 初始化狀態庫
@@ -583,6 +589,33 @@
           if (dashboardView && typeof dashboardView.renderTaskCards === 'function') {
             dashboardView.renderTaskCards(data.pointsConfig);
           }
+        }
+
+        // 若 bundle 封包未包含設定（瘦身模式），依序從預載或本地快取中安全補全
+        if ((!chaptersConfig || !achievementsConfig || !tasksConfig) && preloadConfigsPromise) {
+          try {
+            const pre = await preloadConfigsPromise;
+            if (pre && pre.data) {
+              if (!chaptersConfig && pre.data.chapters) chaptersConfig = pre.data.chapters;
+              if (!achievementsConfig && pre.data.achievements) achievementsConfig = pre.data.achievements;
+              if (!tasksConfig && pre.data.tasks) tasksConfig = pre.data.tasks;
+              if (!data.pointsConfig && pre.data.pointsConfig) {
+                try { localStorage.setItem('vital_points_config', JSON.stringify(pre.data.pointsConfig)); } catch (e) {}
+                if (dashboardView && typeof dashboardView.renderTaskCards === 'function') {
+                  dashboardView.renderTaskCards(pre.data.pointsConfig);
+                }
+              }
+            }
+          } catch (_) {}
+        }
+        if (!chaptersConfig && typeof localStorage !== 'undefined') {
+          try { chaptersConfig = JSON.parse(localStorage.getItem('vital_chapters_config') || 'null'); } catch(e) {}
+        }
+        if (!achievementsConfig && typeof localStorage !== 'undefined') {
+          try { achievementsConfig = JSON.parse(localStorage.getItem('vital_achievements_config') || 'null'); } catch(e) {}
+        }
+        if (!tasksConfig && typeof localStorage !== 'undefined') {
+          try { tasksConfig = JSON.parse(localStorage.getItem('vital_tasks_config') || 'null'); } catch(e) {}
         }
       } else {
         if (currentPId && typeof localStorage !== 'undefined') {
