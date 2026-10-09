@@ -478,7 +478,7 @@
     /**
      * 開啟同行足跡彈窗 (SWR 混合載入策略)
      */
-    async openFootprintsModal(playerId = null) {
+    async openFootprintsModal(playerId = null, options = {}) {
       if (this.infoModalTitle) {
         this.infoModalTitle.textContent = '👣 同行足跡與月度成果';
       }
@@ -499,9 +499,12 @@
       }
       this.lastTargetPlayerId = targetPlayerId;
 
-      // 1. SWR 快取優先：若本地有快取，立即 0ms 秒開渲染
+      const forceRefresh = Boolean(options && options.forceRefresh);
+      const shouldRevalidate = Boolean(options && (options.revalidate || options.backgroundSync));
+
+      // 1. 優先從本地快取渲染（0ms 秒開），並以 practiceStore 即時動態水合今日操練
       let hasRenderedCache = false;
-      if (this.apiClient && typeof this.apiClient.getCachedFootprints === 'function') {
+      if (!forceRefresh && this.apiClient && typeof this.apiClient.getCachedFootprints === 'function') {
         const cached = this.apiClient.getCachedFootprints(targetPlayerId);
         if (cached && (cached.teamDaily || (cached.weeks && cached.monthSummary))) {
           const assembled = assembleFootprintsData(cached, null, this.getLiveToday_());
@@ -510,19 +513,25 @@
         }
       }
 
-      // 2. 若無快取，顯示優雅的骨架屏載入動畫
+      // 2. 基於「昨日以前歷史資料具備不變性」與「今日數據由 practiceStore 實時水合」：
+      // 只要快取已存在且非強制刷新或要求重驗，即代表已持有權威的昨日基準，完全不需再次發起多餘網路請求！
+      if (hasRenderedCache && !forceRefresh && !shouldRevalidate) {
+        return;
+      }
+
+      // 3. 僅在無快取時（如冷啟動尚未預載完成），顯示骨架屏並請求後台數據
       if (!hasRenderedCache) {
         this.renderSkeleton();
       }
 
-      // 3. 背景非同步載入最新 10 週足跡數據 (Revalidate)
       if (this.apiClient && typeof this.apiClient.getFootprints === 'function') {
         try {
-          const res = await this.apiClient.getFootprints({ playerId: targetPlayerId, weeks: 10 });
+          const res = await this.apiClient.getFootprints({ playerId: targetPlayerId, weeks: 10, forceRefresh });
           if (res && res.success) {
             const freshRaw = res.data || res;
             const assembled = assembleFootprintsData(freshRaw, null, this.getLiveToday_());
             this.render(assembled);
+
             // 若為 SWR 快取返回且帶有背景 revalidatePromise，等網路返回時無縫更新畫面
             if (res.revalidatePromise) {
               res.revalidatePromise.then(freshRes => {
@@ -557,8 +566,14 @@
      * 取得今日的即時打卡狀態（from practiceStore）
      */
     getLiveToday_() {
-      if (!this.practiceStore || !this.practiceStore.dailyState) return null;
-      return this.practiceStore.dailyState[this.getTodayDateString_()] || null;
+      const store = this.practiceStore
+        || (typeof window !== 'undefined' && window.practiceStore)
+        || (typeof global !== 'undefined' && global.practiceStore)
+        || (typeof AppCoordinator !== 'undefined' && AppCoordinator.practiceStore)
+        || (typeof dashboardView !== 'undefined' && dashboardView && dashboardView.practiceStore)
+        || null;
+      if (!store || !store.dailyState) return null;
+      return store.dailyState[this.getTodayDateString_()] || null;
     }
 
     /**
@@ -614,7 +629,7 @@
       const retryBtn = this.infoModalContent.querySelector('.footprint-retry-btn');
       if (retryBtn) {
         retryBtn.addEventListener('click', () => {
-          this.openFootprintsModal(this.lastTargetPlayerId);
+          this.openFootprintsModal(this.lastTargetPlayerId, { forceRefresh: true });
         });
       }
     }

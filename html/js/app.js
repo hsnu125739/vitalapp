@@ -75,6 +75,10 @@
       practiceStore = new PracticeStoreClass({
         apiClient: apiClient
       });
+      global.practiceStore = practiceStore;
+      if (typeof window !== 'undefined') {
+        window.practiceStore = practiceStore;
+      }
     }
 
     const ChatStoreClass = global.ChatStore || _W.ChatStore;
@@ -117,7 +121,8 @@
     const FootprintsViewClass = global.FootprintsView || _W.FootprintsView;
     if (FootprintsViewClass) {
       footprintsView = new FootprintsViewClass({
-        apiClient: apiClient
+        apiClient: apiClient,
+        practiceStore: practiceStore
       });
       global.footprintsView = footprintsView;
       if (typeof window !== 'undefined') {
