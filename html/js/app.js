@@ -21,6 +21,7 @@
   let currentUserProfile = null;
   let currentJourneyData = null;
   let preloadConfigsPromise = null;
+  let sessionCoordinator = null;
 
   function resolveAvatarUrl(gender, avatarKey) {
     const isFemale = gender === 'SISTER' || gender === 'female';
@@ -81,6 +82,20 @@
       chatStore = new ChatStoreClass({
         apiClient: apiClient
       });
+    }
+
+    // 2.1 初始化使用者會話協同器 (UserSessionCoordinator)
+    const SessionCoordinatorClass = global.UserSessionCoordinator || _W.UserSessionCoordinator;
+    if (SessionCoordinatorClass) {
+      sessionCoordinator = new SessionCoordinatorClass({
+        apiClient: apiClient,
+        storage: (typeof StorageGateway !== 'undefined') ? StorageGateway.getInstance() : null,
+        practiceStore: practiceStore
+      });
+      global.sessionCoordinator = sessionCoordinator;
+      if (typeof window !== 'undefined') {
+        window.sessionCoordinator = sessionCoordinator;
+      }
     }
 
     // 3. 初始化視圖模組
@@ -165,6 +180,9 @@
     try {
       // 0. 本地水合 (0ms rendering，僅限冷啟動首屏秒開；在線刷新時絕不拿舊快取覆蓋記憶體最新狀態)
       if (isColdStart) {
+        if (sessionCoordinator) {
+          sessionCoordinator.hydrateCachedSession();
+        }
         let cachedPlayer = null;
         try {
           const cachedStr = localStorage.getItem('vital_current_player');
@@ -402,6 +420,10 @@
           return cachedGp ? (cachedGp.activeMembers || cachedGp.activeMembersJson) : null;
         } catch (e) { return null; }
       })();
+
+      if (sessionCoordinator) {
+        sessionCoordinator.setSynchronizing();
+      }
 
       // 針對首頁右上角個人積分&貢獻值面板，設為 getProgressBundle 的專屬 callback
       const bundlePromise = pId ? apiClient.getProgressBundle(gId, activeMembersObj).then(bRes => {
@@ -756,6 +778,10 @@
             }).catch(() => {});
           }
         }, 1500);
+      }
+
+      if (sessionCoordinator) {
+        sessionCoordinator.setActive(currentJourneyData);
       }
 
     } catch (err) {
@@ -1265,6 +1291,9 @@
   }
 
   function handleLoginSuccess(profile, group = null, initialPractice = null) {
+    if (sessionCoordinator) {
+      sessionCoordinator.handleLogin(profile, group, initialPractice);
+    }
     currentUserProfile = profile;
     if (group && typeof group === 'object') {
       const gid = group.groupId || profile?.groupId;
@@ -1350,6 +1379,9 @@
     if (currentUserProfile) {
       if (newUrl) currentUserProfile.avatarUrl = newUrl;
       if (newName) currentUserProfile.name = newName;
+      if (sessionCoordinator) {
+        sessionCoordinator.updateProfile(currentUserProfile);
+      }
       try {
         localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
       } catch (e) {}
@@ -1359,6 +1391,11 @@
   }
 
   function handleLogout() {
+    if (sessionCoordinator) {
+      try {
+        sessionCoordinator.handleLogout();
+      } catch (e) {}
+    }
     apiClient.clearSessionToken();
     const pid = currentUserProfile?.playerId;
     const gid = currentUserProfile?.groupId;
@@ -1418,6 +1455,9 @@
       delete currentUserProfile.postsColIndex;
       currentUserProfile.memberCount = 0;
       currentJourneyData = null;
+    }
+    if (sessionCoordinator) {
+      sessionCoordinator.updateProfile(currentUserProfile);
     }
     if (typeof localStorage !== 'undefined') {
       try {
@@ -1518,7 +1558,8 @@
     get chestView() { return chestView; },
     get footprintsView() { return footprintsView; },
     get profileView() { return profileView; },
-    get fellowshipView() { return fellowshipView; }
+    get fellowshipView() { return fellowshipView; },
+    get sessionCoordinator() { return sessionCoordinator; }
   };
 
   if (typeof module !== 'undefined' && module.exports) {
@@ -1531,7 +1572,8 @@
       showMilestonesCelebration,
       checkSpecialTasksPrompt,
       showSpecialTasksModal,
-      AppCoordinator: global.AppCoordinator
+      AppCoordinator: global.AppCoordinator,
+      UserSessionCoordinator: typeof UserSessionCoordinator !== 'undefined' ? UserSessionCoordinator : null
     };
   }
 

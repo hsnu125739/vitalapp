@@ -9,6 +9,7 @@ const ASSETS_TO_CACHE = [
   './js/utils/avatarManager.js',
   './js/modules/journeyEngine.js',
   './js/modules/storageGateway.js',
+  './js/modules/userSessionCoordinator.js',
   './js/api/apiClient.js',
   './js/store/practiceStore.js',
   './js/store/chatStore.js',
