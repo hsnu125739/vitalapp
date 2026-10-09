@@ -55,27 +55,49 @@
       .filter(c => c && c.status === 'ACTIVE' && (c.chapterId || c.id))
       .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
 
-    // 2. 收集已達成之里程碑 ID（純字串精確比對）
+    // 2. 收集已達成之里程碑 ID（純字串精確比對與去前綴正規化）
     const achievedIds = new Set();
     const registerId = (m) => {
       if (!m) return;
       if (typeof m === 'string') {
         const s = m.trim().toUpperCase();
-        if (s) achievedIds.add(s);
+        if (s) {
+          achievedIds.add(s);
+          achievedIds.add(s.replace(/^(?:CHAPTER_|CHP_|CH)/i, ''));
+        }
       } else if (typeof m === 'object') {
-        const id = String(m.id || m.chapterId || m.taskId || m.achievementId || '').trim().toUpperCase();
-        if (id) achievedIds.add(id);
+        const rawId = String(m.id || m.chapterId || m.taskId || m.achievementId || '').trim().toUpperCase();
+        if (rawId) {
+          achievedIds.add(rawId);
+          achievedIds.add(rawId.replace(/^(?:CHAPTER_|CHP_|CH)/i, ''));
+        }
       }
     };
     milestones.forEach(registerId);
     if (Array.isArray(groupProgress.chapterHistory)) {
       groupProgress.chapterHistory.forEach(registerId);
     }
+    if (Array.isArray(groupProgress.unlockedChapters)) {
+      groupProgress.unlockedChapters.forEach(registerId);
+    }
 
     // 3. 依據 ChapterConfig 定義之 order 與 chapterId 判定各篇章是否已達成
     const isChapterPassed = (ch) => {
       const cid = String(ch.chapterId || ch.id || '').trim().toUpperCase();
-      return cid ? achievedIds.has(cid) : false;
+      const norm = cid.replace(/^(?:CHAPTER_|CHP_|CH)/i, '');
+      if (cid && (achievedIds.has(cid) || achievedIds.has(norm))) {
+        return true;
+      }
+      // 信心篇 (order: 1) 為起步篇章 (targetPoint: 0)
+      // 當小組已成組 (有 groupId 且 memberCount >= 2，或 fallbackProfile 有成組資訊) 時，視為信心篇已完成
+      if (Number(ch.order) === 1 && (ch.targetPoint === 0 || ch.targetPoint === '0')) {
+        const hasGroup = Boolean(groupProgress.groupId || (fallbackProfile && fallbackProfile.groupId));
+        const members = (typeof groupProgress.memberCount === 'number' ? groupProgress.memberCount : (fallbackProfile && fallbackProfile.memberCount)) || 0;
+        if (hasGroup && members >= 2) {
+          return true;
+        }
+      }
+      return false;
     };
 
     // 4. 尋找當前正在挑戰的目標篇章（第一個尚未達成之篇章；若全數達成則為最後一個篇章）

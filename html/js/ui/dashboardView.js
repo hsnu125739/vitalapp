@@ -358,12 +358,26 @@
       };
     }
 
-    render(userProfile, journeyData, announcements = null, chaptersConfig = null) {
+    render(userProfile, journeyData = null, announcements = null, chaptersConfig = null) {
       if (!userProfile) return;
       
       // 建立淺拷貝以避免污染源物件
       this.currentUserProfile = { ...userProfile };
-      this.currentJourneyData = journeyData;
+      if (journeyData) {
+        this.currentJourneyData = journeyData;
+      } else if (!this.currentJourneyData && typeof localStorage !== 'undefined' && this.currentUserProfile.groupId) {
+        try {
+          const cachedGp = JSON.parse(localStorage.getItem(`vital_group_progress_${this.currentUserProfile.groupId}`) || 'null');
+          if (cachedGp) {
+            const engine = (typeof window !== 'undefined' && window.JourneyEngine) || (typeof JourneyEngine !== 'undefined' && JourneyEngine);
+            if (engine && typeof engine.deriveJourney === 'function') {
+              this.currentJourneyData = engine.deriveJourney(cachedGp, this.currentUserProfile, chaptersConfig);
+            } else {
+              this.currentJourneyData = cachedGp;
+            }
+          }
+        } catch (_) {}
+      }
 
       // 由於後端為「昨日午夜結算快照 (Settled Snapshot)」，前端必須即時加上今日未結算的本機操練分數
       const localDelta = this.calculateTodayLocalPointsDelta_();
@@ -531,6 +545,16 @@
     isChapterPassed_(chapId, journeyData = null) {
       if (!chapId) return false;
       const jData = journeyData || this.currentJourneyData || {};
+
+      // 1. 若旅程已推導出當前篇章序號，且查詢章節 order 小於當前篇章序號，則必已通過
+      const chList = this.chaptersConfig || [];
+      if (Array.isArray(chList) && chList.length > 0) {
+        const targetCh = chList.find(c => c && (c.chapterId === chapId || c.id === chapId));
+        if (targetCh && jData.chapterIndex && Number(targetCh.order) < Number(jData.chapterIndex)) {
+          return true;
+        }
+      }
+
       let chapterHistory = jData.chapterHistory || [];
       if (typeof chapterHistory === 'string') {
         try { chapterHistory = JSON.parse(chapterHistory); } catch (e) { chapterHistory = []; }
@@ -542,6 +566,12 @@
         try { milestones = JSON.parse(milestones); } catch (e) { milestones = []; }
       }
       if (!Array.isArray(milestones)) milestones = [];
+
+      let unlockedChapters = jData.unlockedChapters || [];
+      if (typeof unlockedChapters === 'string') {
+        try { unlockedChapters = JSON.parse(unlockedChapters); } catch (e) { unlockedChapters = []; }
+      }
+      if (!Array.isArray(unlockedChapters)) unlockedChapters = [];
 
       const targetId = String(chapId).trim().toUpperCase();
       const normTarget = targetId.replace(/^(?:CHAPTER_|CHP_|CH)/i, '');
@@ -556,7 +586,20 @@
         return mId === targetId || mId.replace(/^(?:CHAPTER_|CHP_|CH)/i, '') === normTarget;
       };
 
-      return chapterHistory.some(matchMilestone) || milestones.some(matchMilestone);
+      if (chapterHistory.some(matchMilestone) || milestones.some(matchMilestone) || unlockedChapters.some(matchMilestone)) {
+        return true;
+      }
+
+      // 信心篇 (order 1，門檻 0 分) 只要小組已成組即自動達成
+      if (normTarget === '01' || normTarget === '1') {
+        const gid = jData.groupId || (this.currentUserProfile && this.currentUserProfile.groupId);
+        const mCount = (typeof jData.memberCount === 'number' ? jData.memberCount : (this.currentUserProfile && this.currentUserProfile.memberCount)) || 0;
+        if (gid && mCount >= 2) {
+          return true;
+        }
+      }
+
+      return false;
     }
 
     renderJourneyNodes_(journeyData, chaptersConfig = null) {

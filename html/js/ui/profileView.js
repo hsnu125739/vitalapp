@@ -1080,19 +1080,23 @@
           }
           renderModalContent(latestProgress, false);
 
-          // 即時同步最新小組點數至首頁旅程 (currentJourneyData 與 dashboardView)
+          // 即時同步最新小組進度至首頁旅程 (透過 AppCoordinator 統一推導與分發)
           try {
-            const latestPts = Number(latestProgress.groupTotalPoints !== undefined ? latestProgress.groupTotalPoints : 0);
-            if (latestPts > 0 && typeof window !== 'undefined') {
-              if (window.currentJourneyData) {
-                window.currentJourneyData.journeyPoints = latestPts;
-                window.currentJourneyData.groupTotalPoints = latestPts;
-              }
-              if (window.dashboardView && typeof window.dashboardView.render === 'function') {
-                window.dashboardView.render(this.currentUserProfile, window.currentJourneyData);
+            const coordinator = (typeof window !== 'undefined' && window.AppCoordinator) || (typeof global !== 'undefined' && global.AppCoordinator);
+            if (coordinator && typeof coordinator.updateGroupProgress === 'function') {
+              coordinator.updateGroupProgress(latestProgress);
+            } else {
+              const engine = (typeof window !== 'undefined' && window.JourneyEngine) || (typeof JourneyEngine !== 'undefined' && JourneyEngine);
+              if (engine && typeof engine.deriveJourney === 'function') {
+                const derived = engine.deriveJourney(latestProgress, this.currentUserProfile);
+                if (derived && typeof window !== 'undefined' && window.dashboardView && typeof window.dashboardView.render === 'function') {
+                  window.dashboardView.render(this.currentUserProfile, derived);
+                }
               }
             }
-          } catch(syncErr) {}
+          } catch(syncErr) {
+            console.warn('[ProfileView] 同步最新旅程進度失敗:', syncErr);
+          }
         }
       } catch (err) {
         console.warn('[ProfileView] 獲取最新小組進度失敗:', err);

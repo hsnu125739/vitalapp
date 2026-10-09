@@ -1368,6 +1368,25 @@
     }
   }
 
+  function updateGroupProgress(data) {
+    if (!data) return currentJourneyData;
+    const derived = deriveJourneyFromGroupProgress(data, currentUserProfile);
+    if (derived) {
+      currentJourneyData = derived;
+      const gid = derived.groupId || (currentUserProfile && currentUserProfile.groupId);
+      if (gid && typeof localStorage !== 'undefined') {
+        try { localStorage.setItem(`vital_group_progress_${gid}`, JSON.stringify(data)); } catch (e) {}
+      }
+      if (dashboardView && typeof dashboardView.render === 'function') {
+        dashboardView.render(currentUserProfile, currentJourneyData);
+      }
+      if (profileView && typeof profileView.render === 'function') {
+        profileView.render(currentUserProfile, currentJourneyData);
+      }
+    }
+    return currentJourneyData;
+  }
+
   // 頁面就緒自動載入
   if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
@@ -1382,6 +1401,7 @@
     loadUserData,
     refreshUserData,
     updateUserGroupState,
+    updateGroupProgress,
     checkMilestone,
     resolveMilestoneName,
     showMilestonesCelebration,
@@ -1404,6 +1424,7 @@
     module.exports = {
       deriveJourneyFromGroupProgress,
       initApp,
+      updateGroupProgress,
       checkMilestone,
       resolveMilestoneName,
       showMilestonesCelebration,
