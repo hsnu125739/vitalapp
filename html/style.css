@@ -6588,7 +6588,50 @@ body[data-theme="night"] .footprint-meeting-tag {
   box-shadow: none !important;
 }
 
-/* 任務結算單行說明區塊 */
+/* 任務結算說明卡片（與今日任務區塊外框樣式一致，無任務內容） */
+#homeView .task-settle-card {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+#homeView .task-settle-card .task-settle-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #4a342d;
+  letter-spacing: 0.3px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+#homeView .task-settle-card .settle-banner-icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+@media (max-width: 380px) {
+  #homeView .task-settle-card {
+    padding: 10px 10px;
+  }
+  #homeView .task-settle-card .task-settle-content {
+    font-size: 12px;
+    gap: 5px;
+    letter-spacing: 0.1px;
+  }
+  #homeView .task-settle-card .settle-banner-icon {
+    font-size: 14px;
+  }
+}
+
+/* 相容性備份樣式 */
 .task-settle-banner {
   display: flex;
   align-items: center;
@@ -6601,37 +6644,9 @@ body[data-theme="night"] .footprint-meeting-tag {
   border-radius: 12px;
   font-size: 12.5px;
   font-weight: 600;
-  line-height: 1.4;
   white-space: nowrap;
   color: #92400e;
   background: linear-gradient(180deg, rgba(254, 243, 199, 0.95), rgba(253, 230, 138, 0.85));
   border: 1.5px solid rgba(245, 158, 11, 0.35);
-  box-shadow: 0 1px 3px rgba(180, 83, 9, 0.08);
-  letter-spacing: 0.2px;
-}
-
-#homeView .task-settle-banner + .task-section {
-  margin-top: 6px;
-}
-
-.task-settle-banner .settle-banner-icon {
-  font-size: 13px;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-body[data-theme="night"] .task-settle-banner {
-  color: #fcd34d;
-  background: linear-gradient(180deg, #1e293b, #151f2e);
-  border-color: rgba(245, 158, 11, 0.35);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
-}
-
-@media (max-width: 380px) {
-  .task-settle-banner {
-    font-size: 11px;
-    padding: 5px 8px;
-    gap: 4px;
-  }
 }
 
