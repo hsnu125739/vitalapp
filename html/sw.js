@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vital-cache-v66';
+const CACHE_NAME = 'vital-cache-v67';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const ASSETS_TO_CACHE = [
   './runtime-settings.js',
   './js/utils/vitalUtils.js',
   './js/utils/avatarManager.js',
+  './js/modules/journeyEngine.js',
   './js/api/apiClient.js',
   './js/store/practiceStore.js',
   './js/store/chatStore.js',
