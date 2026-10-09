@@ -674,6 +674,19 @@ class OptimisticPracticeStore {
 
     return { dailyState: this.dailyState, meetingState: this.meetingState };
   }
+
+  resetState() {
+    this.dailyState = {};
+    this.meetingState = {};
+    if (this.pendingDaily && typeof this.pendingDaily.clear === 'function') {
+      this.pendingDaily.clear();
+    }
+    if (this.pendingMeeting && typeof this.pendingMeeting.clear === 'function') {
+      this.pendingMeeting.clear();
+    }
+    this.isSending = false;
+    this.isReplaying = false;
+  }
 }
 
   if (typeof module !== 'undefined' && module.exports) {

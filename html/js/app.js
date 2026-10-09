@@ -755,6 +755,10 @@
 
       // 9. 背景預熱同行足跡快取 (SWR 預載，100% 零阻塞登入與首屏，背景資料抵達時自動水合更新)
       if (currentPId && typeof setTimeout !== 'undefined') {
+        const hasCachedFootprints = Boolean(
+          apiClient && typeof apiClient.getCachedFootprints === 'function' && apiClient.getCachedFootprints(currentPId)
+        );
+        const fetchDelay = hasCachedFootprints ? 1500 : 0;
         setTimeout(() => {
           if (apiClient && apiClient.getSessionToken() && typeof apiClient.getFootprints === 'function') {
             apiClient.getFootprints({ playerId: currentPId, weeks: 10 }).then(res => {
@@ -762,7 +766,7 @@
                 const month = data && (data.monthSummary || data.monthly || data.month);
                 const fullDays = month && month.fullAttendanceDays;
                 if (typeof fullDays === 'number' && dashboardView && typeof dashboardView.updateFullAttendanceDays === 'function') {
-                  dashboardView.updateFullAttendanceDays(fullDays, data);
+                  dashboardView.updateFullAttendanceDays(fullDays);
                 }
               };
               if (res && res.success) {
@@ -777,7 +781,7 @@
               }
             }).catch(() => {});
           }
-        }, 1500);
+        }, fetchDelay);
       }
 
       if (sessionCoordinator) {
@@ -1427,6 +1431,13 @@
     
     currentUserProfile = null;
     currentJourneyData = null;
+
+    if (dashboardView && typeof dashboardView.resetState === 'function') {
+      dashboardView.resetState();
+    }
+    if (practiceStore && typeof practiceStore.resetState === 'function') {
+      practiceStore.resetState();
+    }
     
     if (typeof document !== 'undefined') {
       document.querySelectorAll('.modal-layer').forEach(m => m.classList.add('hidden'));

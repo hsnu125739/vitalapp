@@ -830,64 +830,7 @@
           updateDayInList(cache.daily);
         }
 
-        // 即時增量更新本月成果卡 (monthSummary)
-        const dNow = new Date();
-        const fallbackMKey = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}`;
-        const targetMonthKey = dateStr ? dateStr.slice(0, 7) : ((cache.monthSummary && cache.monthSummary.monthKey) || fallbackMKey);
-
-        if (!cache.monthSummary || cache.monthSummary.monthKey !== targetMonthKey) {
-          cache.monthSummary = {
-            monthKey: targetMonthKey,
-            completedDays: 0,
-            fullAttendanceDays: 0,
-            perfectDays: 0,
-            fullDays: 0,
-            morningDays: 0,
-            bibleDays: 0,
-            prayerDays: 0,
-            bookDays: 0,
-            readingDays: 0,
-            meetingCount: 0,
-            visitCount: 0,
-            groupMeetingCount: 0,
-            prayerMeetingCount: 0,
-            lordDayMeetingCount: 0,
-            totalScore: 0,
-            longestStreak: 0
-          };
-        }
-
-        const mKey = targetMonthKey;
-        if (dateStr.startsWith(mKey)) {
-          if (morningVal !== Boolean(oldRec.morning)) {
-            cache.monthSummary.morningDays = Math.max(0, (cache.monthSummary.morningDays || 0) + (morningVal ? 1 : -1));
-          }
-            if (bibleVal !== Boolean(oldRec.bible)) {
-              cache.monthSummary.bibleDays = Math.max(0, (cache.monthSummary.bibleDays || 0) + (bibleVal ? 1 : -1));
-            }
-            if (prayerVal !== Boolean(oldRec.prayer)) {
-              cache.monthSummary.prayerDays = Math.max(0, (cache.monthSummary.prayerDays || 0) + (prayerVal ? 1 : -1));
-            }
-            if (bookVal !== Boolean(oldRec.book)) {
-              cache.monthSummary.bookDays = Math.max(0, (cache.monthSummary.bookDays || 0) + (bookVal ? 1 : -1));
-              cache.monthSummary.readingDays = cache.monthSummary.bookDays;
-            }
-            const oldAny = Boolean(oldRec.morning || oldRec.bible || oldRec.prayer || oldRec.book);
-            const newAny = Boolean(morningVal || bibleVal || prayerVal || bookVal);
-            if (oldAny !== newAny) {
-              cache.monthSummary.completedDays = Math.max(0, (cache.monthSummary.completedDays || 0) + (newAny ? 1 : -1));
-            }
-
-            const oldFull = Boolean(oldRec.morning && oldRec.bible && oldRec.prayer && oldRec.book);
-            const newFull = Boolean(morningVal && bibleVal && prayerVal && bookVal);
-            if (oldFull !== newFull) {
-              const delta = newFull ? 1 : -1;
-              cache.monthSummary.fullAttendanceDays = Math.max(0, (cache.monthSummary.fullAttendanceDays || 0) + delta);
-              cache.monthSummary.perfectDays = cache.monthSummary.fullAttendanceDays;
-              cache.monthSummary.fullDays = cache.monthSummary.fullAttendanceDays;
-            }
-          }
-
+        // 快取作為後端昨日原始數據的純淨副本，不直接竄改 monthSummary，今日成果一律由前端動態水合
         cache._cachedAt = Date.now();
         this.storage.setItem(cacheKey, JSON.stringify(cache));
         return true;

@@ -52,6 +52,8 @@
       this.onContributionClick = onContributionClick;
 
       this.currentUserProfile = null;
+      this.baseFullAttendanceDays = null;
+      this.baseFullAttendanceMonthKey = null;
       this.currentDate = this.getTodayDateString();
       this.currentWeekKey = this.getCurrentWeekKey();
 
@@ -466,11 +468,7 @@
 
       this.renderSettlingBadges_();
 
-      const currentMonthKey = (this.currentDate && this.currentDate.slice(0, 7)) || new Date().toISOString().slice(0, 7);
-      const profileFullDays = (userProfile && (!userProfile.fullAttendanceMonthKey || userProfile.fullAttendanceMonthKey === currentMonthKey))
-        ? userProfile.fullAttendanceDays
-        : null;
-      this.updateFullAttendanceDays(profileFullDays);
+      this.updateFullAttendanceDays();
 
       let mCount = 0;
       if (hasGroup) {
@@ -1245,13 +1243,23 @@
       return this.calculateUnsettledPointsDelta_();
     }
 
-    updateFullAttendanceDays(days = null, backendData = null) {
+    resetState() {
+      this.currentUserProfile = null;
+      this.currentJourneyData = null;
+      this.baseFullAttendanceDays = null;
+      this.baseFullAttendanceMonthKey = null;
+      if (typeof document !== 'undefined') {
+        const el = document.getElementById('homeStreakText');
+        if (el) el.textContent = '0 天';
+      }
+    }
+
+    updateFullAttendanceDays(days = null) {
       if (typeof document === 'undefined') return;
       const el = document.getElementById('homeStreakText');
       if (!el) return;
 
       const currentMonthKey = (this.currentDate && this.currentDate.slice(0, 7)) || new Date().toISOString().slice(0, 7);
-      let finalDays = (typeof days === 'number' && !isNaN(days)) ? days : null;
 
       // 檢查本地今日在 practiceStore 是否已達成 4/4 全勤（晨、讀、禱、書）
       const todaySt = (this.practiceStore && this.practiceStore.dailyState && this.currentDate)
@@ -1265,116 +1273,34 @@
         (todaySt.bookPursuit || todaySt.book)
       );
 
-      if (finalDays === null) {
-        // ---- 階段 1：首屏 0ms 快取水合 / 本地增量更新 ----
+      let baseDays = 0;
+
+      if (typeof days === 'number' && !isNaN(days)) {
+        baseDays = days;
+        this.baseFullAttendanceDays = baseDays;
+        this.baseFullAttendanceMonthKey = currentMonthKey;
+      } else {
         const playerId = (this.currentUserProfile && this.currentUserProfile.playerId)
           || (this.apiClient && typeof this.apiClient.getPlayerIdFromToken === 'function' && this.apiClient.getPlayerIdFromToken());
 
-        let cached = null;
-        if (this.apiClient && typeof this.apiClient.getCachedFootprints === 'function') {
-          cached = this.apiClient.getCachedFootprints(playerId);
-        } else if (typeof localStorage !== 'undefined' && playerId) {
-          try {
-            const raw = localStorage.getItem(`vital_footprints_cache_${playerId}`);
-            if (raw) cached = JSON.parse(raw);
-          } catch (_) {}
-        }
-
-        // 容錯防禦：若快取仍為 raw 結構，調用 assembleFootprintsData 自動裝配
-        if (cached && (cached.teamDaily || (Array.isArray(cached.weeks) && typeof cached.weeks[0] === 'string'))) {
-          const assembleFn = (typeof assembleFootprintsData === 'function')
-            ? assembleFootprintsData
-            : ((typeof window !== 'undefined' && typeof window.assembleFootprintsData === 'function')
-                ? window.assembleFootprintsData
-                : ((typeof global !== 'undefined' && typeof global.assembleFootprintsData === 'function')
-                    ? global.assembleFootprintsData
-                    : (typeof require === 'function' ? (require('./footprintsView')?.assembleFootprintsData || null) : null)));
-          if (assembleFn) {
-            try { cached = assembleFn(cached); } catch (_) {}
-          }
-        }
+        const cached = (this.apiClient && typeof this.apiClient.getCachedFootprints === 'function')
+          ? this.apiClient.getCachedFootprints(playerId)
+          : null;
 
         const cachedMonth = cached && (cached.monthSummary || cached.monthly || cached.month);
         const isStaleMonth = Boolean(cachedMonth && cachedMonth.monthKey && cachedMonth.monthKey !== currentMonthKey);
 
-        let baseDays = 0;
         if (cachedMonth && !isStaleMonth && typeof cachedMonth.fullAttendanceDays === 'number' && !isNaN(cachedMonth.fullAttendanceDays)) {
           baseDays = cachedMonth.fullAttendanceDays;
-        } else if (!isStaleMonth && this.currentUserProfile && this.currentUserProfile.fullAttendanceMonthKey === currentMonthKey && typeof this.currentUserProfile.fullAttendanceDays === 'number') {
-          baseDays = this.currentUserProfile.fullAttendanceDays;
-        }
-
-        // 檢查快取中「今日」是否已被算作全勤
-        let cachedTodayIsFull = false;
-        if (cached && this.currentDate) {
-          if (cached.dailyRecords && cached.dailyRecords[this.currentDate]) {
-            const rec = cached.dailyRecords[this.currentDate];
-            cachedTodayIsFull = Boolean(
-              (rec.morning || rec.morningRevival) &&
-              (rec.bible || rec.bibleReading) &&
-              rec.prayer &&
-              (rec.book || rec.bookPursuit)
-            );
-          } else if (Array.isArray(cached.weeks)) {
-            for (const w of cached.weeks) {
-              if (Array.isArray(w.days)) {
-                const d = w.days.find(day => day.date === this.currentDate || day.recordDate === this.currentDate);
-                if (d) {
-                  cachedTodayIsFull = (d.completedCount === 4) || Boolean(d.morningCompleted && d.bibleCompleted && d.prayerCompleted && d.readingCompleted);
-                  break;
-                }
-              }
-            }
-          }
-        }
-
-        // 若本地今日已滿，但快取今日未滿，動態補償 +1；反之維持 baseDays
-        if (isTodayLocallyFull && !cachedTodayIsFull && this.currentDate && this.currentDate.startsWith(currentMonthKey)) {
-          finalDays = baseDays + 1;
-        } else {
-          finalDays = baseDays;
-        }
-      } else {
-        // ---- 階段 2：SWR 背景網路資料抵達對帳 (Reconciliation) ----
-        // 精準檢查後端封包中的「今日」是否已算入全勤
-        let backendHasCountedToday = false;
-        if (backendData) {
-          const dailyRecs = backendData.dailyRecords || {};
-          const todayRec = dailyRecs[this.currentDate];
-          if (todayRec) {
-            backendHasCountedToday = Boolean(
-              (todayRec.morningRevival || todayRec.morning) &&
-              (todayRec.bibleReading || todayRec.bible) &&
-              todayRec.prayer &&
-              (todayRec.bookPursuit || todayRec.book)
-            );
-          } else if (Array.isArray(backendData.daily)) {
-            const found = backendData.daily.find(d => d.date === this.currentDate || d.recordDate === this.currentDate);
-            if (found) {
-              backendHasCountedToday = (found.completedCount === 4) || Boolean(
-                found.morningCompleted && found.bibleCompleted && found.prayerCompleted && found.readingCompleted
-              );
-            }
-          } else if (Array.isArray(backendData.weeks)) {
-            for (const w of backendData.weeks) {
-              if (Array.isArray(w.days)) {
-                const found = w.days.find(d => d.date === this.currentDate || d.recordDate === this.currentDate);
-                if (found) {
-                  backendHasCountedToday = (found.completedCount === 4) || Boolean(
-                    found.morningCompleted && found.bibleCompleted && found.prayerCompleted && found.readingCompleted
-                  );
-                  break;
-                }
-              }
-            }
-          }
-        }
-
-        // 若本地今日已打滿 4/4，但後端過期封包尚未算入今日 ➔ 補償 +1 (保留使用者剛剛打卡的成果)
-        if (isTodayLocallyFull && !backendHasCountedToday && this.currentDate && this.currentDate.startsWith(currentMonthKey)) {
-          finalDays = finalDays + 1;
+          this.baseFullAttendanceDays = baseDays;
+          this.baseFullAttendanceMonthKey = currentMonthKey;
+        } else if (!isStaleMonth && this.baseFullAttendanceDays !== null && this.baseFullAttendanceDays !== undefined && this.baseFullAttendanceMonthKey === currentMonthKey) {
+          baseDays = this.baseFullAttendanceDays;
         }
       }
+
+      // 核心架構原則：後端與快取只結算至昨天，今日全勤一律由前端水合純粹加上
+      const finalDays = baseDays + (isTodayLocallyFull ? 1 : 0);
 
       const count = Math.max(0, Number(finalDays || 0));
       el.textContent = `${count} 天`;
