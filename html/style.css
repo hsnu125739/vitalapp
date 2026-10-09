@@ -1565,6 +1565,203 @@ button.player-stat-card{
 }
 
 /* ==========================================================================
+   全召會活力組旅程榜小組卡片 (Journey Ranking Cards - 方案 A)
+   ========================================================================== */
+.journey-rank-card {
+  background: var(--paper, #ffffff);
+  border: 2px solid var(--line-subtle, #e2e8f0);
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.journey-rank-card.is-my-group {
+  background: #ecfdf5;
+  border-color: #10b981;
+}
+
+.journey-rank-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.journey-rank-badge {
+  font-size: 1.35rem;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.journey-rank-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.journey-rank-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.journey-group-name-box {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+}
+
+.journey-group-name-text {
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink, #1e293b);
+  will-change: transform;
+}
+
+.journey-group-name-text.is-marquee-pingpong {
+  animation: journey-name-pingpong var(--marquee-duration, 6s) ease-in-out infinite alternate;
+}
+
+@keyframes journey-name-pingpong {
+  0%, 25% { transform: translateX(0); }
+  75%, 100% { transform: translateX(var(--marquee-dist, -30px)); }
+}
+
+.journey-rank-card:hover .journey-group-name-text,
+.journey-rank-card:active .journey-group-name-text {
+  animation-play-state: paused;
+}
+
+.journey-rank-score {
+  font-weight: 700;
+  color: #d97706;
+  font-size: 1.15rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.journey-rank-score-unit {
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: var(--ink-soft, #64748b);
+}
+
+.journey-rank-tags-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.journey-tag-district {
+  font-size: 0.75rem;
+  background: var(--paper-2, #f1f5f9);
+  color: var(--ink-soft, #475569);
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.journey-tag-my-group {
+  font-size: 0.75rem;
+  background: #10b981;
+  color: #ffffff;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.journey-rank-progress-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--ink-soft, #475569);
+}
+
+.journey-chapter-box {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.journey-tag-chapter {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.journey-chapter-name {
+  font-weight: 600;
+  font-size: 0.83rem;
+  white-space: nowrap;
+}
+
+.journey-progress-text {
+  font-size: 0.83rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.journey-progress-track {
+  width: 100%;
+  height: 7px;
+  background: var(--paper-2, #f1f5f9);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.journey-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #10b981);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+body[data-theme="night"] .journey-rank-card {
+  background: var(--paper, #252824);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+body[data-theme="night"] .journey-rank-card.is-my-group {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10b981;
+}
+
+body[data-theme="night"] .journey-tag-district {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ink-soft, #94a3b8);
+}
+
+body[data-theme="night"] .journey-progress-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ==========================================================================
    同行足跡 (Companion Footprints) - 10 週時間軸與本月 8 大成果卡
    ========================================================================== */
 
