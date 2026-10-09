@@ -485,6 +485,195 @@ class OptimisticPracticeStore {
       this.isReplaying = false;
     }
   }
+
+  /**
+   * 三向聯集整併演算法 (Three-Way Union Merge)
+   * 當背景 getPractice 返回伺服器狀態 S 時，若本地存在在途點擊 P 或離線佇列 O，採單調邏輯 OR 聯集：
+   * Merged = S or P or O
+   * 任何一端已打卡的項目，整併後絕對保留，操練成果只增不減、絕不覆蓋。
+   */
+  mergeServerPractice(serverData) {
+    if (!serverData) return { dailyState: this.dailyState, meetingState: this.meetingState };
+    const payload = serverData.data || serverData;
+
+    // 1. 今日操練整併
+    const todayStr = payload.todayStr;
+    const sDaily = payload.daily || payload.todayDaily;
+    if (todayStr && sDaily) {
+      if (!this.dailyState[todayStr]) {
+        this.dailyState[todayStr] = {
+          morning: false,
+          morningRevival: false,
+          bible: false,
+          bibleReading: false,
+          prayer: false,
+          book: false,
+          bookPursuit: false,
+          packedValue: 0,
+          syncStatus: 'synced',
+          hasAmberDot: false
+        };
+      }
+      const cur = this.dailyState[todayStr];
+      const pending = (this.pendingDaily && this.pendingDaily.get(todayStr)) || null;
+
+      const morning = Boolean(cur.morning || sDaily.morning || sDaily.morningRevival || (pending && (pending.morning || pending.morningRevival)));
+      const bible = Boolean(cur.bible || sDaily.bible || sDaily.bibleReading || (pending && (pending.bible || pending.bibleReading)));
+      const prayer = Boolean(cur.prayer || sDaily.prayer || (pending && pending.prayer));
+      const book = Boolean(cur.book || sDaily.book || sDaily.bookPursuit || (pending && (pending.book || pending.bookPursuit)));
+
+      cur.morning = morning;
+      cur.morningRevival = morning;
+      cur.bible = bible;
+      cur.bibleReading = bible;
+      cur.prayer = prayer;
+      cur.book = book;
+      cur.bookPursuit = book;
+      cur.packedValue = packBase100(morning, bible, prayer, book);
+
+      const isFullyConfirmed = (!cur.morning || sDaily.morning || sDaily.morningRevival) &&
+                                (!cur.bible || sDaily.bible || sDaily.bibleReading) &&
+                                (!cur.prayer || sDaily.prayer) &&
+                                (!cur.book || sDaily.book || sDaily.bookPursuit);
+
+      if (!pending && (cur.syncStatus !== 'error' || isFullyConfirmed)) {
+        cur.syncStatus = 'synced';
+        cur.hasAmberDot = false;
+      }
+      this.notify('DAILY', todayStr, { ...cur });
+    }
+
+    // 2. 昨日操練整併
+    const yesterdayStr = payload.yesterdayStr;
+    const sYDaily = payload.yesterdayDaily;
+    if (yesterdayStr && sYDaily) {
+      if (!this.dailyState[yesterdayStr]) {
+        this.dailyState[yesterdayStr] = {
+          morning: false,
+          morningRevival: false,
+          bible: false,
+          bibleReading: false,
+          prayer: false,
+          book: false,
+          bookPursuit: false,
+          packedValue: 0,
+          syncStatus: 'synced',
+          hasAmberDot: false
+        };
+      }
+      const curY = this.dailyState[yesterdayStr];
+      const pendingY = (this.pendingDaily && this.pendingDaily.get(yesterdayStr)) || null;
+
+      const morningY = Boolean(curY.morning || sYDaily.morning || sYDaily.morningRevival || (pendingY && (pendingY.morning || pendingY.morningRevival)));
+      const bibleY = Boolean(curY.bible || sYDaily.bible || sYDaily.bibleReading || (pendingY && (pendingY.bible || pendingY.bibleReading)));
+      const prayerY = Boolean(curY.prayer || sYDaily.prayer || (pendingY && pendingY.prayer));
+      const bookY = Boolean(curY.book || sYDaily.book || sYDaily.bookPursuit || (pendingY && (pendingY.book || pendingY.bookPursuit)));
+
+      curY.morning = morningY;
+      curY.morningRevival = morningY;
+      curY.bible = bibleY;
+      curY.bibleReading = bibleY;
+      curY.prayer = prayerY;
+      curY.book = bookY;
+      curY.bookPursuit = bookY;
+      curY.packedValue = packBase100(morningY, bibleY, prayerY, bookY);
+
+      const isFullyConfirmedY = (!curY.morning || sYDaily.morning || sYDaily.morningRevival) &&
+                                (!curY.bible || sYDaily.bible || sYDaily.bibleReading) &&
+                                (!curY.prayer || sYDaily.prayer) &&
+                                (!curY.book || sYDaily.book || sYDaily.bookPursuit);
+
+      if (!pendingY && (curY.syncStatus !== 'error' || isFullyConfirmedY)) {
+        curY.syncStatus = 'synced';
+        curY.hasAmberDot = false;
+      }
+      this.notify('DAILY', yesterdayStr, { ...curY });
+    }
+
+    // 3. 本週聚會整併
+    const weekKey = payload.weekKey;
+    const sMeeting = payload.meeting;
+    if (weekKey && sMeeting) {
+      if (!this.meetingState[weekKey]) {
+        this.meetingState[weekKey] = {
+          smallGroup: false,
+          prayerMeeting: false,
+          lordDayMeeting: false,
+          outreachVisit: false,
+          packedValue: 0,
+          syncStatus: 'synced',
+          hasAmberDot: false
+        };
+      }
+      const curM = this.meetingState[weekKey];
+      const pendingM = (this.pendingMeeting && this.pendingMeeting.get(weekKey)) || null;
+
+      const smallGroup = Boolean(curM.smallGroup || sMeeting.smallGroup || sMeeting.group || (pendingM && (pendingM.smallGroup || pendingM.group)));
+      const prayerMeeting = Boolean(curM.prayerMeeting || sMeeting.prayerMeeting || sMeeting.prayerMtg || (pendingM && (pendingM.prayerMeeting || pendingM.prayerMtg)));
+      const lordDayMeeting = Boolean(curM.lordDayMeeting || sMeeting.lordDayMeeting || sMeeting.lordDay || (pendingM && (pendingM.lordDayMeeting || pendingM.lordDay)));
+      const outreachVisit = Boolean(curM.outreachVisit || sMeeting.outreachVisit || sMeeting.outreach || sMeeting.blend || sMeeting.mutual || (pendingM && (pendingM.outreachVisit || pendingM.outreach)));
+
+      curM.smallGroup = smallGroup;
+      curM.prayerMeeting = prayerMeeting;
+      curM.lordDayMeeting = lordDayMeeting;
+      curM.outreachVisit = outreachVisit;
+      curM.packedValue = packBase100(smallGroup, prayerMeeting, lordDayMeeting, outreachVisit);
+
+      const isFullyConfirmedM = (!curM.smallGroup || sMeeting.smallGroup || sMeeting.group) &&
+                                (!curM.prayerMeeting || sMeeting.prayerMeeting || sMeeting.prayerMtg) &&
+                                (!curM.lordDayMeeting || sMeeting.lordDayMeeting || sMeeting.lordDay) &&
+                                (!curM.outreachVisit || sMeeting.outreachVisit || sMeeting.outreach || sMeeting.blend || sMeeting.mutual);
+
+      if (!pendingM && (curM.syncStatus !== 'error' || isFullyConfirmedM)) {
+        curM.syncStatus = 'synced';
+        curM.hasAmberDot = false;
+      }
+      this.notify('MEETING', weekKey, { ...curM });
+    }
+
+    // 4. 上週聚會整併
+    const lastWeekKey = payload.lastWeekKey;
+    const sLastMeeting = payload.lastWeekMeeting;
+    if (lastWeekKey && sLastMeeting) {
+      if (!this.meetingState[lastWeekKey]) {
+        this.meetingState[lastWeekKey] = {
+          smallGroup: false,
+          prayerMeeting: false,
+          lordDayMeeting: false,
+          outreachVisit: false,
+          packedValue: 0,
+          syncStatus: 'synced',
+          hasAmberDot: false
+        };
+      }
+      const curLM = this.meetingState[lastWeekKey];
+      const pendingLM = (this.pendingMeeting && this.pendingMeeting.get(lastWeekKey)) || null;
+
+      const smallGroupLM = Boolean(curLM.smallGroup || sLastMeeting.smallGroup || sLastMeeting.group || (pendingLM && (pendingLM.smallGroup || pendingLM.group)));
+      const prayerMeetingLM = Boolean(curLM.prayerMeeting || sLastMeeting.prayerMeeting || sLastMeeting.prayerMtg || (pendingLM && (pendingLM.prayerMeeting || pendingLM.prayerMtg)));
+      const lordDayMeetingLM = Boolean(curLM.lordDayMeeting || sLastMeeting.lordDayMeeting || sLastMeeting.lordDay || (pendingLM && (pendingLM.lordDayMeeting || pendingLM.lordDay)));
+      const outreachVisitLM = Boolean(curLM.outreachVisit || sLastMeeting.outreachVisit || sLastMeeting.outreach || sLastMeeting.blend || sLastMeeting.mutual || (pendingLM && (pendingLM.outreachVisit || pendingLM.outreach)));
+
+      curLM.smallGroup = smallGroupLM;
+      curLM.prayerMeeting = prayerMeetingLM;
+      curLM.lordDayMeeting = lordDayMeetingLM;
+      curLM.outreachVisit = outreachVisitLM;
+      curLM.packedValue = packBase100(smallGroupLM, prayerMeetingLM, lordDayMeetingLM, outreachVisitLM);
+
+      const isFullyConfirmedLM = (!curLM.smallGroup || sLastMeeting.smallGroup || sLastMeeting.group) &&
+                                 (!curLM.prayerMeeting || sLastMeeting.prayerMeeting || sLastMeeting.prayerMtg) &&
+                                 (!curLM.lordDayMeeting || sLastMeeting.lordDayMeeting || sLastMeeting.lordDay) &&
+                                 (!curLM.outreachVisit || sLastMeeting.outreachVisit || sLastMeeting.outreach || sLastMeeting.blend || sLastMeeting.mutual);
+
+      if (!pendingLM && (curLM.syncStatus !== 'error' || isFullyConfirmedLM)) {
+        curLM.syncStatus = 'synced';
+        curLM.hasAmberDot = false;
+      }
+      this.notify('MEETING', lastWeekKey, { ...curLM });
+    }
+
+    return { dailyState: this.dailyState, meetingState: this.meetingState };
+  }
 }
 
   if (typeof module !== 'undefined' && module.exports) {

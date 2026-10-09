@@ -88,7 +88,7 @@
     if (AuthViewClass) {
       authView = new AuthViewClass({
         apiClient: apiClient,
-        onLoginSuccess: (profile, group) => handleLoginSuccess(profile, group)
+        onLoginSuccess: (profile, group, practice) => handleLoginSuccess(profile, group, practice)
       });
     }
 
@@ -161,7 +161,7 @@
     }
   }
 
-  async function loadUserData(isColdStart = true) {
+  async function loadUserData(isColdStart = true, options = {}) {
     try {
       // 0. 本地水合 (0ms rendering，僅限冷啟動首屏秒開；在線刷新時絕不拿舊快取覆蓋記憶體最新狀態)
       if (isColdStart) {
@@ -282,109 +282,118 @@
       const gId = currentUserProfile?.groupId;
       const matrixColIndex = currentUserProfile?.matrixColIndex;
 
-      if (dashboardView && typeof dashboardView.setSyncLock === 'function') {
-        dashboardView.setSyncLock(true);
-      }
-
-      // 平行發起極速 getPractice，專供首頁儀表板 2 個單元格更新與解鎖
-      apiClient.getPractice().then(pRes => {
-        if (pRes && pRes.success && pRes.data) {
-          const today = dashboardView.currentDate || pRes.data.todayStr || (dashboardView.getTodayDateString && dashboardView.getTodayDateString());
-          const yesterday = pRes.data.yesterdayStr || (dashboardView.getYesterdayDateString && dashboardView.getYesterdayDateString(today));
-          const curWeek = dashboardView.currentWeekKey || pRes.data.weekKey || (dashboardView.getCurrentWeekKey && dashboardView.getCurrentWeekKey());
-          const lastWeek = pRes.data.lastWeekKey || '';
-          const dRec = pRes.data.daily || {};
-          const yRec = pRes.data.yesterdayDaily || null;
-          const mRec = pRes.data.meeting || {};
-          const lastMRec = pRes.data.lastWeekMeeting || null;
-          
-          const pendingD = (practiceStore.pendingDaily && practiceStore.pendingDaily.get(today)) || null;
-          practiceStore.dailyState[today] = {
-            morning: pendingD ? pendingD.morning : Boolean(dRec.morning || dRec.morningRevival),
-            morningRevival: pendingD ? pendingD.morningRevival : Boolean(dRec.morning || dRec.morningRevival),
-            bible: pendingD ? pendingD.bible : Boolean(dRec.bible || dRec.bibleReading),
-            bibleReading: pendingD ? pendingD.bibleReading : Boolean(dRec.bible || dRec.bibleReading),
-            prayer: pendingD ? pendingD.prayer : Boolean(dRec.prayer),
-            book: pendingD ? pendingD.book : Boolean(dRec.book || dRec.bookPursuit),
-            bookPursuit: pendingD ? pendingD.bookPursuit : Boolean(dRec.book || dRec.bookPursuit),
-            syncStatus: pendingD ? 'pending' : 'synced',
-            hasAmberDot: false
-          };
-
-          if (yesterday && yRec) {
-            const pendingY = (practiceStore.pendingDaily && practiceStore.pendingDaily.get(yesterday)) || null;
-            practiceStore.dailyState[yesterday] = {
-              morning: pendingY ? pendingY.morning : Boolean(yRec.morning || yRec.morningRevival),
-              morningRevival: pendingY ? pendingY.morningRevival : Boolean(yRec.morning || yRec.morningRevival),
-              bible: pendingY ? pendingY.bible : Boolean(yRec.bible || yRec.bibleReading),
-              bibleReading: pendingY ? pendingY.bibleReading : Boolean(yRec.bible || yRec.bibleReading),
-              prayer: pendingY ? pendingY.prayer : Boolean(yRec.prayer),
-              book: pendingY ? pendingY.book : Boolean(yRec.book || yRec.bookPursuit),
-              bookPursuit: pendingY ? pendingY.bookPursuit : Boolean(yRec.book || yRec.bookPursuit),
-              syncStatus: pendingY ? 'pending' : 'synced',
-              hasAmberDot: false
-            };
-          }
-
-          const pendingM = (practiceStore.pendingMeeting && practiceStore.pendingMeeting.get(curWeek)) || null;
-          practiceStore.meetingState[curWeek] = {
-            smallGroup: pendingM ? pendingM.smallGroup : Boolean(mRec.group || mRec.smallGroup),
-            prayerMeeting: pendingM ? pendingM.prayerMeeting : Boolean(mRec.prayerMtg || mRec.prayerMeeting),
-            lordDayMeeting: pendingM ? pendingM.lordDayMeeting : Boolean(mRec.lordDay || mRec.lordDayMeeting),
-            outreachVisit: pendingM ? pendingM.outreachVisit : Boolean(mRec.outreach || mRec.outreachVisit || mRec.blend || mRec.mutual),
-            syncStatus: pendingM ? 'pending' : 'synced',
-            hasAmberDot: false
-          };
-
-          if (lastWeek && lastMRec) {
-            practiceStore.meetingState[lastWeek] = {
-              smallGroup: Boolean(lastMRec.group || lastMRec.smallGroup),
-              prayerMeeting: Boolean(lastMRec.prayerMtg || lastMRec.prayerMeeting),
-              lordDayMeeting: Boolean(lastMRec.lordDay || lastMRec.lordDayMeeting),
-              outreachVisit: Boolean(lastMRec.outreach || lastMRec.outreachVisit || lastMRec.blend || lastMRec.mutual),
-              syncStatus: 'synced',
-              hasAmberDot: false
-            };
-          }
-
-          if (pId && typeof localStorage !== 'undefined') {
-            try {
-              let dailyToSave = {};
-              const existingDailyStr = localStorage.getItem(`vital_daily_records_${pId}`);
-              if (existingDailyStr) {
-                try { dailyToSave = JSON.parse(existingDailyStr) || {}; } catch(e) {}
-              }
-              dailyToSave[today] = practiceStore.dailyState[today];
-              if (yesterday && practiceStore.dailyState[yesterday]) {
-                dailyToSave[yesterday] = practiceStore.dailyState[yesterday];
-              }
-              localStorage.setItem(`vital_daily_records_${pId}`, JSON.stringify(dailyToSave));
-
-              let meetingToSave = {};
-              const existingMtgStr = localStorage.getItem(`vital_meeting_records_${pId}`);
-              if (existingMtgStr) {
-                try { meetingToSave = JSON.parse(existingMtgStr) || {}; } catch(e) {}
-              }
-              meetingToSave[curWeek] = practiceStore.meetingState[curWeek];
-              if (lastWeek && practiceStore.meetingState[lastWeek]) {
-                meetingToSave[lastWeek] = practiceStore.meetingState[lastWeek];
-              }
-              localStorage.setItem(`vital_meeting_records_${pId}`, JSON.stringify(meetingToSave));
-            } catch (e) {}
-          }
-          if (dashboardView) {
-            dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
-            dashboardView.renderMeetingPracticeState(practiceStore.meetingState[curWeek]);
-            dashboardView.setSyncLock(false);
-          }
-        }
-      }).catch(err => {
-        console.warn('[App] getPractice 快速載入略過:', err);
-      }).finally(() => {
+      if (options.skipPractice) {
         if (dashboardView && typeof dashboardView.setSyncLock === 'function') {
           dashboardView.setSyncLock(false);
         }
-      });
+      } else {
+        if (dashboardView && typeof dashboardView.setSyncLock === 'function') {
+          dashboardView.setSyncLock(true);
+        }
+
+        // 平行發起極速 getPractice，專供首頁儀表板 2 個單元格更新與解鎖
+        apiClient.getPractice().then(pRes => {
+          if (pRes && pRes.success && pRes.data) {
+            if (practiceStore && typeof practiceStore.mergeServerPractice === 'function') {
+              practiceStore.mergeServerPractice(pRes.data);
+            }
+            const today = dashboardView.currentDate || pRes.data.todayStr || (dashboardView.getTodayDateString && dashboardView.getTodayDateString());
+            const yesterday = pRes.data.yesterdayStr || (dashboardView.getYesterdayDateString && dashboardView.getYesterdayDateString(today));
+            const curWeek = dashboardView.currentWeekKey || pRes.data.weekKey || (dashboardView.getCurrentWeekKey && dashboardView.getCurrentWeekKey());
+            const lastWeek = pRes.data.lastWeekKey || '';
+            const dRec = pRes.data.daily || {};
+            const yRec = pRes.data.yesterdayDaily || null;
+            const mRec = pRes.data.meeting || {};
+            const lastMRec = pRes.data.lastWeekMeeting || null;
+            
+            const pendingD = (practiceStore.pendingDaily && practiceStore.pendingDaily.get(today)) || null;
+            practiceStore.dailyState[today] = {
+              morning: pendingD ? pendingD.morning : Boolean(dRec.morning || dRec.morningRevival),
+              morningRevival: pendingD ? pendingD.morningRevival : Boolean(dRec.morning || dRec.morningRevival),
+              bible: pendingD ? pendingD.bible : Boolean(dRec.bible || dRec.bibleReading),
+              bibleReading: pendingD ? pendingD.bibleReading : Boolean(dRec.bible || dRec.bibleReading),
+              prayer: pendingD ? pendingD.prayer : Boolean(dRec.prayer),
+              book: pendingD ? pendingD.book : Boolean(dRec.book || dRec.bookPursuit),
+              bookPursuit: pendingD ? pendingD.bookPursuit : Boolean(dRec.book || dRec.bookPursuit),
+              syncStatus: pendingD ? 'pending' : 'synced',
+              hasAmberDot: false
+            };
+
+            if (yesterday && yRec) {
+              const pendingY = (practiceStore.pendingDaily && practiceStore.pendingDaily.get(yesterday)) || null;
+              practiceStore.dailyState[yesterday] = {
+                morning: pendingY ? pendingY.morning : Boolean(yRec.morning || yRec.morningRevival),
+                morningRevival: pendingY ? pendingY.morningRevival : Boolean(yRec.morning || yRec.morningRevival),
+                bible: pendingY ? pendingY.bible : Boolean(yRec.bible || yRec.bibleReading),
+                bibleReading: pendingY ? pendingY.bibleReading : Boolean(yRec.bible || yRec.bibleReading),
+                prayer: pendingY ? pendingY.prayer : Boolean(yRec.prayer),
+                book: pendingY ? pendingY.book : Boolean(yRec.book || yRec.bookPursuit),
+                bookPursuit: pendingY ? pendingY.bookPursuit : Boolean(yRec.book || yRec.bookPursuit),
+                syncStatus: pendingY ? 'pending' : 'synced',
+                hasAmberDot: false
+              };
+            }
+
+            const pendingM = (practiceStore.pendingMeeting && practiceStore.pendingMeeting.get(curWeek)) || null;
+            practiceStore.meetingState[curWeek] = {
+              smallGroup: pendingM ? pendingM.smallGroup : Boolean(mRec.group || mRec.smallGroup),
+              prayerMeeting: pendingM ? pendingM.prayerMeeting : Boolean(mRec.prayerMtg || mRec.prayerMeeting),
+              lordDayMeeting: pendingM ? pendingM.lordDayMeeting : Boolean(mRec.lordDay || mRec.lordDayMeeting),
+              outreachVisit: pendingM ? pendingM.outreachVisit : Boolean(mRec.outreach || mRec.outreachVisit || mRec.blend || mRec.mutual),
+              syncStatus: pendingM ? 'pending' : 'synced',
+              hasAmberDot: false
+            };
+
+            if (lastWeek && lastMRec) {
+              practiceStore.meetingState[lastWeek] = {
+                smallGroup: Boolean(lastMRec.group || lastMRec.smallGroup),
+                prayerMeeting: Boolean(lastMRec.prayerMtg || lastMRec.prayerMeeting),
+                lordDayMeeting: Boolean(lastMRec.lordDay || lastMRec.lordDayMeeting),
+                outreachVisit: Boolean(lastMRec.outreach || lastMRec.outreachVisit || lastMRec.blend || lastMRec.mutual),
+                syncStatus: 'synced',
+                hasAmberDot: false
+              };
+            }
+
+            if (pId && typeof localStorage !== 'undefined') {
+              try {
+                let dailyToSave = {};
+                const existingDailyStr = localStorage.getItem(`vital_daily_records_${pId}`);
+                if (existingDailyStr) {
+                  try { dailyToSave = JSON.parse(existingDailyStr) || {}; } catch(e) {}
+                }
+                dailyToSave[today] = practiceStore.dailyState[today];
+                if (yesterday && practiceStore.dailyState[yesterday]) {
+                  dailyToSave[yesterday] = practiceStore.dailyState[yesterday];
+                }
+                localStorage.setItem(`vital_daily_records_${pId}`, JSON.stringify(dailyToSave));
+
+                let meetingToSave = {};
+                const existingMtgStr = localStorage.getItem(`vital_meeting_records_${pId}`);
+                if (existingMtgStr) {
+                  try { meetingToSave = JSON.parse(existingMtgStr) || {}; } catch(e) {}
+                }
+                meetingToSave[curWeek] = practiceStore.meetingState[curWeek];
+                if (lastWeek && practiceStore.meetingState[lastWeek]) {
+                  meetingToSave[lastWeek] = practiceStore.meetingState[lastWeek];
+                }
+                localStorage.setItem(`vital_meeting_records_${pId}`, JSON.stringify(meetingToSave));
+              } catch (e) {}
+            }
+            if (dashboardView) {
+              dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
+              dashboardView.renderMeetingPracticeState(practiceStore.meetingState[curWeek]);
+              dashboardView.setSyncLock(false);
+            }
+          }
+        }).catch(err => {
+          console.warn('[App] getPractice 快速載入略過:', err);
+        }).finally(() => {
+          if (dashboardView && typeof dashboardView.setSyncLock === 'function') {
+            dashboardView.setSyncLock(false);
+          }
+        });
+      }
 
       // 取得組員名單時，直接帶入登入時取得的 activeMembers，免除後端重查 Groups 表
       const activeMembersObj = currentUserProfile?.activeMembers || (() => {
@@ -1255,7 +1264,7 @@
     await loadUserData(false);
   }
 
-  function handleLoginSuccess(profile, group = null) {
+  function handleLoginSuccess(profile, group = null, initialPractice = null) {
     currentUserProfile = profile;
     if (group && typeof group === 'object') {
       const gid = group.groupId || profile?.groupId;
@@ -1278,10 +1287,63 @@
         localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
       } catch (e) {}
     }
+
+    // 若後端登入直接夾帶 practice 資料（全新 B 裝置登入 0ms 秒開點亮打卡）
+    if (initialPractice && practiceStore) {
+      if (typeof practiceStore.mergeServerPractice === 'function') {
+        practiceStore.mergeServerPractice(initialPractice);
+      }
+      const pid = currentUserProfile?.playerId;
+      const today = initialPractice.todayStr || (dashboardView && dashboardView.currentDate);
+      const curWeek = initialPractice.weekKey || (dashboardView && dashboardView.currentWeekKey);
+      
+      // 快取打卡至本地儲存
+      if (pid && typeof localStorage !== 'undefined') {
+        try {
+          if (today && practiceStore.dailyState[today]) {
+            let dailyToSave = {};
+            const existingDailyStr = localStorage.getItem(`vital_daily_records_${pid}`);
+            if (existingDailyStr) {
+              try { dailyToSave = JSON.parse(existingDailyStr) || {}; } catch(e) {}
+            }
+            dailyToSave[today] = practiceStore.dailyState[today];
+            if (initialPractice.yesterdayStr && practiceStore.dailyState[initialPractice.yesterdayStr]) {
+              dailyToSave[initialPractice.yesterdayStr] = practiceStore.dailyState[initialPractice.yesterdayStr];
+            }
+            localStorage.setItem(`vital_daily_records_${pid}`, JSON.stringify(dailyToSave));
+          }
+          if (curWeek && practiceStore.meetingState[curWeek]) {
+            let meetingToSave = {};
+            const existingMtgStr = localStorage.getItem(`vital_meeting_records_${pid}`);
+            if (existingMtgStr) {
+              try { meetingToSave = JSON.parse(existingMtgStr) || {}; } catch(e) {}
+            }
+            meetingToSave[curWeek] = practiceStore.meetingState[curWeek];
+            if (initialPractice.lastWeekKey && practiceStore.meetingState[initialPractice.lastWeekKey]) {
+              meetingToSave[initialPractice.lastWeekKey] = practiceStore.meetingState[initialPractice.lastWeekKey];
+            }
+            localStorage.setItem(`vital_meeting_records_${pid}`, JSON.stringify(meetingToSave));
+          }
+        } catch(e) {}
+      }
+
+      if (dashboardView) {
+        if (today && practiceStore.dailyState[today]) {
+          dashboardView.renderDailyPracticeState(practiceStore.dailyState[today]);
+        }
+        if (curWeek && practiceStore.meetingState[curWeek]) {
+          dashboardView.renderMeetingPracticeState(practiceStore.meetingState[curWeek]);
+        }
+        if (typeof dashboardView.setSyncLock === 'function') {
+          dashboardView.setSyncLock(false);
+        }
+      }
+    }
+
     if (profileView && typeof profileView.showHome === 'function') {
       profileView.showHome();
     }
-    loadUserData(false);
+    loadUserData(false, { skipPractice: Boolean(initialPractice) });
   }
 
   function handleAvatarUpdated(newUrl, newName) {

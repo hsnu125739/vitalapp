@@ -64,12 +64,13 @@
             if (res && res.success) {
               const profile = (res.data && res.data.player) || res.player || (res.data && res.data.profile) || res.profile || res.data || {};
               const group = (res.data && res.data.group) !== undefined ? res.data.group : (res.group || null);
+              const practice = (res.data && res.data.practice) !== undefined ? res.data.practice : (res.practice || null);
               if (keepLogin && typeof localStorage !== 'undefined') {
                 localStorage.setItem('vital_keep_login', 'true');
               }
               this.hideAuth();
               if (typeof this.onLoginSuccess === 'function') {
-                this.onLoginSuccess(profile, group);
+                this.onLoginSuccess(profile, group, practice);
               }
             } else {
               this.showMessage((res && (res.error || res.message)) || '帳號或密碼錯誤', 'error');
