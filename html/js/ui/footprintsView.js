@@ -566,17 +566,43 @@
     }
 
     /**
-     * 取得今日的即時打卡狀態（from practiceStore）
+     * 取得今日的即時打卡狀態（from practiceStore 或 dailyRecords）
      */
     getLiveToday_(fallbackDate) {
+      const targetDate = this.getTodayDateString_(fallbackDate);
       const store = this.practiceStore
         || (typeof window !== 'undefined' && window.practiceStore)
         || (typeof global !== 'undefined' && global.practiceStore)
         || (typeof AppCoordinator !== 'undefined' && AppCoordinator.practiceStore)
         || (typeof dashboardView !== 'undefined' && dashboardView && dashboardView.practiceStore)
         || null;
-      if (!store || !store.dailyState) return null;
-      return store.dailyState[this.getTodayDateString_(fallbackDate)] || null;
+      if (store && store.dailyState && store.dailyState[targetDate]) {
+        return store.dailyState[targetDate];
+      }
+      if (this.currentData && this.currentData.dailyRecords && this.currentData.dailyRecords[targetDate]) {
+        return this.currentData.dailyRecords[targetDate];
+      }
+      return null;
+    }
+
+    /**
+     * 取得當週的即時聚會打卡狀態（from practiceStore 或 meetingRecords）
+     */
+    getLiveMeeting_(weekKey) {
+      if (!weekKey) return null;
+      const store = this.practiceStore
+        || (typeof window !== 'undefined' && window.practiceStore)
+        || (typeof global !== 'undefined' && global.practiceStore)
+        || (typeof AppCoordinator !== 'undefined' && AppCoordinator.practiceStore)
+        || (typeof dashboardView !== 'undefined' && dashboardView && dashboardView.practiceStore)
+        || null;
+      if (store && store.meetingState && store.meetingState[weekKey]) {
+        return store.meetingState[weekKey];
+      }
+      if (this.currentData && this.currentData.meetingRecords && this.currentData.meetingRecords[weekKey]) {
+        return this.currentData.meetingRecords[weekKey];
+      }
+      return null;
     }
 
     /**
@@ -689,16 +715,50 @@
       const baseFullAttendanceDays = Number(month.fullAttendanceDays ?? month.perfectDays ?? month.fullDays ?? 0);
       const fullAttendanceDays = baseFullAttendanceDays + (isLiveFull ? 1 : 0);
 
-      // 8 大成果項目定義 (4 每日操練天數動態水合 + 4 每週聚會次數)
+      // 取得當週即時聚會水合狀態 (from practiceStore / meetingRecords / weeks)
+      const weeks = this.currentData && (this.currentData.weeks || this.currentData.weekly);
+      const curWeek = (Array.isArray(weeks) && weeks.length > 0)
+        ? (weeks.find(w => Boolean(w.isCurrentWeek)) || weeks[0])
+        : null;
+      const curWeekKey = (curWeek && curWeek.weekKey) || null;
+      const liveMeeting = curWeekKey ? this.getLiveMeeting_(curWeekKey) : null;
+
+      // 判斷當週代表日是否屬於本月 (週四定年/定月原則)
+      const curWeekRepDate = (curWeek && curWeek.startDate)
+        ? new Date(new Date(curWeek.startDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10)
+        : todayStr;
+      const isCurWeekInMonth = Boolean(curWeekRepDate && curWeekRepDate.startsWith(monthKey));
+
+      const baseGroup = Boolean(curWeek && (curWeek.groupMeetingCompleted || (curWeek.meeting && (curWeek.meeting.smallGroup || curWeek.meeting.group))));
+      const basePrayer = Boolean(curWeek && (curWeek.prayerMeetingCompleted || (curWeek.meeting && (curWeek.meeting.prayerMeeting || curWeek.meeting.prayerMtg))));
+      const baseLordDay = Boolean(curWeek && (curWeek.lordDayCompleted || (curWeek.meeting && (curWeek.meeting.lordDayMeeting || curWeek.meeting.lordDay))));
+      const baseVisit = Boolean(curWeek && (curWeek.visitCompleted || (curWeek.meeting && (curWeek.meeting.outreachVisit || curWeek.meeting.outreach))));
+
+      const liveGroup = liveMeeting ? Boolean(liveMeeting.smallGroup || liveMeeting.group) : baseGroup;
+      const livePrayer = liveMeeting ? Boolean(liveMeeting.prayerMeeting || liveMeeting.prayerMtg) : basePrayer;
+      const liveLordDay = liveMeeting ? Boolean(liveMeeting.lordDayMeeting || liveMeeting.lordDay) : baseLordDay;
+      const liveVisit = liveMeeting ? Boolean(liveMeeting.outreachVisit || liveMeeting.outreach) : baseVisit;
+
+      const groupDelta = isCurWeekInMonth ? ((liveGroup ? 1 : 0) - (baseGroup ? 1 : 0)) : 0;
+      const prayerDelta = isCurWeekInMonth ? ((livePrayer ? 1 : 0) - (basePrayer ? 1 : 0)) : 0;
+      const lordDayDelta = isCurWeekInMonth ? ((liveLordDay ? 1 : 0) - (baseLordDay ? 1 : 0)) : 0;
+      const visitDelta = isCurWeekInMonth ? ((liveVisit ? 1 : 0) - (baseVisit ? 1 : 0)) : 0;
+
+      const groupCount = Math.max(0, Number(month.groupMeetingCount || month.groupDays || 0) + groupDelta);
+      const prayerCount = Math.max(0, Number(month.prayerMeetingCount || month.prayerMeetingDays || 0) + prayerDelta);
+      const lordDayCount = Math.max(0, Number(month.lordDayMeetingCount || month.lordDayDays || 0) + lordDayDelta);
+      const visitCount = Math.max(0, Number(month.visitCount || 0) + visitDelta);
+
+      // 8 大成果項目定義 (4 每日操練天數動態水合 + 4 每週聚會次數動態水合)
       const statsList = [
         { label: '晨興天數', value: Number(month.morningDays || 0) + (isLiveMorning ? 1 : 0), icon: '🌅', unit: '天' },
         { label: '讀經天數', value: Number(month.bibleDays || 0) + (isLiveBible ? 1 : 0), icon: '📖', unit: '天' },
         { label: '禱告天數', value: Number(month.prayerDays || 0) + (isLivePrayer ? 1 : 0), icon: '🙏', unit: '天' },
         { label: '書報天數', value: Number(month.bookDays || month.readingDays || 0) + (isLiveBook ? 1 : 0), icon: '📚', unit: '天' },
-        { label: '小排聚會', value: month.groupMeetingCount || month.groupDays || 0, icon: '👥', unit: '次' },
-        { label: '禱告聚會', value: month.prayerMeetingCount || month.prayerMeetingDays || 0, icon: '🔥', unit: '次' },
-        { label: '主日聚會', value: month.lordDayMeetingCount || month.lordDayDays || 0, icon: '🍞', unit: '次' },
-        { label: '相調探訪', value: month.visitCount || 0, icon: '🤝', unit: '次' }
+        { label: '小排聚會', value: groupCount, icon: '👥', unit: '次' },
+        { label: '禱告聚會', value: prayerCount, icon: '🔥', unit: '次' },
+        { label: '主日聚會', value: lordDayCount, icon: '🍞', unit: '次' },
+        { label: '相調探訪', value: visitCount, icon: '🤝', unit: '次' }
       ];
 
       const statsCards = statsList.map(item => `
@@ -747,6 +807,7 @@
       }
 
       const hasExplicitCurrent = weeks.some(wk => Boolean(wk.isCurrentWeek));
+      const todayStr = (this.currentData && this.currentData.today) || this.getTodayDateString_();
       const weekArticles = weeks.map((w, index) => {
         const isCurrent = Boolean(w.isCurrentWeek || (index === 0 && !hasExplicitCurrent));
         const completedDays = Number(w.completedDays || 0);
@@ -757,11 +818,20 @@
         const isExpanded = isCurrent || expandedKeys.has(w.weekKey);
         const defaultExpanded = isExpanded ? 'is-expanded' : '';
 
-        // 聚會完成標記摘要文字
-        const groupDone = Boolean(w.groupMeetingCompleted || (w.meeting && (w.meeting.smallGroup || w.meeting.group)));
-        const prayerDone = Boolean(w.prayerMeetingCompleted || (w.meeting && (w.meeting.prayerMeeting || w.meeting.prayerMtg)));
-        const lordDayDone = Boolean(w.lordDayCompleted || (w.meeting && (w.meeting.lordDayMeeting || w.meeting.lordDay)));
-        const visitSelf = Boolean(w.visitCompleted || (w.meeting && (w.meeting.outreachVisit || w.meeting.outreach)));
+        // 聚會完成標記摘要文字（即時水合 practiceStore / meetingRecords）
+        const liveM = isCurrent ? this.getLiveMeeting_(w.weekKey) : null;
+        const groupDone = liveM
+          ? Boolean(liveM.smallGroup || liveM.group)
+          : Boolean(w.groupMeetingCompleted || (w.meeting && (w.meeting.smallGroup || w.meeting.group)));
+        const prayerDone = liveM
+          ? Boolean(liveM.prayerMeeting || liveM.prayerMtg)
+          : Boolean(w.prayerMeetingCompleted || (w.meeting && (w.meeting.prayerMeeting || w.meeting.prayerMtg)));
+        const lordDayDone = liveM
+          ? Boolean(liveM.lordDayMeeting || liveM.lordDay)
+          : Boolean(w.lordDayCompleted || (w.meeting && (w.meeting.lordDayMeeting || w.meeting.lordDay)));
+        const visitSelf = liveM
+          ? Boolean(liveM.outreachVisit || liveM.outreach)
+          : Boolean(w.visitCompleted || (w.meeting && (w.meeting.outreachVisit || w.meeting.outreach)));
         const visitQualified = Boolean(w.isOutreachQualified || (w.meeting && w.meeting.isOutreachQualified));
 
         let visitSummary = '▫️ 探訪';
@@ -782,13 +852,14 @@
 
         // 7 天清單列
         const days = Array.isArray(w.days) ? w.days : [];
+        let wMorningActive = 0, wBibleActive = 0, wPrayerActive = 0, wBookActive = 0;
         const daysRows = days.map(d => {
           const dName = DAY_NAMES[d.dayOfWeek] || '';
           const dDate = String(d.date || d.recordDate || '').slice(5).replace('-', '/');
-          const isToday = Boolean(d.isToday);
+          const isToday = Boolean(d.isToday || (todayStr && (d.date === todayStr || d.recordDate === todayStr)));
           const score = Number(d.dailyScore || 0);
 
-          const liveToday = isToday ? this.getLiveToday_() : null;
+          const liveToday = isToday ? this.getLiveToday_(todayStr) : null;
           const mActive = liveToday
             ? Boolean(liveToday.morning || liveToday.morningRevival)
             : Boolean(d.morningCompleted || d.morningRevival || d.morning);
@@ -801,6 +872,11 @@
           const rActive = liveToday
             ? Boolean(liveToday.book || liveToday.bookPursuit)
             : Boolean(d.readingCompleted || d.bookCompleted || d.bookPursuit || d.book);
+
+          if (mActive) wMorningActive++;
+          if (bActive) wBibleActive++;
+          if (pActive) wPrayerActive++;
+          if (rActive) wBookActive++;
 
           // 晨興狀態判斷（方案二選項 C：語意樣式分流，零符號雜訊，尺寸完全對齊）
           let morningClass = '';
@@ -837,6 +913,11 @@
           `;
         }).join('');
 
+        const displayMorningDays = days.length >= 7 ? wMorningActive : Math.max(Number(w.morningDays || 0), wMorningActive);
+        const displayBibleDays = days.length >= 7 ? wBibleActive : Math.max(Number(w.bibleDays || 0), wBibleActive);
+        const displayPrayerDays = days.length >= 7 ? wPrayerActive : Math.max(Number(w.prayerDays || 0), wPrayerActive);
+        const displayBookDays = days.length >= 7 ? wBookActive : Math.max(Number(w.readingDays || w.bookDays || 0), wBookActive);
+
         return `
           <article class="footprint-week ${weekStateClass} ${defaultExpanded}" data-week-key="${escapeHtml(w.weekKey)}">
             <div class="footprint-week-summary" role="button" tabindex="0" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-label="切換 ${escapeHtml(w.weekLabel || w.weekKey)} 操練明細">
@@ -848,10 +929,10 @@
                   ${isCurrent ? '<span class="current-badge">本週</span>' : ''}
                 </h4>
                 <div class="footprint-practice-summary">
-                  <span class="footprint-summary-item">🌅 ${w.morningDays || 0}天</span>
-                  <span class="footprint-summary-item">📖 ${w.bibleDays || 0}天</span>
-                  <span class="footprint-summary-item">🙏 ${w.prayerDays || 0}天</span>
-                  <span class="footprint-summary-item">📚 ${w.readingDays || w.bookDays || 0}天</span>
+                  <span class="footprint-summary-item">🌅 ${displayMorningDays}天</span>
+                  <span class="footprint-summary-item">📖 ${displayBibleDays}天</span>
+                  <span class="footprint-summary-item">🙏 ${displayPrayerDays}天</span>
+                  <span class="footprint-summary-item">📚 ${displayBookDays}天</span>
                 </div>
                 <div class="footprint-meeting-summary">
                   ${meetingSummaryParts.map(item => `<span class="footprint-summary-item footprint-meeting-tag">${item}</span>`).join('')}
