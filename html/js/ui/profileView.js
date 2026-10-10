@@ -8,7 +8,7 @@
   'use strict';
 
   class ProfileView {
-    constructor({ apiClient, onAvatarUpdated, onLogout, onFootprintClick, onFellowshipClick, onContributionClick }) {
+    constructor({ apiClient, onAvatarUpdated, onLogout, onFootprintClick, onFellowshipClick, onContributionClick } = {}) {
       this.apiClient = apiClient;
       this.onAvatarUpdated = onAvatarUpdated;
       this.onLogout = onLogout;
@@ -822,20 +822,8 @@
       const p = dashProf || this.currentUserProfile || {};
       const groupId = p.groupId;
       
-      let myPersonalPoints;
-      let myContribPoints;
-      if (dashProf && dashProf.personalPoints !== undefined) {
-        myPersonalPoints = Number(dashProf.personalPoints || 0);
-        myContribPoints = Number(dashProf.contributionPoints !== undefined ? dashProf.contributionPoints : (dashProf.contribution || 0));
-      } else {
-        const localDelta = (dashProf && typeof dashProf.calculateTodayLocalPointsDelta_ === 'function') 
-          ? dashProf.calculateTodayLocalPointsDelta_() 
-          : ((typeof window !== 'undefined' && window.dashboardView && typeof window.dashboardView.calculateTodayLocalPointsDelta_ === 'function') ? window.dashboardView.calculateTodayLocalPointsDelta_() : 0);
-        const basePersonal = Number(p.basePersonalPoints !== undefined ? p.basePersonalPoints : (p.personalPoints !== undefined ? p.personalPoints : (p.totalPoints !== undefined ? p.totalPoints : (p.totalScore || 0))));
-        const baseContrib = Number(p.baseContributionPoints !== undefined ? p.baseContributionPoints : (p.contributionPoints !== undefined ? p.contributionPoints : (p.contribution || 0)));
-        myPersonalPoints = basePersonal + localDelta;
-        myContribPoints = baseContrib + localDelta;
-      }
+      const myPersonalPoints = Number(p.personalPoints !== undefined ? p.personalPoints : (p.basePersonalPoints !== undefined ? p.basePersonalPoints : (p.totalPoints || 0)));
+      const myContribPoints = Number(p.contributionPoints !== undefined ? p.contributionPoints : (p.baseContributionPoints !== undefined ? p.baseContributionPoints : (p.contribution || 0)));
 
       if (!groupId) {
         if (this.infoModalContent) {
