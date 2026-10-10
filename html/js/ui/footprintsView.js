@@ -3,7 +3,7 @@
  * 個人同行足跡視圖深層模組 (Footprints View Deep Module)
  * 職責：
  * 1. 前端解算引擎：接收後端極簡 Raw Data，在瀏覽器 V8 中完成隊友達標判定與算分
- * 2. 呈現本月 8 大成果指標卡（晨興、讀經、禱告、書報天數 + 小組、禱會、主日、相調次數與點數）
+ * 2. 呈現本月 8 大成果指標卡（晨興、讀經、禱告、書報天數 + 小組、禱會、主日、出外探訪次數與點數）
  * 3. 呈現過去 10 週之垂直可折疊時間軸，支援每週操練與聚會狀態、7 天打卡徽章明細
  * 4. 實作 SWR 載入（快取秒開 0ms，背景靜默更新）與骨架屏載入動畫
  * 5. 團體操練（晨興 ≥2人 / 外出探訪 ≥2人）視覺標註
@@ -758,7 +758,7 @@
         { label: '小排聚會', value: groupCount, icon: '👥', unit: '次' },
         { label: '禱告聚會', value: prayerCount, icon: '🔥', unit: '次' },
         { label: '主日聚會', value: lordDayCount, icon: '🍞', unit: '次' },
-        { label: '相調探訪', value: visitCount, icon: '🤝', unit: '次' }
+        { label: '出外探訪', value: visitCount, icon: '🤝', unit: '次' }
       ];
 
       const statsCards = statsList.map(item => `
