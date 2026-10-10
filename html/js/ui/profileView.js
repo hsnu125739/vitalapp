@@ -1026,7 +1026,7 @@
 
             <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 14px; text-align:center; font-size:12px; color:#64748b; line-height:1.5; margin-top:14px;">
               ${isRefreshing ? '<span style="color:#0284c7; font-weight:600;">🔄 正在即時同步最新進度...</span><br>' : ''}
-              您尚有 ${pendingPoints} 點，將於00:00結算
+              您尚有 ${pendingPoints} 點，將於明天00:00結算
             </div>
           </div>
         `;
@@ -1144,7 +1144,23 @@
         pointsConfig: pointsConfig
       });
 
-      return (evalRes && typeof evalRes.totalPoints === 'number') ? evalRes.totalPoints : 0;
+      if (!evalRes) return 0;
+
+      // 判定今日是否為週日 (Sunday is day 0)
+      let isSunday = false;
+      if (typeof curDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(curDate)) {
+        const [y, m, d] = curDate.split('-').map(Number);
+        isSunday = new Date(y, m - 1, d).getDay() === 0;
+      } else {
+        isSunday = new Date().getDay() === 0;
+      }
+
+      const todayPoints = (evalRes.today && typeof evalRes.today.points === 'number') ? evalRes.today.points : 0;
+      const weekPoints = (evalRes.week && typeof evalRes.week.points === 'number') ? evalRes.week.points : 0;
+
+      // 若今日不是週日：XX = 今日任務未結算點數
+      // 若今日是週日：XX = 今日任務 + 本週任務未結算點數
+      return isSunday ? (todayPoints + weekPoints) : todayPoints;
     }
 
     escapeHtml(str) {
