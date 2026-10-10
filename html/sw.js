@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vital-cache-v78';
+const CACHE_NAME = 'vital-cache-v79';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -31,16 +31,6 @@ const ASSETS_TO_CACHE = [
   '../Chest_Assets/Chest_08.webp',
   '../Chest_Assets/Chest_09.webp',
   '../Chest_Assets/Chest_10.webp',
-  './Chest_Assets/Chest_01.webp',
-  './Chest_Assets/Chest_02.webp',
-  './Chest_Assets/Chest_03.webp',
-  './Chest_Assets/Chest_04.webp',
-  './Chest_Assets/Chest_05.webp',
-  './Chest_Assets/Chest_06.webp',
-  './Chest_Assets/Chest_07.webp',
-  './Chest_Assets/Chest_08.webp',
-  './Chest_Assets/Chest_09.webp',
-  './Chest_Assets/Chest_10.webp',
   // Journey Assets (WebP)
   '../Chest_Assets/journey_1.webp',
   '../Chest_Assets/journey_2.webp',
@@ -49,15 +39,7 @@ const ASSETS_TO_CACHE = [
   '../Chest_Assets/journey_5.webp',
   '../Chest_Assets/journey_6.webp',
   '../Chest_Assets/journey_7.webp',
-  '../Chest_Assets/journey_8.webp',
-  './Chest_Assets/journey_1.webp',
-  './Chest_Assets/journey_2.webp',
-  './Chest_Assets/journey_3.webp',
-  './Chest_Assets/journey_4.webp',
-  './Chest_Assets/journey_5.webp',
-  './Chest_Assets/journey_6.webp',
-  './Chest_Assets/journey_7.webp',
-  './Chest_Assets/journey_8.webp'
+  '../Chest_Assets/journey_8.webp'
 ];
 
 self.addEventListener('install', (event) => {
