@@ -8,8 +8,10 @@
   'use strict';
 
   class ProfileView {
-    constructor({ apiClient, onAvatarUpdated, onLogout, onFootprintClick, onFellowshipClick, onContributionClick } = {}) {
+    constructor({ apiClient, practiceStore, dashboardView, onAvatarUpdated, onLogout, onFootprintClick, onFellowshipClick, onContributionClick } = {}) {
       this.apiClient = apiClient;
+      this.practiceStore = practiceStore || null;
+      this.dashboardView = dashboardView || null;
       this.onAvatarUpdated = onAvatarUpdated;
       this.onLogout = onLogout;
       this.onFootprintClick = onFootprintClick;
@@ -876,6 +878,8 @@
       const renderModalContent = (summaryData, isRefreshing = false) => {
         if (!this.infoModalContent) return;
 
+        const pendingPoints = this.getPendingPoints();
+
         const totalGroupScore = Number(
           (summaryData && summaryData.groupTotalPoints !== undefined ? summaryData.groupTotalPoints : 0) ||
           (journeyData && journeyData.groupTotalPoints !== undefined ? journeyData.groupTotalPoints : 0) ||
@@ -1022,7 +1026,7 @@
 
             <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 14px; text-align:center; font-size:12px; color:#64748b; line-height:1.5; margin-top:14px;">
               ${isRefreshing ? '<span style="color:#0284c7; font-weight:600;">🔄 正在即時同步最新進度...</span><br>' : ''}
-              💡 每日晨興、讀經、禱告、書報與聚會回報，均會為小組累積活力點數，推進篇章突破！
+              您尚有 ${pendingPoints} 點，將於00:00結算
             </div>
           </div>
         `;
@@ -1096,6 +1100,53 @@
       }
     }
     
+    getPendingPoints() {
+      const engine = (typeof PendingPointsEngine !== 'undefined')
+        ? PendingPointsEngine
+        : (typeof require === 'function' ? require('../modules/pendingPointsEngine') : null);
+
+      if (!engine || typeof engine.evaluate !== 'function') return 0;
+
+      const dashView = this.dashboardView
+        || (typeof window !== 'undefined' && window.dashboardView)
+        || (typeof global !== 'undefined' && global.dashboardView)
+        || (typeof AppCoordinator !== 'undefined' && AppCoordinator.dashboardView)
+        || null;
+
+      const store = this.practiceStore
+        || (dashView && dashView.practiceStore)
+        || (typeof window !== 'undefined' && window.practiceStore)
+        || (typeof global !== 'undefined' && global.practiceStore)
+        || (typeof AppCoordinator !== 'undefined' && AppCoordinator.practiceStore)
+        || null;
+
+      const curDate = (dashView && (dashView.currentDate || (typeof dashView.getTodayDateString === 'function' && dashView.getTodayDateString())))
+        || (typeof getLocalDateString === 'function' ? getLocalDateString() : new Date().toISOString().slice(0, 10));
+
+      let curWeek = (dashView && (dashView.currentWeekKey || (typeof dashView.getCurrentWeekKey === 'function' && dashView.getCurrentWeekKey())))
+        || null;
+
+      if (!curWeek && typeof TemporalMath !== 'undefined' && typeof TemporalMath.getIsoWeekKey === 'function') {
+        curWeek = TemporalMath.getIsoWeekKey(new Date());
+      }
+      if (!curWeek && store && store.meetingState) {
+        const keys = Object.keys(store.meetingState);
+        if (keys.length > 0) curWeek = keys[keys.length - 1];
+      }
+
+      const dailyState = (store && store.dailyState && curDate) ? store.dailyState[curDate] : null;
+      const meetingState = (store && store.meetingState && curWeek) ? store.meetingState[curWeek] : null;
+      const pointsConfig = (dashView && dashView.pointsConfig) || null;
+
+      const evalRes = engine.evaluate({
+        daily: dailyState,
+        meeting: meetingState,
+        pointsConfig: pointsConfig
+      });
+
+      return (evalRes && typeof evalRes.totalPoints === 'number') ? evalRes.totalPoints : 0;
+    }
+
     escapeHtml(str) {
       if (typeof VitalUtils !== 'undefined' && VitalUtils.escapeHtml) {
         return VitalUtils.escapeHtml(str);

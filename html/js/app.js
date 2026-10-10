@@ -158,6 +158,8 @@
     if (ProfileViewClass) {
       profileView = new ProfileViewClass({
         apiClient: apiClient,
+        practiceStore: practiceStore,
+        dashboardView: dashboardView,
         onAvatarUpdated: (url, name) => handleAvatarUpdated(url, name),
         onLogout: () => handleLogout(),
         onFootprintClick: () => footprintsView && footprintsView.openFootprintsModal(),
