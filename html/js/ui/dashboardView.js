@@ -357,6 +357,7 @@
             } catch (_) {}
           }
         }
+        this.renderPendingChips_();
       };
     }
 
@@ -381,25 +382,14 @@
         } catch (_) {}
       }
 
-      // 由於後端為「昨日午夜結算快照 (Settled Snapshot)」，前端必須即時加上今日未結算的本機操練分數
-      const localDelta = this.calculateTodayLocalPointsDelta_();
-      
-      // 保存未加上 localDelta 的基礎結算分數 (防止重複疊加)
-      const basePersonal = Number(this.currentUserProfile.basePersonalPoints ?? this.currentUserProfile.personalPoints ?? 0);
+      // 正式分數維持權威已結算狀態（零本地偽結算水合，確保跨視圖完全一致）
+      const basePersonal = Number(this.currentUserProfile.personalPoints ?? 0);
       this.currentUserProfile.basePersonalPoints = basePersonal;
 
-      const baseContrib = Number(this.currentUserProfile.baseContributionPoints ?? this.currentUserProfile.contributionPoints ?? 0);
+      const baseContrib = Number(this.currentUserProfile.contributionPoints ?? 0);
       this.currentUserProfile.baseContributionPoints = baseContrib;
 
-      // 將未結算分數疊加到基礎分數上
-      this.currentUserProfile.personalPoints = basePersonal + localDelta;
-      if (this.currentUserProfile.totalPoints !== undefined) this.currentUserProfile.totalPoints = this.currentUserProfile.personalPoints;
-      if (this.currentUserProfile.totalScore !== undefined) this.currentUserProfile.totalScore = this.currentUserProfile.personalPoints;
-
-      if (this.currentUserProfile.groupId) {
-        this.currentUserProfile.contributionPoints = baseContrib + localDelta;
-        if (this.currentUserProfile.contribution !== undefined) this.currentUserProfile.contribution = this.currentUserProfile.contributionPoints;
-      } else {
+      if (!this.currentUserProfile.groupId) {
         this.currentUserProfile.contributionPoints = 0;
         if (this.currentUserProfile.contribution !== undefined) this.currentUserProfile.contribution = 0;
       }
@@ -466,6 +456,7 @@
       const contribEl = document.getElementById('homeContributionText');
       if (contribEl) contribEl.textContent = contribution.toLocaleString();
 
+      this.renderPendingChips_();
       this.renderSettlingBadges_();
 
       this.updateFullAttendanceDays();
@@ -1194,9 +1185,6 @@
     }
 
     calculateUnsettledPointsDelta_() {
-      const cfg = this.pointsConfig || DEFAULT_POINTS_CONFIG;
-      let totalLocalDelta = 0;
-
       const curDate = this.currentDate || this.getTodayDateString();
       const yesterdayStr = this.getYesterdayDateString(curDate);
       const curWeek = this.currentWeekKey || this.getCurrentWeekKey();
@@ -1207,40 +1195,70 @@
       // 若無歷史結算戳記（新用戶），不觸發「結算中」徽章
       this.isSettlingYesterday = lastSettledDate ? !isYesterdaySettled : false;
 
-      // 2. 若後端尚未結算昨日：將昨日操練打卡分數計入補償 Delta（防跨夜分數回退核心！）
-      if (!isYesterdaySettled && yesterdayStr && this.practiceStore && this.practiceStore.dailyState) {
-        const y = this.practiceStore.dailyState[yesterdayStr];
-        if (y) {
-          if (y.morning || y.morningRevival) totalLocalDelta += Number(cfg.morning || 50);
-          if (y.bible || y.bibleReading) totalLocalDelta += Number(cfg.bible || 30);
-          if (y.prayer) totalLocalDelta += Number(cfg.prayer || 30);
-          if (y.book || y.bookPursuit) totalLocalDelta += Number(cfg.book || 30);
-        }
-      }
+      const engine = (typeof PendingPointsEngine !== 'undefined')
+        ? PendingPointsEngine
+        : (typeof require === 'function' ? require('../modules/pendingPointsEngine') : null);
 
-      // 3. 每日操練 (今日)
-      if (curDate && this.practiceStore && this.practiceStore.dailyState && this.practiceStore.dailyState[curDate]) {
-        const d = this.practiceStore.dailyState[curDate];
-        if (d.morning || d.morningRevival) totalLocalDelta += Number(cfg.morning || 50);
-        if (d.bible || d.bibleReading) totalLocalDelta += Number(cfg.bible || 30);
-        if (d.prayer) totalLocalDelta += Number(cfg.prayer || 30);
-        if (d.book || d.bookPursuit) totalLocalDelta += Number(cfg.book || 30);
+      if (engine && typeof engine.evaluate === 'function') {
+        const res = engine.evaluate({
+          daily: this.practiceStore?.dailyState?.[curDate],
+          meeting: this.practiceStore?.meetingState?.[curWeek],
+          pointsConfig: this.pointsConfig
+        });
+        return res.totalPoints;
       }
-
-      // 4. 每週聚會 (本週)
-      if (curWeek && this.practiceStore && this.practiceStore.meetingState && this.practiceStore.meetingState[curWeek]) {
-        const m = this.practiceStore.meetingState[curWeek];
-        if (m.smallGroup || m.group) totalLocalDelta += Number(cfg.group !== undefined ? cfg.group : (cfg.smallGroup || 30));
-        if (m.prayerMeeting || m.prayerMtg) totalLocalDelta += Number(cfg.prayerMtg !== undefined ? cfg.prayerMtg : (cfg.prayerMeeting || 50));
-        if (m.lordDayMeeting || m.lordDay) totalLocalDelta += Number(cfg.lordDay !== undefined ? cfg.lordDay : (cfg.lordDayMeeting || 50));
-        if (m.outreachVisit || m.outreach || m.mutual || m.blend) totalLocalDelta += Number(cfg.outreach !== undefined ? cfg.outreach : (cfg.outreachVisit || 100));
-      }
-
-      return totalLocalDelta;
+      return 0;
     }
 
     calculateTodayLocalPointsDelta_() {
       return this.calculateUnsettledPointsDelta_();
+    }
+
+    renderPendingChips_() {
+      if (typeof document === 'undefined') return null;
+
+      const engine = (typeof PendingPointsEngine !== 'undefined')
+        ? PendingPointsEngine
+        : (typeof require === 'function' ? require('../modules/pendingPointsEngine') : null);
+
+      if (!engine || typeof engine.evaluate !== 'function') return null;
+
+      const curDate = this.currentDate || this.getTodayDateString();
+      const curWeek = this.currentWeekKey || this.getCurrentWeekKey();
+
+      const dailyState = (this.practiceStore && this.practiceStore.dailyState)
+        ? this.practiceStore.dailyState[curDate]
+        : null;
+
+      const meetingState = (this.practiceStore && this.practiceStore.meetingState)
+        ? this.practiceStore.meetingState[curWeek]
+        : null;
+
+      const res = engine.evaluate({
+        daily: dailyState,
+        meeting: meetingState,
+        pointsConfig: this.pointsConfig
+      });
+
+      const dailyChip = document.getElementById('homeDailyPendingChip');
+      const dailyText = document.getElementById('homeDailyPendingText');
+      if (dailyText) {
+        dailyText.textContent = res.today.points > 0 ? `+${res.today.points} 點` : '0 點';
+      }
+      if (dailyChip) {
+        dailyChip.classList.toggle('has-points', res.today.points > 0);
+      }
+
+      const weeklyChip = document.getElementById('homeWeeklyPendingChip');
+      const weeklyText = document.getElementById('homeWeeklyPendingText');
+      if (weeklyText) {
+        weeklyText.textContent = res.week.points > 0 ? `+${res.week.points} 點` : '0 點';
+      }
+      if (weeklyChip) {
+        weeklyChip.classList.toggle('has-points', res.week.points > 0);
+      }
+
+      return res;
     }
 
     resetState() {
@@ -1312,6 +1330,12 @@
 
     renderSettlingBadges_() {
       if (typeof document === 'undefined') return;
+      const curDate = this.currentDate || this.getTodayDateString();
+      const yesterdayStr = this.getYesterdayDateString(curDate);
+      const lastSettledDate = (this.currentUserProfile && this.currentUserProfile._lastSettledDate) || '';
+      const isYesterdaySettled = Boolean(lastSettledDate && lastSettledDate >= yesterdayStr);
+      this.isSettlingYesterday = lastSettledDate ? !isYesterdaySettled : false;
+
       const pSyncEl = document.getElementById('homePersonalSyncText');
       const cSyncEl = document.getElementById('homeContributionSyncText');
       const isSettling = Boolean(this.isSettlingYesterday);
@@ -1341,82 +1365,28 @@
       }
       if (!this.currentUserProfile) return;
 
-      const basePersonal = this.currentUserProfile.basePersonalPoints !== undefined
-        ? Number(this.currentUserProfile.basePersonalPoints || 0)
-        : Number(this.currentUserProfile.personalPoints || 0);
-
-      const baseContrib = this.currentUserProfile.baseContributionPoints !== undefined
-        ? Number(this.currentUserProfile.baseContributionPoints || 0)
-        : Number(this.currentUserProfile.contributionPoints || 0);
-
-      const localDelta = this.calculateUnsettledPointsDelta_();
-      const nextPersonal = basePersonal + localDelta;
-      const nextContrib = baseContrib + localDelta;
-
-      this.currentUserProfile.personalPoints = nextPersonal;
-
+      // 正式分數直接反映已結算權威值（不再疊加 localDelta）
+      const personalPoints = Number(this.currentUserProfile.personalPoints || 0);
       const personalEl = (typeof document !== 'undefined') ? document.getElementById('homePersonalScoreText') : null;
-      if (personalEl) personalEl.textContent = Number(nextPersonal).toLocaleString();
+      if (personalEl) personalEl.textContent = personalPoints.toLocaleString();
 
       if (this.currentUserProfile.groupId) {
-        this.currentUserProfile.contributionPoints = nextContrib;
+        const contribPoints = Number(this.currentUserProfile.contributionPoints || 0);
         const contribEl = (typeof document !== 'undefined') ? document.getElementById('homeContributionText') : null;
-        if (contribEl) contribEl.textContent = Number(nextContrib).toLocaleString();
+        if (contribEl) contribEl.textContent = contribPoints.toLocaleString();
       } else {
         this.currentUserProfile.contributionPoints = 0;
         const contribEl = (typeof document !== 'undefined') ? document.getElementById('homeContributionText') : null;
         if (contribEl) contribEl.textContent = '0';
       }
 
+      this.renderPendingChips_();
       this.renderSettlingBadges_();
     }
 
     applyOptimisticPointsDelta_(key, isDone, type) {
-      if (!this.currentUserProfile) return;
-
-      const cfg = this.pointsConfig || DEFAULT_POINTS_CONFIG;
-      let pts = 0;
-
-      if (type === 'DAILY') {
-        if (key === 'morning') pts = Number(cfg.morning || 50);
-        else if (key === 'bible') pts = Number(cfg.bible || 30);
-        else if (key === 'prayer') pts = Number(cfg.prayer || 30);
-        else if (key === 'book') pts = Number(cfg.book || 30);
-      } else if (type === 'MEETING') {
-        if (key === 'smallGroup') pts = Number(cfg.group !== undefined ? cfg.group : (cfg.smallGroup || 30));
-        else if (key === 'prayerMeeting') pts = Number(cfg.prayerMtg !== undefined ? cfg.prayerMtg : (cfg.prayerMeeting || 50));
-        else if (key === 'lordDayMeeting') pts = Number(cfg.lordDay !== undefined ? cfg.lordDay : (cfg.lordDayMeeting || 50));
-        else if (key === 'outreachVisit') pts = Number(cfg.outreach !== undefined ? cfg.outreach : (cfg.outreachVisit || 100));
-      }
-
-      if (pts === 0) return;
-      const delta = isDone ? pts : -pts;
-
-      // 1. 更新【個人點數】（永遠累計）
-      const currentPersonal = Number(this.currentUserProfile.personalPoints || 0);
-      const nextPersonal = Math.max(0, currentPersonal + delta);
-      this.currentUserProfile.personalPoints = nextPersonal;
-
-      const personalEl = document.getElementById('homePersonalScoreText');
-      if (personalEl) personalEl.textContent = nextPersonal.toLocaleString();
-
-      // 2. 更新【貢獻點數】（若已加入活力組，則同仁在小組內的年度貢獻亦同步累計）
-      const hasGroup = Boolean(this.currentUserProfile.groupId);
-      if (hasGroup) {
-        const currentContrib = Number(this.currentUserProfile.contributionPoints || 0);
-        const nextContrib = Math.max(0, currentContrib + delta);
-        this.currentUserProfile.contributionPoints = nextContrib;
-
-        const contribEl = document.getElementById('homeContributionText');
-        if (contribEl) contribEl.textContent = nextContrib.toLocaleString();
-      }
-
-      // 3. 同步至 LocalStorage 快取，防止重新整理回滾
-      if (typeof localStorage !== 'undefined') {
-        try {
-          localStorage.setItem('vital_current_player', JSON.stringify(this.currentUserProfile));
-        } catch (e) {}
-      }
+      // 在新架構下，正式分數保持昨日權威結算值，待結算膠囊即時反映點擊增減
+      this.renderPendingChips_();
     }
 
     updatePracticeLockState_(lockReason) {
