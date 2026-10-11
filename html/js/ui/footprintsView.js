@@ -125,7 +125,7 @@
    * @param {Object} [liveStore] 今日即時打卡狀態 { morning, bible, prayer, book } (from practiceStore)
    * @returns {{ monthSummary, weeks }} 與舊版 render() 入參相容的完整足跡資料
    */
-  function assembleFootprintsData(raw, pointsConfig, liveStore) {
+  function assembleFootprintsData(raw, pointsConfig, liveStore, liveMeetingStore) {
     if (!raw) return { monthSummary: {}, weeks: [] };
     // 若傳入之物件已是組裝完成的足跡結構（具備 monthSummary 與物件格式的 weeks 陣列，且無 teamDaily），直接回傳
     if (raw.monthSummary && Array.isArray(raw.weeks) && raw.weeks.length > 0 && typeof raw.weeks[0] === 'object' && !raw.teamDaily) {
@@ -169,6 +169,53 @@
           if (raw.weeks[0].totalWeekPoints !== undefined) {
             raw.weeks[0].totalWeekPoints = Number(raw.weeks[0].totalWeekPoints || 0) + (liveDailyScore - oldScore);
           }
+        }
+      }
+      if (liveMeetingStore && raw.weeks[0]) {
+        const w0 = raw.weeks[0];
+        const gDone = Boolean(liveMeetingStore.smallGroup || liveMeetingStore.group);
+        const pDone = Boolean(liveMeetingStore.prayerMeeting || liveMeetingStore.prayerMtg);
+        const lDone = Boolean(liveMeetingStore.lordDayMeeting || liveMeetingStore.lordDay);
+        const vSelf = Boolean(liveMeetingStore.outreachVisit || liveMeetingStore.outreach);
+        const vQual = Boolean(w0.isOutreachQualified || (w0.meeting && w0.meeting.isOutreachQualified));
+
+        const baseG = Boolean(w0.groupMeetingCompleted || (w0.meeting && (w0.meeting.smallGroup || w0.meeting.group)));
+        const baseP = Boolean(w0.prayerMeetingCompleted || (w0.meeting && (w0.meeting.prayerMeeting || w0.meeting.prayerMtg)));
+        const baseL = Boolean(w0.lordDayCompleted || (w0.meeting && (w0.meeting.lordDayMeeting || w0.meeting.lordDay)));
+        const baseV = Boolean(w0.visitCompleted || (w0.meeting && (w0.meeting.outreachVisit || w0.meeting.outreach)));
+
+        let resolvedRules = (raw && (raw.pointsRules || raw.pointsConfig)) || pointsConfig;
+        if (!resolvedRules && typeof localStorage !== 'undefined') {
+          try {
+            const stored = JSON.parse(localStorage.getItem('vital_points_config') || 'null');
+            if (stored) resolvedRules = stored;
+          } catch (e) {}
+        }
+        if (!resolvedRules) resolvedRules = DEFAULT_POINTS_CONFIG;
+        const wRepDate = w0.startDate ? new Date(new Date(w0.startDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10) : getLocalDateString();
+        const wRule = getRuleForDate(resolvedRules, wRepDate);
+
+        const mDelta = ((gDone ? 1 : 0) - (baseG ? 1 : 0)) * (wRule.group !== undefined ? wRule.group : 30)
+          + ((pDone ? 1 : 0) - (baseP ? 1 : 0)) * (wRule.prayerMtg !== undefined ? wRule.prayerMtg : 50)
+          + ((lDone ? 1 : 0) - (baseL ? 1 : 0)) * (wRule.lordDay !== undefined ? wRule.lordDay : 50)
+          + (((vSelf && vQual ? 1 : 0) - (baseV && vQual ? 1 : 0))) * (wRule.outreach !== undefined ? wRule.outreach : 100);
+
+        w0.groupMeetingCompleted = gDone;
+        w0.prayerMeetingCompleted = pDone;
+        w0.lordDayCompleted = lDone;
+        w0.visitCompleted = vSelf;
+        if (w0.meeting) {
+          w0.meeting.smallGroup = gDone;
+          w0.meeting.prayerMeeting = pDone;
+          w0.meeting.lordDayMeeting = lDone;
+          w0.meeting.outreachVisit = vSelf;
+          w0.meeting.points = Math.max(0, Number(w0.meeting.points || 0) + mDelta);
+        }
+        if (w0.weeklyScore !== undefined) {
+          w0.weeklyScore = Math.max(0, Number(w0.weeklyScore || 0) + mDelta);
+        }
+        if (w0.totalWeekPoints !== undefined) {
+          w0.totalWeekPoints = Math.max(0, Number(w0.totalWeekPoints || 0) + mDelta);
         }
       }
       return raw;
@@ -535,7 +582,8 @@
       if (!forceRefresh && this.apiClient && typeof this.apiClient.getCachedFootprints === 'function') {
         const cached = this.apiClient.getCachedFootprints(targetPlayerId);
         if (cached && (cached.teamDaily || (cached.weeks && cached.monthSummary))) {
-          const assembled = assembleFootprintsData(cached, null, this.getLiveToday_(cached.today));
+          const curWeekKey = (cached.weeks && cached.weeks[0] && (cached.weeks[0].weekKey || cached.weeks[0].key)) || null;
+          const assembled = assembleFootprintsData(cached, null, this.getLiveToday_(cached.today), this.getLiveMeeting_(curWeekKey));
           this.render(assembled);
           hasRenderedCache = true;
         }
@@ -557,7 +605,8 @@
           const res = await this.apiClient.getFootprints({ playerId: targetPlayerId, weeks: 10, forceRefresh });
           if (res && res.success) {
             const freshRaw = res.data || res;
-            const assembled = assembleFootprintsData(freshRaw, null, this.getLiveToday_(freshRaw.today));
+            const curWeekKey = (freshRaw.weeks && freshRaw.weeks[0] && (freshRaw.weeks[0].weekKey || freshRaw.weeks[0].key)) || null;
+            const assembled = assembleFootprintsData(freshRaw, null, this.getLiveToday_(freshRaw.today), this.getLiveMeeting_(curWeekKey));
             this.render(assembled);
 
             // 若為 SWR 快取返回且帶有背景 revalidatePromise，等網路返回時無縫更新畫面
@@ -565,7 +614,8 @@
               res.revalidatePromise.then(freshRes => {
                 if (freshRes && freshRes.success) {
                   const latestRaw = freshRes.data || freshRes;
-                  const latestAssembled = assembleFootprintsData(latestRaw, null, this.getLiveToday_(latestRaw.today));
+                  const latestWeekKey = (latestRaw.weeks && latestRaw.weeks[0] && (latestRaw.weeks[0].weekKey || latestRaw.weeks[0].key)) || null;
+                  const latestAssembled = assembleFootprintsData(latestRaw, null, this.getLiveToday_(latestRaw.today), this.getLiveMeeting_(latestWeekKey));
                   this.render(latestAssembled);
                 }
               }).catch(() => {});
@@ -642,6 +692,18 @@
       }
       if (this.currentData && this.currentData.meetingRecords && this.currentData.meetingRecords[weekKey]) {
         return this.currentData.meetingRecords[weekKey];
+      }
+      if (typeof localStorage !== 'undefined') {
+        try {
+          const playerId = this.lastTargetPlayerId
+            || (typeof AppCoordinator !== 'undefined' && AppCoordinator.currentUserProfile && AppCoordinator.currentUserProfile.playerId)
+            || (this.apiClient && typeof this.apiClient.getPlayerIdFromToken === 'function' && this.apiClient.getPlayerIdFromToken());
+          if (playerId) {
+            const mKey = `vital_meeting_records_${playerId}`;
+            const curRecs = JSON.parse(localStorage.getItem(mKey) || '{}');
+            if (curRecs && curRecs[weekKey]) return curRecs[weekKey];
+          }
+        } catch (_) {}
       }
       return null;
     }
@@ -891,6 +953,30 @@
           visitSummary
         ];
 
+        const baseGroup = Boolean(w.groupMeetingCompleted || (w.meeting && (w.meeting.smallGroup || w.meeting.group)));
+        const basePrayer = Boolean(w.prayerMeetingCompleted || (w.meeting && (w.meeting.prayerMeeting || w.meeting.prayerMtg)));
+        const baseLordDay = Boolean(w.lordDayCompleted || (w.meeting && (w.meeting.lordDayMeeting || w.meeting.lordDay)));
+        const baseVisit = Boolean(w.visitCompleted || (w.meeting && (w.meeting.outreachVisit || w.meeting.outreach)));
+
+        let deltaMeeting = 0;
+        if (isCurrent) {
+          const rules = this.getPointsRules_();
+          const wRepDate = (w.startDate)
+            ? new Date(new Date(w.startDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10)
+            : todayStr;
+          const wRule = getRuleForDate(rules, wRepDate);
+
+          const groupDelta = (groupDone ? 1 : 0) - (baseGroup ? 1 : 0);
+          const prayerDelta = (prayerDone ? 1 : 0) - (basePrayer ? 1 : 0);
+          const lordDayDelta = (lordDayDone ? 1 : 0) - (baseLordDay ? 1 : 0);
+          const visitDelta = (visitSelf && visitQualified ? 1 : 0) - (baseVisit && visitQualified ? 1 : 0);
+
+          deltaMeeting = (groupDelta * (wRule.group !== undefined ? wRule.group : 30))
+            + (prayerDelta * (wRule.prayerMtg !== undefined ? wRule.prayerMtg : 50))
+            + (lordDayDelta * (wRule.lordDay !== undefined ? wRule.lordDay : 50))
+            + (visitDelta * (wRule.outreach !== undefined ? wRule.outreach : 100));
+        }
+
         // 7 天清單列
         const days = Array.isArray(w.days) ? w.days : [];
         let wMorningActive = 0, wBibleActive = 0, wPrayerActive = 0, wBookActive = 0;
@@ -976,6 +1062,9 @@
         const displayPrayerDays = days.length >= 7 ? wPrayerActive : Math.max(Number(w.prayerDays || 0), wPrayerActive);
         const displayBookDays = days.length >= 7 ? wBookActive : Math.max(Number(w.readingDays || w.bookDays || 0), wBookActive);
 
+        const baseWeekScore = Number(w.weeklyScore || w.totalWeekPoints || 0);
+        const displayWeeklyScore = Math.max(0, baseWeekScore + weekScoreDelta + deltaMeeting);
+
         return `
           <article class="footprint-week ${weekStateClass} ${defaultExpanded}" data-week-key="${escapeHtml(w.weekKey)}">
             <div class="footprint-week-summary" role="button" tabindex="0" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-label="切換 ${escapeHtml(w.weekLabel || w.weekKey)} 操練明細">
@@ -997,7 +1086,8 @@
                 </div>
               </div>
               <div class="footprint-week-points">
-                <strong>+${formatNumber(Number(w.weeklyScore || w.totalWeekPoints || 0) + weekScoreDelta)} 點</strong>
+                ${isCurrent ? '<span class="footprint-week-unsettled-hint">(尚未結算)</span>' : ''}
+                <strong>+${formatNumber(displayWeeklyScore)} 點</strong>
                 <span class="footprint-toggle-icon" aria-hidden="true">▼</span>
               </div>
             </div>

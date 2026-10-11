@@ -892,6 +892,33 @@
               targetWeek.meeting.lordDayMeeting = lordDayVal;
               targetWeek.meeting.outreachVisit = outreachVal;
             }
+            let storedRules = null;
+            try {
+              storedRules = JSON.parse(this.storage.getItem('vital_points_config') || 'null');
+            } catch (_) {}
+            const rGroup = (storedRules && storedRules.group !== undefined) ? Number(storedRules.group) : 30;
+            const rPrayer = (storedRules && storedRules.prayerMtg !== undefined) ? Number(storedRules.prayerMtg) : 50;
+            const rLord = (storedRules && storedRules.lordDay !== undefined) ? Number(storedRules.lordDay) : 50;
+            const rOutreach = (storedRules && storedRules.outreach !== undefined) ? Number(storedRules.outreach) : 100;
+            const isOutreachQualified = Boolean(targetWeek.isOutreachQualified || (targetWeek.meeting && targetWeek.meeting.isOutreachQualified));
+
+            let newMeetingPoints = 0;
+            if (groupVal) newMeetingPoints += rGroup;
+            if (prayerVal) newMeetingPoints += rPrayer;
+            if (lordDayVal) newMeetingPoints += rLord;
+            if (outreachVal && isOutreachQualified) newMeetingPoints += rOutreach;
+
+            if (targetWeek.meeting) {
+              const oldMeetingPoints = Number(targetWeek.meeting.points || 0);
+              targetWeek.meeting.points = newMeetingPoints;
+              const pointsDiff = newMeetingPoints - oldMeetingPoints;
+              if (targetWeek.weeklyScore !== undefined) {
+                targetWeek.weeklyScore = Math.max(0, Number(targetWeek.weeklyScore || 0) + pointsDiff);
+              }
+              if (targetWeek.totalWeekPoints !== undefined) {
+                targetWeek.totalWeekPoints = Math.max(0, Number(targetWeek.totalWeekPoints || 0) + pointsDiff);
+              }
+            }
           }
         };
 
