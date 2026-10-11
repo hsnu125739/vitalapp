@@ -127,22 +127,64 @@
    */
   function assembleFootprintsData(raw, pointsConfig, liveStore) {
     if (!raw) return { monthSummary: {}, weeks: [] };
-    // 若傳入之物件已是組裝完成的足跡結構（具備 monthSummary 與物件格式的 weeks 陣列，且無 teamDaily），直接回傳
+    // 若傳入之物件已是組裝完成的足跡結構（具備 monthSummary 與物件格式的 weeks 陣列，且無 teamDaily）
     if (raw.monthSummary && Array.isArray(raw.weeks) && raw.weeks.length > 0 && typeof raw.weeks[0] === 'object' && !raw.teamDaily) {
-      if (liveStore && Array.isArray(raw.weeks[0].days)) {
-        const todayStr = raw.today || getLocalDateString();
-        const todayItem = raw.weeks[0].days.find(d => d.isToday || d.date === todayStr);
-        if (todayItem) {
-          const m = Boolean(liveStore.morning || liveStore.morningRevival);
-          const b = Boolean(liveStore.bible || liveStore.bibleReading);
-          const p = Boolean(liveStore.prayer);
-          const k = Boolean(liveStore.book || liveStore.bookPursuit);
-          todayItem.morningCompleted = m;
-          todayItem.bibleCompleted = b;
-          todayItem.prayerCompleted = p;
-          todayItem.readingCompleted = k;
-          todayItem.completedCount = (m ? 1 : 0) + (b ? 1 : 0) + (p ? 1 : 0) + (k ? 1 : 0);
-          todayItem.hasRecord = todayItem.completedCount > 0;
+      const todayStr = (typeof dashboardView !== 'undefined' && dashboardView && typeof dashboardView.getTodayDateString === 'function')
+        ? (dashboardView.getTodayDateString() || getLocalDateString())
+        : (raw.today || getLocalDateString());
+      raw.today = todayStr;
+
+      const curWeek = raw.weeks.find(w => Boolean(w.isCurrentWeek)) || raw.weeks[0];
+      if (curWeek && Array.isArray(curWeek.days)) {
+        curWeek.days.forEach(d => {
+          d.isToday = Boolean(d.date === todayStr || d.recordDate === todayStr);
+        });
+
+        if (liveStore) {
+          const todayItem = curWeek.days.find(d => d.isToday || d.date === todayStr || d.recordDate === todayStr);
+          if (todayItem) {
+            const m = Boolean(liveStore.morning || liveStore.morningRevival);
+            const b = Boolean(liveStore.bible || liveStore.bibleReading);
+            const p = Boolean(liveStore.prayer);
+            const k = Boolean(liveStore.book || liveStore.bookPursuit);
+            todayItem.morningCompleted = m;
+            todayItem.bibleCompleted = b;
+            todayItem.prayerCompleted = p;
+            todayItem.readingCompleted = k;
+            todayItem.completedCount = (m ? 1 : 0) + (b ? 1 : 0) + (p ? 1 : 0) + (k ? 1 : 0);
+            todayItem.hasRecord = todayItem.completedCount > 0;
+
+            let resolvedRules = (raw && (raw.pointsRules || raw.pointsConfig)) || pointsConfig;
+            if (!resolvedRules && typeof localStorage !== 'undefined') {
+              try {
+                const stored = JSON.parse(localStorage.getItem('vital_points_config') || 'null');
+                if (stored) resolvedRules = stored;
+              } catch (e) {}
+            }
+            if (!resolvedRules) resolvedRules = DEFAULT_POINTS_CONFIG;
+            const rule = getRuleForDate(resolvedRules, todayStr);
+
+            let newDailyScore = 0;
+            if (b) newDailyScore += rule.bible;
+            if (p) newDailyScore += rule.prayer;
+            if (k) newDailyScore += rule.book;
+            if (todayItem.isMorningQualified) {
+              newDailyScore += rule.morning;
+            }
+            todayItem.dailyScore = newDailyScore;
+          }
+
+          curWeek.morningDays = curWeek.days.filter(d => Boolean(d.morningCompleted || d.morningRevival || d.morning)).length;
+          curWeek.bibleDays = curWeek.days.filter(d => Boolean(d.bibleCompleted || d.bibleReading || d.bible)).length;
+          curWeek.prayerDays = curWeek.days.filter(d => Boolean(d.prayerCompleted || d.prayer)).length;
+          curWeek.readingDays = curWeek.days.filter(d => Boolean(d.readingCompleted || d.bookCompleted || d.bookPursuit || d.book)).length;
+          curWeek.bookDays = curWeek.readingDays;
+          curWeek.completedDays = curWeek.days.filter(d => Boolean(d.completedCount > 0 || d.hasRecord)).length;
+
+          const meetingScore = Number((curWeek.meeting && curWeek.meeting.points) ?? 0);
+          const daysScoreSum = curWeek.days.reduce((sum, d) => sum + Number(d.dailyScore || 0), 0);
+          curWeek.weeklyScore = daysScoreSum + meetingScore;
+          curWeek.totalWeekPoints = curWeek.weeklyScore;
         }
       }
       return raw;
@@ -474,6 +516,19 @@
       this.infoModalTitle = typeof document !== 'undefined' ? document.getElementById('infoModalTitle') : null;
       this.infoModalContent = typeof document !== 'undefined' ? document.getElementById('infoModalContent') : null;
       this.currentData = null;
+
+      // 監聽狀態庫變更：彈窗開啟中若打卡狀態更新，立即無縫重繪
+      if (this.practiceStore && typeof this.practiceStore.onStateChange !== 'undefined') {
+        const prevHandler = this.practiceStore.onStateChange;
+        this.practiceStore.onStateChange = (event) => {
+          if (typeof prevHandler === 'function') {
+            try { prevHandler(event); } catch (_) {}
+          }
+          if (this.infoModal && !this.infoModal.classList.contains('hidden') && this.currentData) {
+            this.render(this.currentData);
+          }
+        };
+      }
     }
 
     /**
@@ -508,7 +563,7 @@
       if (!forceRefresh && this.apiClient && typeof this.apiClient.getCachedFootprints === 'function') {
         const cached = this.apiClient.getCachedFootprints(targetPlayerId);
         if (cached && (cached.teamDaily || (cached.weeks && cached.monthSummary))) {
-          const assembled = assembleFootprintsData(cached, null, this.getLiveToday_(cached.today));
+          const assembled = assembleFootprintsData(cached, null, this.getLiveToday_());
           this.render(assembled);
           hasRenderedCache = true;
         }
@@ -530,7 +585,7 @@
           const res = await this.apiClient.getFootprints({ playerId: targetPlayerId, weeks: 10, forceRefresh });
           if (res && res.success) {
             const freshRaw = res.data || res;
-            const assembled = assembleFootprintsData(freshRaw, null, this.getLiveToday_(freshRaw.today));
+            const assembled = assembleFootprintsData(freshRaw, null, this.getLiveToday_());
             this.render(assembled);
 
             // 若為 SWR 快取返回且帶有背景 revalidatePromise，等網路返回時無縫更新畫面
@@ -538,7 +593,7 @@
               res.revalidatePromise.then(freshRes => {
                 if (freshRes && freshRes.success) {
                   const latestRaw = freshRes.data || freshRes;
-                  const latestAssembled = assembleFootprintsData(latestRaw, null, this.getLiveToday_(latestRaw.today));
+                  const latestAssembled = assembleFootprintsData(latestRaw, null, this.getLiveToday_());
                   this.render(latestAssembled);
                 }
               }).catch(() => {});
@@ -558,11 +613,13 @@
      * 取得今日日期字串
      */
     getTodayDateString_(fallbackDate) {
-      if (fallbackDate) return fallbackDate;
       if (this.currentDate) return this.currentDate;
-      return (typeof dashboardView !== 'undefined' && dashboardView && typeof dashboardView.getTodayDateString === 'function')
-        ? dashboardView.getTodayDateString()
-        : getLocalDateString();
+      if (fallbackDate) return fallbackDate;
+      if (typeof dashboardView !== 'undefined' && dashboardView && typeof dashboardView.getTodayDateString === 'function') {
+        const dStr = dashboardView.getTodayDateString();
+        if (dStr) return dStr;
+      }
+      return getLocalDateString();
     }
 
     /**
@@ -807,7 +864,7 @@
       }
 
       const hasExplicitCurrent = weeks.some(wk => Boolean(wk.isCurrentWeek));
-      const todayStr = (this.currentData && this.currentData.today) || this.getTodayDateString_();
+      const todayStr = this.getTodayDateString_((this.currentData && this.currentData.today) || null);
       const weekArticles = weeks.map((w, index) => {
         const isCurrent = Boolean(w.isCurrentWeek || (index === 0 && !hasExplicitCurrent));
         const completedDays = Number(w.completedDays || 0);
@@ -850,14 +907,80 @@
           visitSummary
         ];
 
+        const baseGroup = Boolean(w.groupMeetingCompleted || (w.meeting && (w.meeting.smallGroup || w.meeting.group)));
+        const basePrayer = Boolean(w.prayerMeetingCompleted || (w.meeting && (w.meeting.prayerMeeting || w.meeting.prayerMtg)));
+        const baseLordDay = Boolean(w.lordDayCompleted || (w.meeting && (w.meeting.lordDayMeeting || w.meeting.lordDay)));
+        const baseVisit = Boolean(w.visitCompleted || (w.meeting && (w.meeting.outreachVisit || w.meeting.outreach)));
+
+        let deltaMeeting = 0;
+        if (isCurrent && liveM) {
+          let resolvedRules = (this.currentData && (this.currentData.pointsRules || this.currentData.pointsConfig));
+          if (!resolvedRules && typeof localStorage !== 'undefined') {
+            try {
+              const stored = JSON.parse(localStorage.getItem('vital_points_config') || 'null');
+              if (stored) resolvedRules = stored;
+            } catch (e) {}
+          }
+          if (!resolvedRules) resolvedRules = DEFAULT_POINTS_CONFIG;
+          const wRepDate = (w.startDate)
+            ? new Date(new Date(w.startDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10)
+            : todayStr;
+          const wRule = getRuleForDate(resolvedRules, wRepDate);
+
+          const groupDelta = (groupDone ? 1 : 0) - (baseGroup ? 1 : 0);
+          const prayerDelta = (prayerDone ? 1 : 0) - (basePrayer ? 1 : 0);
+          const lordDayDelta = (lordDayDone ? 1 : 0) - (baseLordDay ? 1 : 0);
+          const visitDelta = (visitSelf && visitQualified ? 1 : 0) - (baseVisit && visitQualified ? 1 : 0);
+
+          deltaMeeting = (groupDelta * wRule.group) + (prayerDelta * wRule.prayerMtg) + (lordDayDelta * wRule.lordDay) + (visitDelta * wRule.outreach);
+        }
+
         // 7 天清單列
         const days = Array.isArray(w.days) ? w.days : [];
+        let deltaToday = 0;
+        let hasLiveToday = false;
+
+        if (isCurrent) {
+          const todayItem = days.find(d => Boolean(d.isToday || (todayStr && (d.date === todayStr || d.recordDate === todayStr))));
+          if (todayItem) {
+            const liveT = this.getLiveToday_(todayStr);
+            if (liveT) {
+              hasLiveToday = true;
+              let resolvedRules = (this.currentData && (this.currentData.pointsRules || this.currentData.pointsConfig));
+              if (!resolvedRules && typeof localStorage !== 'undefined') {
+                try {
+                  const stored = JSON.parse(localStorage.getItem('vital_points_config') || 'null');
+                  if (stored) resolvedRules = stored;
+                } catch (e) {}
+              }
+              if (!resolvedRules) resolvedRules = DEFAULT_POINTS_CONFIG;
+              const rule = getRuleForDate(resolvedRules, todayStr);
+
+              const baseM = Boolean(todayItem.morningCompleted || todayItem.morningRevival || todayItem.morning);
+              const baseB = Boolean(todayItem.bibleCompleted || todayItem.bibleReading || todayItem.bible);
+              const baseP = Boolean(todayItem.prayerCompleted || todayItem.prayer);
+              const baseR = Boolean(todayItem.readingCompleted || todayItem.bookCompleted || todayItem.bookPursuit || todayItem.book);
+
+              const liveMRevival = Boolean(liveT.morning || liveT.morningRevival);
+              const liveB = Boolean(liveT.bible || liveT.bibleReading);
+              const liveP = Boolean(liveT.prayer);
+              const liveR = Boolean(liveT.book || liveT.bookPursuit);
+
+              const bDelta = (liveB ? 1 : 0) - (baseB ? 1 : 0);
+              const pDelta = (liveP ? 1 : 0) - (baseP ? 1 : 0);
+              const rDelta = (liveR ? 1 : 0) - (baseR ? 1 : 0);
+              const mDelta = (todayItem.isMorningQualified ? ((liveMRevival ? 1 : 0) - (baseM ? 1 : 0)) : 0);
+
+              deltaToday = (bDelta * rule.bible) + (pDelta * rule.prayer) + (rDelta * rule.book) + (mDelta * rule.morning);
+            }
+          }
+        }
+
         let wMorningActive = 0, wBibleActive = 0, wPrayerActive = 0, wBookActive = 0;
         const daysRows = days.map(d => {
           const dName = DAY_NAMES[d.dayOfWeek] || '';
           const dDate = String(d.date || d.recordDate || '').slice(5).replace('-', '/');
           const isToday = Boolean(d.isToday || (todayStr && (d.date === todayStr || d.recordDate === todayStr)));
-          const score = Number(d.dailyScore || 0);
 
           const liveToday = isToday ? this.getLiveToday_(todayStr) : null;
           const mActive = liveToday
@@ -877,6 +1000,11 @@
           if (bActive) wBibleActive++;
           if (pActive) wPrayerActive++;
           if (rActive) wBookActive++;
+
+          let score = Number(d.dailyScore || 0);
+          if (isToday && hasLiveToday) {
+            score = Math.max(0, score + deltaToday);
+          }
 
           // 晨興狀態判斷（方案二選項 C：語意樣式分流，零符號雜訊，尺寸完全對齊）
           let morningClass = '';
@@ -918,6 +1046,9 @@
         const displayPrayerDays = days.length >= 7 ? wPrayerActive : Math.max(Number(w.prayerDays || 0), wPrayerActive);
         const displayBookDays = days.length >= 7 ? wBookActive : Math.max(Number(w.readingDays || w.bookDays || 0), wBookActive);
 
+        const baseWeekScore = Number(w.weeklyScore || w.totalWeekPoints || 0);
+        const totalWeekPoints = Math.max(0, baseWeekScore + deltaToday + deltaMeeting);
+
         return `
           <article class="footprint-week ${weekStateClass} ${defaultExpanded}" data-week-key="${escapeHtml(w.weekKey)}">
             <div class="footprint-week-summary" role="button" tabindex="0" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-label="切換 ${escapeHtml(w.weekLabel || w.weekKey)} 操練明細">
@@ -939,7 +1070,7 @@
                 </div>
               </div>
               <div class="footprint-week-points">
-                <strong>+${formatNumber(w.weeklyScore || w.totalWeekPoints || 0)} 點</strong>
+                <strong>+${formatNumber(totalWeekPoints)} 點</strong>
                 <span class="footprint-toggle-icon" aria-hidden="true">▼</span>
               </div>
             </div>

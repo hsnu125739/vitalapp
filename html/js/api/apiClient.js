@@ -817,14 +817,34 @@
             targetDay.readingCompleted = bookVal;
             targetDay.completedCount = (morningVal ? 1 : 0) + (bibleVal ? 1 : 0) + (prayerVal ? 1 : 0) + (bookVal ? 1 : 0);
             targetDay.hasRecord = targetDay.completedCount > 0;
+            let dScore = (bibleVal ? 30 : 0) + (prayerVal ? 30 : 0) + (bookVal ? 30 : 0);
+            if (targetDay.isMorningQualified) dScore += 30;
+            targetDay.dailyScore = dScore;
+          }
+        };
+
+        const recalculateWeek = (w) => {
+          if (!w || !Array.isArray(w.days)) return;
+          updateDayInList(w.days);
+          if (w.days.some(d => d.date === dateStr || d.recordDate === dateStr)) {
+            w.morningDays = w.days.filter(d => Boolean(d.morningCompleted)).length;
+            w.bibleDays = w.days.filter(d => Boolean(d.bibleCompleted)).length;
+            w.prayerDays = w.days.filter(d => Boolean(d.prayerCompleted)).length;
+            w.readingDays = w.days.filter(d => Boolean(d.readingCompleted)).length;
+            w.bookDays = w.readingDays;
+            w.completedDays = w.days.filter(d => Boolean(d.completedCount > 0 || d.hasRecord)).length;
+            const daysScoreSum = w.days.reduce((sum, d) => sum + Number(d.dailyScore || 0), 0);
+            const mScore = Number((w.meeting && w.meeting.points) ?? 0);
+            w.weeklyScore = daysScoreSum + mScore;
+            w.totalWeekPoints = w.weeklyScore;
           }
         };
 
         if (Array.isArray(cache.weeks)) {
-          cache.weeks.forEach(w => updateDayInList(w.days));
+          cache.weeks.forEach(recalculateWeek);
         }
         if (Array.isArray(cache.weekly)) {
-          cache.weekly.forEach(w => updateDayInList(w.days));
+          cache.weekly.forEach(recalculateWeek);
         }
         if (Array.isArray(cache.daily)) {
           updateDayInList(cache.daily);
@@ -871,11 +891,19 @@
             targetWeek.prayerMeetingCompleted = prayerVal;
             targetWeek.lordDayCompleted = lordDayVal;
             targetWeek.visitCompleted = outreachVal;
+            const isOutreachQual = Boolean(targetWeek.isOutreachQualified || (targetWeek.meeting && targetWeek.meeting.isOutreachQualified));
+            const mScore = (groupVal ? 60 : 0) + (prayerVal ? 60 : 0) + (lordDayVal ? 90 : 0) + (outreachVal && isOutreachQual ? 60 : 0);
             if (targetWeek.meeting) {
               targetWeek.meeting.smallGroup = groupVal;
               targetWeek.meeting.prayerMeeting = prayerVal;
               targetWeek.meeting.lordDayMeeting = lordDayVal;
               targetWeek.meeting.outreachVisit = outreachVal;
+              targetWeek.meeting.points = mScore;
+            }
+            if (Array.isArray(targetWeek.days)) {
+              const daysScoreSum = targetWeek.days.reduce((sum, d) => sum + Number(d.dailyScore || 0), 0);
+              targetWeek.weeklyScore = daysScoreSum + mScore;
+              targetWeek.totalWeekPoints = targetWeek.weeklyScore;
             }
           }
         };
