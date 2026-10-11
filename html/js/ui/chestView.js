@@ -151,7 +151,7 @@
         const raw = m && String((typeof m === 'string' ? m : (m.id || m.tierId || m.achievementId)) || '').trim();
         if (!raw) return;
         claimedSet.add(raw);
-        const dm = raw.match(/^(.+)_(\d{4}-\d{2}-\d{2})$/);
+        const dm = raw.match(/^(.+)_(\d{4}-\d{2}-\d{2})$/) || raw.match(/^(.+)_(\d{4}-W\d{1,2})$/i);
         if (dm) {
           const info = repeatInfo.get(dm[1]) || { count: 0, last: '' };
           info.count++;
