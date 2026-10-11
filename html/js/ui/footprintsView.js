@@ -880,7 +880,7 @@
               <span class="footprint-month-key">(${escapeHtml(monthKey)})</span>
             </div>
             <div class="footprint-summary-group">
-              <span class="footprint-total-points">累計 ⭐ <strong>${formatNumber(totalScore)}</strong> 點</span>
+              <span class="footprint-total-points">本月累計 ⭐ <strong>${formatNumber(totalScore)}</strong> 點</span>
               <span class="footprint-total-attendance">全勤 🔥 ${formatNumber(fullAttendanceDays)} 天</span>
             </div>
           </div>
