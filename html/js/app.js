@@ -531,6 +531,7 @@
       let chaptersConfig = null;
       let achievementsConfig = null;
       let tasksConfig = null;
+      let milestonesConfig = null;
 
       let hasBackendPlayerProgress = false;
 
@@ -619,6 +620,10 @@
           tasksConfig = data.tasks;
           try { localStorage.setItem('vital_tasks_config', JSON.stringify(data.tasks)); } catch(e) {}
         }
+        if (data.milestonesConfig) {
+          milestonesConfig = data.milestonesConfig;
+          try { localStorage.setItem('vital_milestones_config', JSON.stringify(data.milestonesConfig)); } catch(e) {}
+        }
 
         if (data.pointsConfig) {
           try {
@@ -630,13 +635,14 @@
         }
 
         // 若 bundle 封包未包含設定（瘦身模式），依序從預載或本地快取中安全補全
-        if ((!chaptersConfig || !achievementsConfig || !tasksConfig) && preloadConfigsPromise) {
+        if ((!chaptersConfig || !achievementsConfig || !tasksConfig || !milestonesConfig) && preloadConfigsPromise) {
           try {
             const pre = await preloadConfigsPromise;
             if (pre && pre.data) {
               if (!chaptersConfig && pre.data.chapters) chaptersConfig = pre.data.chapters;
               if (!achievementsConfig && pre.data.achievements) achievementsConfig = pre.data.achievements;
               if (!tasksConfig && pre.data.tasks) tasksConfig = pre.data.tasks;
+              if (!milestonesConfig && pre.data.milestonesConfig) milestonesConfig = pre.data.milestonesConfig;
               if (!data.pointsConfig && pre.data.pointsConfig) {
                 try { localStorage.setItem('vital_points_config', JSON.stringify(pre.data.pointsConfig)); } catch (e) {}
                 if (dashboardView && typeof dashboardView.renderTaskCards === 'function') {
@@ -655,6 +661,9 @@
         if (!tasksConfig && typeof localStorage !== 'undefined') {
           try { tasksConfig = JSON.parse(localStorage.getItem('vital_tasks_config') || 'null'); } catch(e) {}
         }
+        if (!milestonesConfig && typeof localStorage !== 'undefined') {
+          try { milestonesConfig = JSON.parse(localStorage.getItem('vital_milestones_config') || 'null'); } catch(e) {}
+        }
       } else {
         if (currentPId && typeof localStorage !== 'undefined') {
           try { playerMilestones = JSON.parse(localStorage.getItem(`vital_player_milestones_${currentPId}`) || '[]'); } catch(e) { playerMilestones = []; }
@@ -668,6 +677,7 @@
         try { chaptersConfig = JSON.parse(localStorage.getItem('vital_chapters_config') || 'null'); } catch(e) {}
         try { achievementsConfig = JSON.parse(localStorage.getItem('vital_achievements_config') || 'null'); } catch(e) {}
         try { tasksConfig = JSON.parse(localStorage.getItem('vital_tasks_config') || 'null'); } catch(e) {}
+        try { milestonesConfig = JSON.parse(localStorage.getItem('vital_milestones_config') || 'null'); } catch(e) {}
       }
 
       if (currentGId && profileRes.status === 'fulfilled' && profileRes.value && profileRes.value.success) {
@@ -718,7 +728,8 @@
         checkMilestone(playerMilestones, groupMilestones, currentPId, currentGId, {
           chapters: chaptersConfig,
           achievements: achievementsConfig,
-          tasks: tasksConfig
+          tasks: tasksConfig,
+          milestones: milestonesConfig
         });
       }
 
@@ -739,8 +750,8 @@
       dashboardView.render(currentUserProfile, currentJourneyData, announcements, chaptersConfig);
       profileView.render(currentUserProfile, currentJourneyData);
 
-      // 6.1 檢查特殊任務登入提示彈窗 (今日不再顯示記憶機制)
-      checkSpecialTasksPrompt(tasksConfig, currentPId);
+      // 6.1 檢查特殊任務登入提示彈窗 (今日不再顯示記憶機制，過濾已達成任務，依 MilestonesConfig 判定進行中狀態與日期)
+      checkSpecialTasksPrompt(tasksConfig, currentPId, playerMilestones, milestonesConfig);
 
       // 7. 初始化小組交流
       if (currentGId) {
@@ -812,18 +823,20 @@
     if (m.name && typeof m.name === 'string' && m.name.trim()) return m.name.trim();
     if (m.title && typeof m.title === 'string' && m.title.trim()) return m.title.trim();
 
-    // REPEAT 里程碑 id 形如 `${基底ID}_YYYY-MM-DD`，查表一律以基底 ID 為準
-    const id = String((m.id || m.achievementId || m.chapterId || m.taskId) || '').trim().replace(/_\d{4}-\d{2}-\d{2}$/, '');
+    // 週期里程碑 id 形如 `${基底ID}_YYYY-MM-DD` 或 `${基底ID}_YYYY-Www`，查表一律以基底 ID 為準
+    const id = String((m.id || m.achievementId || m.chapterId || m.taskId) || '').trim().replace(/_\d{4}(-\d{2}-\d{2}|-W\d{2})$/, '');
     if (!id) return '';
 
     let chapters = (configs && configs.chapters) || null;
     let achievements = (configs && configs.achievements) || null;
     let tasks = (configs && configs.tasks) || null;
+    let milestones = (configs && (configs.milestones || configs.milestonesConfig)) || null;
 
     if (typeof localStorage !== 'undefined') {
       try { if (!chapters) chapters = JSON.parse(localStorage.getItem('vital_chapters_config') || 'null'); } catch (e) {}
       try { if (!achievements) achievements = JSON.parse(localStorage.getItem('vital_achievements_config') || 'null'); } catch (e) {}
       try { if (!tasks) tasks = JSON.parse(localStorage.getItem('vital_tasks_config') || 'null'); } catch (e) {}
+      try { if (!milestones) milestones = JSON.parse(localStorage.getItem('vital_milestones_config') || 'null'); } catch (e) {}
     }
 
     const normChapterId = id.replace(/^CHAPTER_/i, '');
@@ -858,8 +871,17 @@
       });
       if (found && found.name) return found.name;
     }
+    if (type === 'task' && Array.isArray(milestones)) {
+      const found = milestones.find(mRule => {
+        if (!mRule) return false;
+        const mid = String(mRule.id || '').trim();
+        const normMid = mid.replace(/^TASK_/i, '');
+        return mid === id || mid === normTaskId || normMid === normTaskId;
+      });
+      if (found && (found.title || found.name)) return (found.title || found.name);
+    }
 
-    // 2. 全面依設定表查表 (AchievementConfig -> ChapterConfig -> TasksConfig)
+    // 2. 全面依設定表查表 (AchievementConfig -> ChapterConfig -> TasksConfig -> MilestonesConfig)
     if (Array.isArray(achievements)) {
       const found = achievements.find(a => {
         if (!a) return false;
@@ -887,6 +909,15 @@
       });
       if (found && found.name) return found.name;
     }
+    if (Array.isArray(milestones)) {
+      const found = milestones.find(mRule => {
+        if (!mRule) return false;
+        const mid = String(mRule.id || '').trim();
+        const normMid = mid.replace(/^TASK_/i, '');
+        return mid === id || mid === normTaskId || normMid === normTaskId;
+      });
+      if (found && (found.title || found.name)) return (found.title || found.name);
+    }
 
     // 3. 安全兜底預設名稱
     const legacyDefaults = {
@@ -898,8 +929,10 @@
       'T6': '明光照耀寶箱', 'CHEST_T6': '明光照耀寶箱',
       'T7': '磐石基石寶箱', 'CHEST_T7': '磐石基石寶箱',
       'T8': '榮耀冠冕寶箱', 'CHEST_T8': '榮耀冠冕寶箱',
+      'CHEST_T9': '錫安寶箱', 'CHEST_T10': '冠冕寶箱',
       'CHP_01': '信心篇', 'CHP_02': '美德篇', 'CHP_03': '知識篇', 'CHP_04': '節制篇',
-      'CHP_05': '忍耐篇', 'CHP_06': '敬虔篇', 'CHP_07': '弟兄相愛篇', 'CHP_08': '愛篇'
+      'CHP_05': '忍耐篇', 'CHP_06': '敬虔篇', 'CHP_07': '弟兄相愛篇', 'CHP_08': '愛篇',
+      'REPEAT_DAILY_ALL': '每日四項全勤', 'REPEAT_STREAK_7': '連續七天晨興'
     };
     if (legacyDefaults[id]) return legacyDefaults[id];
 
@@ -1021,23 +1054,30 @@
     }
     const achIdSet = new Set(Array.isArray(achCfgForClassify) && achCfgForClassify.length > 0
       ? achCfgForClassify.map(a => String((a && (a.achievementId || a.id)) || '').trim()).filter(Boolean)
-      : ['CHEST_T1', 'CHEST_T2', 'CHEST_T3', 'CHEST_T4', 'CHEST_T5', 'CHEST_T6', 'CHEST_T7', 'CHEST_T8', 'REPEAT_DAILY_ALL', 'REPEAT_STREAK_7']);
+      : ['CHEST_T1', 'CHEST_T2', 'CHEST_T3', 'CHEST_T4', 'CHEST_T5', 'CHEST_T6', 'CHEST_T7', 'CHEST_T8', 'CHEST_T9', 'CHEST_T10']);
 
     const chpIdSet = new Set(Array.isArray(chpCfgForClassify) && chpCfgForClassify.length > 0
       ? chpCfgForClassify.map(c => String((c && (c.chapterId || c.id)) || '').trim()).filter(Boolean)
       : ['CHP_01', 'CHP_02', 'CHP_03', 'CHP_04', 'CHP_05', 'CHP_06', 'CHP_07', 'CHP_08']);
 
     allNew.forEach(m => {
-      // REPEAT 里程碑 id 形如 `${基底ID}_YYYY-MM-DD`，分類以基底 ID 為準
-      const id = String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '').replace(/_\d{4}-\d{2}-\d{2}$/, '').trim();
+      // 週期里程碑 id 形如 `${基底ID}_YYYY-MM-DD` 或 `${基底ID}_YYYY-Www`，分類以基底 ID 為準
+      const id = String((m && (m.id || m.achievementId || m.chapterId || m.taskId)) || '')
+        .replace(/_\d{4}(-\d{2}-\d{2}|-W\d{2})$/, '')
+        .trim();
       if (!id) return;
 
-      // 全面以 AchievementConfig 與 ChapterConfig 設定表為準
-      if (achIdSet.has(id)) {
-        chests.push(m);
-      } else if (chpIdSet.has(id)) {
+      // 規範化三層分類：
+      // 1. 篇章：以 CHP_ 或 CHAPTER_ 開頭，或存在於 ChapterConfig
+      if (id.startsWith('CHP_') || id.startsWith('CHAPTER_') || chpIdSet.has(id)) {
         chapters.push(m);
-      } else {
+      }
+      // 2. 寶箱成就：以 CHEST_ 或 T1~T10 開頭，或存在於 AchievementConfig
+      else if (id.startsWith('CHEST_') || /^T\d+$/i.test(id) || achIdSet.has(id)) {
+        chests.push(m);
+      }
+      // 3. 任務：其餘所有項目（包含 REPEAT_* 操練挑戰與 TASK_* 特殊任務）
+      else {
         tasks.push(m);
       }
     });
@@ -1111,7 +1151,7 @@
     }
   }
 
-  function checkSpecialTasksPrompt(tasksConfig, playerId) {
+  function checkSpecialTasksPrompt(tasksConfig, playerId, playerMilestones = null, milestonesConfig = null) {
     if (!playerId || typeof window === 'undefined' || typeof document === 'undefined') return;
 
     const todayStr = (dashboardView && typeof dashboardView.getTodayDateString === 'function')
@@ -1131,13 +1171,59 @@
 
     // 2. 取得任務清單（優先傳入 > 快取）
     let tasks = tasksConfig;
-    if (!Array.isArray(tasks) || tasks.length === 0) {
+    if (!Array.isArray(tasks)) {
       try {
         const stored = localStorage.getItem('vital_tasks_config');
         if (stored) tasks = JSON.parse(stored);
       } catch (e) {}
     }
     if (!Array.isArray(tasks)) tasks = [];
+
+    // 2.1 取得里程碑規則清單（優先傳入 > 快取）
+    let msRules = milestonesConfig;
+    if (!Array.isArray(msRules)) {
+      try {
+        const storedMs = localStorage.getItem('vital_milestones_config');
+        if (storedMs) msRules = JSON.parse(storedMs);
+      } catch (e) {}
+    }
+    if (!Array.isArray(msRules)) msRules = [];
+
+    // 建立 MilestoneConfig 快速檢索 Map (以 rule.id 與標準化 ID 雙向索引)
+    const milestoneRuleMap = new Map();
+    msRules.forEach(rule => {
+      if (rule && rule.id) {
+        const rid = String(rule.id).trim();
+        milestoneRuleMap.set(rid, rule);
+        const normRid = rid.replace(/^TASK_/i, '');
+        if (normRid && !milestoneRuleMap.has(normRid)) {
+          milestoneRuleMap.set(normRid, rule);
+        }
+      }
+    });
+
+    // 2.2 收集已達成/已領取任務集合 (包含傳入的 playerMilestones 或本地快取)
+    let pMs = Array.isArray(playerMilestones) ? playerMilestones : [];
+    if (pMs.length === 0 && typeof localStorage !== 'undefined') {
+      try {
+        const storedPMs = localStorage.getItem(`vital_player_milestones_${playerId}`) || localStorage.getItem('vital_player_milestones');
+        if (storedPMs) {
+          const parsed = JSON.parse(storedPMs);
+          if (Array.isArray(parsed)) pMs = parsed;
+        }
+      } catch (e) {}
+    }
+
+    const claimedIds = new Set();
+    pMs.forEach(m => {
+      if (!m) return;
+      const rawId = String(m.id || m.taskId || m.achievementId || '').trim();
+      if (!rawId) return;
+      claimedIds.add(rawId);
+      // 剝除週期後綴（如 _2026-10-12 或 _2026-W41）以相容基底 ID
+      const baseId = rawId.replace(/_\d{4}(-\d{2}-\d{2}|-W\d{2})$/, '').trim();
+      if (baseId) claimedIds.add(baseId);
+    });
 
     const normalizeDate = (d) => {
       if (!d) return '';
@@ -1150,18 +1236,37 @@
       return str;
     };
 
-    // 3. 過濾正在開放中的特殊任務
-    const activeTasks = tasks.filter(t => {
-      if (!t || t.status !== 'ACTIVE') return false;
-      const start = normalizeDate(t.startDate);
-      const end = normalizeDate(t.endDate);
-      if (start && todayStr < start) return false;
-      if (end && todayStr > end) return false;
-      return true;
-    }).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+    // 3. 過濾正在開放中且【尚未達成】的特殊任務
+    // TaskConfig 定義外觀呈現；MilestonesConfig 確定是否正在進行中 (ACTIVE) 與有效起訖日期
+    const activeTasks = [];
+    tasks.forEach(t => {
+      if (!t || t.status !== 'ACTIVE') return;
+      const tid = String(t.taskId || t.id || '').trim();
+      if (!tid) return;
+      // 若任務已達成/已領取，不再提示！
+      if (claimedIds.has(tid)) return;
+
+      const normTid = tid.replace(/^TASK_/i, '');
+      const rule = milestoneRuleMap.get(tid) || milestoneRuleMap.get(normTid);
+      // 若在 MilestonesConfig 查無對應規則，或規則非 ACTIVE，視為非進行中任務，直接略過
+      if (!rule || rule.status !== 'ACTIVE') return;
+
+      const start = normalizeDate(rule.startDate);
+      const end = normalizeDate(rule.endDate);
+      if (start && todayStr < start) return;
+      if (end && todayStr > end) return;
+
+      activeTasks.push({
+        ...t,
+        startDate: rule.startDate || '',
+        endDate: rule.endDate || ''
+      });
+    });
+
+    activeTasks.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
 
     if (activeTasks.length === 0) {
-      return; // 目前無開放中的特殊任務，不跳出提示
+      return; // 目前無未完成且開放中的特殊任務，不跳出提示
     }
 
     // 4. 若新成就慶祝視窗正在開啟，等待慶祝視窗關閉後再跳出任務提示

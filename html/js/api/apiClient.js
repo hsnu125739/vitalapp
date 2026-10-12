@@ -1052,15 +1052,17 @@
           const cachedChapters = this.storage.getItem('vital_chapters_config');
           const cachedAchievements = this.storage.getItem('vital_achievements_config');
           const cachedTasks = this.storage.getItem('vital_tasks_config');
+          const cachedMilestones = this.storage.getItem('vital_milestones_config');
           const cachedDate = this.storage.getItem('vital_configs_cached_date');
-          if (cachedPoints && cachedChapters && cachedAchievements && cachedTasks && cachedDate === today) {
+          if (cachedPoints && cachedChapters && cachedAchievements && cachedTasks && cachedMilestones && cachedDate === today) {
             return {
               success: true,
               data: {
                 pointsConfig: JSON.parse(cachedPoints),
                 chapters: JSON.parse(cachedChapters),
                 achievements: JSON.parse(cachedAchievements),
-                tasks: JSON.parse(cachedTasks)
+                tasks: JSON.parse(cachedTasks),
+                milestonesConfig: JSON.parse(cachedMilestones)
               }
             };
           }
@@ -1075,6 +1077,7 @@
           if (d.chapters) this.storage.setItem('vital_chapters_config', JSON.stringify(d.chapters));
           if (d.achievements) this.storage.setItem('vital_achievements_config', JSON.stringify(d.achievements));
           if (d.tasks) this.storage.setItem('vital_tasks_config', JSON.stringify(d.tasks));
+          if (d.milestonesConfig) this.storage.setItem('vital_milestones_config', JSON.stringify(d.milestonesConfig));
           this.storage.setItem('vital_configs_cached_date', today);
         } catch (_) {}
       }
@@ -1110,10 +1113,27 @@
     }
 
     async getMilestonesConfig() {
+      try {
+        const cached = this.storage.getItem('vital_milestones_config');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return { success: true, data: { milestones: parsed } };
+          }
+        }
+      } catch (_) {}
       return await this.request('getMilestonesConfig', {});
     }
 
     async clearProgressionConfigCache() {
+      try {
+        this.storage.removeItem('vital_points_config');
+        this.storage.removeItem('vital_chapters_config');
+        this.storage.removeItem('vital_achievements_config');
+        this.storage.removeItem('vital_tasks_config');
+        this.storage.removeItem('vital_milestones_config');
+        this.storage.removeItem('vital_configs_cached_date');
+      } catch (_) {}
       return await this.request('clearProgressionConfigCache', {});
     }
 

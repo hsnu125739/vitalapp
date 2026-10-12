@@ -228,6 +228,7 @@
         'vital_points_config',
         'vital_achievements_config',
         'vital_tasks_config',
+        'vital_milestones_config',
         'vital_configs_cached_date',
         'vital_keep_login',
         'vital_area_options_cache',
