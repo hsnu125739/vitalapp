@@ -29,7 +29,11 @@
     '愛'
   ];
 
-  const DEFAULT_POINTS_CONFIG = Object.freeze({
+  const PendingEngine = (typeof PendingPointsEngine !== 'undefined')
+    ? PendingPointsEngine
+    : (typeof require === 'function' ? require('../modules/pendingPointsEngine') : null);
+
+  const DEFAULT_POINTS_CONFIG = (PendingEngine && PendingEngine.DEFAULT_POINTS_CONFIG) || Object.freeze({
     morning: 50,
     bible: 30,
     prayer: 30,
@@ -65,11 +69,14 @@
 
       this.pointsConfig = { ...DEFAULT_POINTS_CONFIG };
       try {
-        const storedPoints = localStorage.getItem('vital_points_config');
+        const storedPoints = (typeof StorageGateway !== 'undefined' && StorageGateway.getJSON)
+          ? StorageGateway.getJSON('vital_points_config')
+          : (typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('vital_points_config') || 'null') : null);
         if (storedPoints) {
-          const parsed = JSON.parse(storedPoints);
-          if (parsed && typeof parsed === 'object') {
-            this.pointsConfig = { ...DEFAULT_POINTS_CONFIG, ...parsed };
+          if (PendingEngine && typeof PendingEngine.getRuleForDate === 'function') {
+            this.pointsConfig = PendingEngine.getRuleForDate(storedPoints, this.currentDate);
+          } else if (typeof storedPoints === 'object' && !Array.isArray(storedPoints)) {
+            this.pointsConfig = { ...DEFAULT_POINTS_CONFIG, ...storedPoints };
           }
         }
       } catch (e) {}
@@ -1004,8 +1011,12 @@
     }
 
     renderTaskCards(pointsConfig = null) {
-      if (pointsConfig && typeof pointsConfig === 'object') {
-        this.pointsConfig = { ...DEFAULT_POINTS_CONFIG, ...pointsConfig };
+      if (pointsConfig) {
+        if (PendingEngine && typeof PendingEngine.getRuleForDate === 'function') {
+          this.pointsConfig = PendingEngine.getRuleForDate(pointsConfig, this.currentDate);
+        } else if (typeof pointsConfig === 'object' && !Array.isArray(pointsConfig)) {
+          this.pointsConfig = { ...DEFAULT_POINTS_CONFIG, ...pointsConfig };
+        }
       }
       const cfg = this.pointsConfig || DEFAULT_POINTS_CONFIG;
 

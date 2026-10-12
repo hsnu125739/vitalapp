@@ -37,7 +37,11 @@
     return `${y}-${m}`;
   }
 
-  const DEFAULT_POINTS_CONFIG = Object.freeze({
+  const PendingEngine = (typeof PendingPointsEngine !== 'undefined')
+    ? PendingPointsEngine
+    : (typeof require === 'function' ? require('../modules/pendingPointsEngine') : null);
+
+  const DEFAULT_POINTS_CONFIG = (PendingEngine && PendingEngine.DEFAULT_POINTS_CONFIG) || Object.freeze({
     morning: 50,
     bible: 30,
     prayer: 30,
@@ -48,36 +52,20 @@
     outreach: 100
   });
 
-  function extractRuleField_(obj, key, fallbackVal) {
-    if (!obj) return fallbackVal;
-    if (obj[key] !== undefined && obj[key] !== null) return Number(obj[key]);
-    if (obj.daily && obj.daily[key] !== undefined && obj.daily[key] !== null) return Number(obj.daily[key]);
-    if (obj.meeting && obj.meeting[key] !== undefined && obj.meeting[key] !== null) return Number(obj.meeting[key]);
-    return fallbackVal;
-  }
+  const getRuleForDate = (PendingEngine && typeof PendingEngine.getRuleForDate === 'function')
+    ? PendingEngine.getRuleForDate
+    : function(cfg) { return cfg || DEFAULT_POINTS_CONFIG; };
 
-  /**
-   * 依日期查詢適用的計分規則 (支援後端 PointsConfig 之多期間動態加分規則)
-   */
-  function getRuleForDate(rulesOrConfig, targetDateStr) {
-    if (!rulesOrConfig) return DEFAULT_POINTS_CONFIG;
-    if (Array.isArray(rulesOrConfig)) {
-      if (rulesOrConfig.length === 0) return DEFAULT_POINTS_CONFIG;
-      const dStr = String(targetDateStr || '').slice(0, 10);
-      const matched = rulesOrConfig.find(r => r && (!r.startDate || dStr >= r.startDate) && (!r.endDate || dStr <= r.endDate)) || rulesOrConfig[0];
-      if (!matched) return DEFAULT_POINTS_CONFIG;
-      return {
-        morning: extractRuleField_(matched, 'morning', DEFAULT_POINTS_CONFIG.morning),
-        bible: extractRuleField_(matched, 'bible', DEFAULT_POINTS_CONFIG.bible),
-        prayer: extractRuleField_(matched, 'prayer', DEFAULT_POINTS_CONFIG.prayer),
-        book: extractRuleField_(matched, 'book', DEFAULT_POINTS_CONFIG.book),
-        group: extractRuleField_(matched, 'group', DEFAULT_POINTS_CONFIG.group),
-        prayerMtg: extractRuleField_(matched, 'prayerMtg', DEFAULT_POINTS_CONFIG.prayerMtg),
-        lordDay: extractRuleField_(matched, 'lordDay', DEFAULT_POINTS_CONFIG.lordDay),
-        outreach: extractRuleField_(matched, 'outreach', DEFAULT_POINTS_CONFIG.outreach)
-      };
+  function resolveRules_(sourceObj, fallbackConfig = null) {
+    let r = (sourceObj && (sourceObj.pointsRules || sourceObj.pointsConfig)) || fallbackConfig;
+    if (!r) {
+      try {
+        r = (typeof StorageGateway !== 'undefined' && StorageGateway.getJSON)
+          ? StorageGateway.getJSON('vital_points_config')
+          : (typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('vital_points_config') || 'null') : null);
+      } catch (_) {}
     }
-    return Object.assign({}, DEFAULT_POINTS_CONFIG, rulesOrConfig);
+    return r || DEFAULT_POINTS_CONFIG;
   }
 
   function getChineseMonthName(monthKey) {
@@ -145,14 +133,7 @@
           todayItem.hasRecord = todayItem.completedCount > 0;
 
           // 動態水合今日點數與當週總分
-          let resolvedRules = (raw && (raw.pointsRules || raw.pointsConfig)) || pointsConfig;
-          if (!resolvedRules && typeof localStorage !== 'undefined') {
-            try {
-              const stored = JSON.parse(localStorage.getItem('vital_points_config') || 'null');
-              if (stored) resolvedRules = stored;
-            } catch (e) {}
-          }
-          if (!resolvedRules) resolvedRules = DEFAULT_POINTS_CONFIG;
+          const resolvedRules = resolveRules_(raw, pointsConfig);
           const rule = getRuleForDate(resolvedRules, todayStr);
           let liveDailyScore = 0;
           if (b) liveDailyScore += (rule.bible !== undefined ? rule.bible : 30);
@@ -184,14 +165,7 @@
         const baseL = Boolean(w0.lordDayCompleted || (w0.meeting && (w0.meeting.lordDayMeeting || w0.meeting.lordDay)));
         const baseV = Boolean(w0.visitCompleted || (w0.meeting && (w0.meeting.outreachVisit || w0.meeting.outreach)));
 
-        let resolvedRules = (raw && (raw.pointsRules || raw.pointsConfig)) || pointsConfig;
-        if (!resolvedRules && typeof localStorage !== 'undefined') {
-          try {
-            const stored = JSON.parse(localStorage.getItem('vital_points_config') || 'null');
-            if (stored) resolvedRules = stored;
-          } catch (e) {}
-        }
-        if (!resolvedRules) resolvedRules = DEFAULT_POINTS_CONFIG;
+        const resolvedRules = resolveRules_(raw, pointsConfig);
         const wRepDate = w0.startDate ? new Date(new Date(w0.startDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10) : getLocalDateString();
         const wRule = getRuleForDate(resolvedRules, wRepDate);
 
@@ -221,15 +195,8 @@
       return raw;
     }
 
-    // 優先順序：raw.pointsRules > raw.pointsConfig > pointsConfig > localStorage 快取 > 預設常數
-    let resolvedRules = (raw && (raw.pointsRules || raw.pointsConfig)) || pointsConfig;
-    if (!resolvedRules && typeof localStorage !== 'undefined') {
-      try {
-        const stored = JSON.parse(localStorage.getItem('vital_points_config') || 'null');
-        if (stored) resolvedRules = stored;
-      } catch (e) {}
-    }
-    if (!resolvedRules) resolvedRules = DEFAULT_POINTS_CONFIG;
+    // 優先順序：raw.pointsRules > raw.pointsConfig > pointsConfig > Storage 快取 > 預設常數
+    const resolvedRules = resolveRules_(raw, pointsConfig);
 
     const todayStr = raw.today || getLocalDateString();
     const dates = raw.dates || [];
@@ -651,17 +618,10 @@
     }
 
     /**
-     * 取得計分規則 (依序讀取 currentData、localStorage 或 DEFAULT_POINTS_CONFIG)
+     * 取得計分規則 (依序讀取 currentData、Storage 或 DEFAULT_POINTS_CONFIG)
      */
     getPointsRules_() {
-      let resolvedRules = (this.currentData && (this.currentData.pointsRules || this.currentData.pointsConfig));
-      if (!resolvedRules && typeof localStorage !== 'undefined') {
-        try {
-          const stored = JSON.parse(localStorage.getItem('vital_points_config') || 'null');
-          if (stored) resolvedRules = stored;
-        } catch (e) {}
-      }
-      return resolvedRules || DEFAULT_POINTS_CONFIG;
+      return resolveRules_(this.currentData);
     }
 
     /**

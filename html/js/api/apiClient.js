@@ -820,17 +820,22 @@
 
             let storedRules = null;
             try {
-              storedRules = JSON.parse(this.storage.getItem('vital_points_config') || 'null');
+              storedRules = (typeof StorageGateway !== 'undefined' && StorageGateway.getJSON)
+                ? StorageGateway.getJSON('vital_points_config')
+                : JSON.parse(this.storage.getItem('vital_points_config') || 'null');
             } catch (_) {}
-            const ruleBible = (storedRules && storedRules.bible !== undefined) ? Number(storedRules.bible) : 30;
-            const rulePrayer = (storedRules && storedRules.prayer !== undefined) ? Number(storedRules.prayer) : 30;
-            const ruleBook = (storedRules && storedRules.book !== undefined) ? Number(storedRules.book) : 30;
-            const ruleMorning = (storedRules && storedRules.morning !== undefined) ? Number(storedRules.morning) : 50;
+            const engine = (typeof PendingPointsEngine !== 'undefined')
+              ? PendingPointsEngine
+              : (typeof require === 'function' ? require('../modules/pendingPointsEngine') : null);
+            const activeRule = (engine && typeof engine.getRuleForDate === 'function')
+              ? engine.getRuleForDate(storedRules, dateStr)
+              : { bible: 30, prayer: 30, book: 30, morning: 50 };
+
             let newScore = 0;
-            if (bibleVal) newScore += ruleBible;
-            if (prayerVal) newScore += rulePrayer;
-            if (bookVal) newScore += ruleBook;
-            if (targetDay.isMorningQualified) newScore += ruleMorning;
+            if (bibleVal) newScore += activeRule.bible;
+            if (prayerVal) newScore += activeRule.prayer;
+            if (bookVal) newScore += activeRule.book;
+            if (targetDay.isMorningQualified) newScore += activeRule.morning;
             targetDay.dailyScore = newScore;
           }
         };
@@ -894,19 +899,26 @@
             }
             let storedRules = null;
             try {
-              storedRules = JSON.parse(this.storage.getItem('vital_points_config') || 'null');
+              storedRules = (typeof StorageGateway !== 'undefined' && StorageGateway.getJSON)
+                ? StorageGateway.getJSON('vital_points_config')
+                : JSON.parse(this.storage.getItem('vital_points_config') || 'null');
             } catch (_) {}
-            const rGroup = (storedRules && storedRules.group !== undefined) ? Number(storedRules.group) : 30;
-            const rPrayer = (storedRules && storedRules.prayerMtg !== undefined) ? Number(storedRules.prayerMtg) : 50;
-            const rLord = (storedRules && storedRules.lordDay !== undefined) ? Number(storedRules.lordDay) : 50;
-            const rOutreach = (storedRules && storedRules.outreach !== undefined) ? Number(storedRules.outreach) : 100;
+            const engine = (typeof PendingPointsEngine !== 'undefined')
+              ? PendingPointsEngine
+              : (typeof require === 'function' ? require('../modules/pendingPointsEngine') : null);
+            const wRepDate = targetWeek.startDate
+              ? new Date(new Date(targetWeek.startDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10)
+              : '';
+            const activeRule = (engine && typeof engine.getRuleForDate === 'function')
+              ? engine.getRuleForDate(storedRules, wRepDate)
+              : { group: 30, prayerMtg: 50, lordDay: 50, outreach: 100 };
             const isOutreachQualified = Boolean(targetWeek.isOutreachQualified || (targetWeek.meeting && targetWeek.meeting.isOutreachQualified));
 
             let newMeetingPoints = 0;
-            if (groupVal) newMeetingPoints += rGroup;
-            if (prayerVal) newMeetingPoints += rPrayer;
-            if (lordDayVal) newMeetingPoints += rLord;
-            if (outreachVal && isOutreachQualified) newMeetingPoints += rOutreach;
+            if (groupVal) newMeetingPoints += activeRule.group;
+            if (prayerVal) newMeetingPoints += activeRule.prayerMtg;
+            if (lordDayVal) newMeetingPoints += activeRule.lordDay;
+            if (outreachVal && isOutreachQualified) newMeetingPoints += activeRule.outreach;
 
             if (targetWeek.meeting) {
               const oldMeetingPoints = Number(targetWeek.meeting.points || 0);
