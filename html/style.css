@@ -6652,4 +6652,95 @@ body[data-theme="night"] .footprint-meeting-tag {
   box-shadow: none !important;
 }
 
+/* ==========================================================================
+   階段四：聚會每日增量結算發光金邊固化與雙 Toast 交互樣式
+   ========================================================================== */
 
+/* 已固化聚會卡片：尊榮發光金邊（嚴禁灰底） */
+#homeView .quest-card.is-solidified {
+  border: 2px solid #f59e0b !important;
+  background: linear-gradient(135deg, rgba(255, 251, 235, 0.98), rgba(254, 243, 199, 0.92)) !important;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.42), 0 2px 4px rgba(0, 0, 0, 0.04) !important;
+  position: relative;
+  cursor: pointer;
+}
+
+/* 金色呼吸光暈 */
+@keyframes goldGlowPulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(245, 158, 11, 0.38); }
+  50% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.65); }
+}
+#homeView .quest-card.is-solidified:hover {
+  animation: goldGlowPulse 1.8s infinite ease-in-out;
+}
+
+/* 右上角已固化尊榮標籤 */
+#homeView .quest-card.is-solidified em {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.45) !important;
+  font-weight: 700;
+}
+
+/* 已固化頂部金光飾條 */
+#homeView .quest-card.is-solidified:before {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24) !important;
+}
+
+/* 極簡自包含 Toast 容器與卡片樣式 */
+.vital-toast-container {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: max(32px, calc(76px + env(safe-area-inset-bottom)));
+  z-index: 99999;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 92vw;
+  width: max-content;
+}
+
+.vital-toast-container.toast-center {
+  top: 50%;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+}
+
+.vital-toast {
+  pointer-events: auto;
+  padding: 12px 20px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.vital-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 底部清新溫和提示 */
+.vital-toast.toast-info {
+  background: rgba(37, 49, 60, 0.94);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* 中央尊榮金光提示 */
+.vital-toast.toast-gold {
+  background: linear-gradient(135deg, rgba(255, 251, 235, 0.98), rgba(254, 243, 199, 0.95));
+  color: #92400e;
+  border: 2px solid #f59e0b;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.5), 0 8px 24px rgba(0, 0, 0, 0.15);
+  font-weight: 700;
+}

@@ -275,11 +275,20 @@
                   const cachedMtg = JSON.parse(localStorage.getItem(`vital_meeting_records_${cachedPlayer.playerId}`) || 'null');
                   if (cachedMtg && cachedMtg[curWeek]) {
                     const mRec = cachedMtg[curWeek];
+                    const sList = Array.isArray(mRec.solidifiedItems) ? mRec.solidifiedItems : [];
+                    const normFn = typeof normalizeMeetingKey === 'function' ? normalizeMeetingKey : (k => k);
+                    const sSet = new Set(sList.map(normFn));
+                    const sm = Boolean(sSet.has('smallGroup') || mRec.group || mRec.smallGroup);
+                    const pr = Boolean(sSet.has('prayerMeeting') || mRec.prayerMtg || mRec.prayerMeeting);
+                    const ld = Boolean(sSet.has('lordDayMeeting') || mRec.lordDay || mRec.lordDayMeeting);
+                    const ov = Boolean(sSet.has('outreachVisit') || mRec.outreach || mRec.outreachVisit || mRec.blend || mRec.mutual);
                     practiceStore.meetingState[curWeek] = {
-                      smallGroup: Boolean(mRec.group || mRec.smallGroup),
-                      prayerMeeting: Boolean(mRec.prayerMtg || mRec.prayerMeeting),
-                      lordDayMeeting: Boolean(mRec.lordDay || mRec.lordDayMeeting),
-                      outreachVisit: Boolean(mRec.outreach || mRec.outreachVisit || mRec.blend || mRec.mutual),
+                      smallGroup: sm,
+                      prayerMeeting: pr,
+                      lordDayMeeting: ld,
+                      outreachVisit: ov,
+                      packedValue: mRec.packedValue !== undefined ? mRec.packedValue : (typeof packBase100 === 'function' ? packBase100(sm, pr, ld, ov) : undefined),
+                      solidifiedItems: sList,
                       syncStatus: 'synced',
                       hasAmberDot: false
                     };
@@ -359,25 +368,13 @@
               };
             }
 
-            const pendingM = (practiceStore.pendingMeeting && practiceStore.pendingMeeting.get(curWeek)) || null;
-            practiceStore.meetingState[curWeek] = {
-              smallGroup: pendingM ? pendingM.smallGroup : Boolean(mRec.group || mRec.smallGroup),
-              prayerMeeting: pendingM ? pendingM.prayerMeeting : Boolean(mRec.prayerMtg || mRec.prayerMeeting),
-              lordDayMeeting: pendingM ? pendingM.lordDayMeeting : Boolean(mRec.lordDay || mRec.lordDayMeeting),
-              outreachVisit: pendingM ? pendingM.outreachVisit : Boolean(mRec.outreach || mRec.outreachVisit || mRec.blend || mRec.mutual),
-              syncStatus: pendingM ? 'pending' : 'synced',
-              hasAmberDot: false
-            };
-
-            if (lastWeek && lastMRec) {
-              practiceStore.meetingState[lastWeek] = {
-                smallGroup: Boolean(lastMRec.group || lastMRec.smallGroup),
-                prayerMeeting: Boolean(lastMRec.prayerMtg || lastMRec.prayerMeeting),
-                lordDayMeeting: Boolean(lastMRec.lordDay || lastMRec.lordDayMeeting),
-                outreachVisit: Boolean(lastMRec.outreach || lastMRec.outreachVisit || lastMRec.blend || lastMRec.mutual),
-                syncStatus: 'synced',
-                hasAmberDot: false
-              };
+            // 聚會狀態已由 practiceStore.mergeServerPractice 完成聯集合併、固化守衛、Base-100 打包與視圖通知
+            // 直接引用領域狀態庫權威成果，消除重複算分與多餘字面量覆寫
+            if (curWeek && practiceStore.meetingState) {
+              practiceStore.meetingState[curWeek] = practiceStore.meetingState[curWeek] || {};
+            }
+            if (lastWeek && practiceStore.meetingState) {
+              practiceStore.meetingState[lastWeek] = practiceStore.meetingState[lastWeek] || {};
             }
 
             if (pId && typeof localStorage !== 'undefined') {

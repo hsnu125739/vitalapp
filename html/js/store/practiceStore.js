@@ -24,12 +24,15 @@ function normalizeDailyKey(k) {
   return k;
 }
 
+const MEETING_KEY_MAP = {
+  group: 'smallGroup', smallGroup: 'smallGroup', groupMeeting: 'smallGroup',
+  prayerMtg: 'prayerMeeting', prayerMeeting: 'prayerMeeting', prayer: 'prayerMeeting',
+  lordDay: 'lordDayMeeting', lordDayMeeting: 'lordDayMeeting', lordsDayMeeting: 'lordDayMeeting',
+  outreach: 'outreachVisit', outreachVisit: 'outreachVisit', blend: 'outreachVisit', mutual: 'outreachVisit', mutualPursuit: 'outreachVisit'
+};
+
 function normalizeMeetingKey(k) {
-  if (k === 'smallGroup' || k === 'group') return 'smallGroup';
-  if (k === 'prayerMeeting' || k === 'prayer') return 'prayerMeeting';
-  if (k === 'lordDayMeeting' || k === 'lordDay') return 'lordDayMeeting';
-  if (k === 'outreachVisit' || k === 'outreach') return 'outreachVisit';
-  return k;
+  return (k && MEETING_KEY_MAP[k]) || k;
 }
 
 function packBase100(a, b, c, d) {
@@ -236,12 +239,25 @@ class OptimisticPracticeStore {
         outreachVisit: false,
         packedValue: 0,
         syncStatus: 'synced',
-        hasAmberDot: false
+        hasAmberDot: false,
+        solidifiedItems: []
       };
     }
 
     const current = this.meetingState[weekKey];
     const normKey = normalizeMeetingKey(itemKey);
+
+    // 固化防禦守衛：若該項目已固化入帳，立即中斷操作，返回 { ...current, isSolidified: true }
+    // 嚴格阻止狀態被變更為 false，不調用 notify，不寫入 pendingMeeting，不發送網路請求！
+    const isSolidified = (current.solidifiedItems || []).some(k => normalizeMeetingKey(k) === normKey);
+    if (isSolidified) {
+      if (!current[normKey]) {
+        current[normKey] = true;
+        current.packedValue = packBase100(current.smallGroup, current.prayerMeeting, current.lordDayMeeting, current.outreachVisit);
+      }
+      return { ...current, isSolidified: true };
+    }
+
     const nextVal = forcedValue !== null ? Boolean(forcedValue) : !current[normKey];
     current[normKey] = nextVal;
     current.syncStatus = 'pending';
@@ -375,15 +391,18 @@ class OptimisticPracticeStore {
       } else if (item.type === 'MEETING' && item.key && !this.meetingState[item.key]) {
         const p = item.payload || {};
         const unp = unpackBase100(p.packedValue);
-        const smallGroup = p.packedValue !== undefined ? unp.a : Boolean(p.smallGroup || p.group);
-        const prayerMeeting = p.packedValue !== undefined ? unp.b : Boolean(p.prayerMeeting || p.prayerMtg);
-        const lordDayMeeting = p.packedValue !== undefined ? unp.c : Boolean(p.lordDayMeeting || p.lordDay);
-        const outreachVisit = p.packedValue !== undefined ? unp.d : Boolean(p.outreachVisit || p.outreach);
+        const sList = Array.isArray(p.solidifiedItems) ? p.solidifiedItems.map(normalizeMeetingKey) : [];
+        const solidSet = new Set(sList);
+        const smallGroup = Boolean(solidSet.has('smallGroup') || (p.packedValue !== undefined ? unp.a : (p.smallGroup || p.group)));
+        const prayerMeeting = Boolean(solidSet.has('prayerMeeting') || (p.packedValue !== undefined ? unp.b : (p.prayerMeeting || p.prayerMtg)));
+        const lordDayMeeting = Boolean(solidSet.has('lordDayMeeting') || (p.packedValue !== undefined ? unp.c : (p.lordDayMeeting || p.lordDay)));
+        const outreachVisit = Boolean(solidSet.has('outreachVisit') || (p.packedValue !== undefined ? unp.d : (p.outreachVisit || p.outreach)));
         this.meetingState[item.key] = {
           smallGroup, prayerMeeting, lordDayMeeting, outreachVisit,
           packedValue: packBase100(smallGroup, prayerMeeting, lordDayMeeting, outreachVisit),
           syncStatus: 'error',
-          hasAmberDot: true
+          hasAmberDot: true,
+          solidifiedItems: sList
         };
       }
     }
@@ -585,7 +604,7 @@ class OptimisticPracticeStore {
     // 3. 本週聚會整併
     const weekKey = payload.weekKey;
     const sMeeting = payload.meeting;
-    if (weekKey && sMeeting) {
+    if (weekKey && (sMeeting || payload.solidifiedItems)) {
       if (!this.meetingState[weekKey]) {
         this.meetingState[weekKey] = {
           smallGroup: false,
@@ -594,27 +613,33 @@ class OptimisticPracticeStore {
           outreachVisit: false,
           packedValue: 0,
           syncStatus: 'synced',
-          hasAmberDot: false
+          hasAmberDot: false,
+          solidifiedItems: []
         };
       }
       const curM = this.meetingState[weekKey];
+      if (!Array.isArray(curM.solidifiedItems)) curM.solidifiedItems = [];
       const pendingM = (this.pendingMeeting && this.pendingMeeting.get(weekKey)) || null;
 
-      const smallGroup = Boolean(curM.smallGroup || sMeeting.smallGroup || sMeeting.group || (pendingM && (pendingM.smallGroup || pendingM.group)));
-      const prayerMeeting = Boolean(curM.prayerMeeting || sMeeting.prayerMeeting || sMeeting.prayerMtg || (pendingM && (pendingM.prayerMeeting || pendingM.prayerMtg)));
-      const lordDayMeeting = Boolean(curM.lordDayMeeting || sMeeting.lordDayMeeting || sMeeting.lordDay || (pendingM && (pendingM.lordDayMeeting || pendingM.lordDay)));
-      const outreachVisit = Boolean(curM.outreachVisit || sMeeting.outreachVisit || sMeeting.outreach || sMeeting.blend || sMeeting.mutual || (pendingM && (pendingM.outreachVisit || pendingM.outreach)));
+      const sM = sMeeting || {};
+      const serverSolidified = sM.solidifiedItems || payload.solidifiedItems || [];
+      const localSolidified = curM.solidifiedItems || [];
+      const mergedSolidifiedSet = new Set([
+        ...localSolidified.map(normalizeMeetingKey),
+        ...(Array.isArray(serverSolidified) ? serverSolidified.map(normalizeMeetingKey) : [])
+      ]);
+      curM.solidifiedItems = Array.from(mergedSolidifiedSet);
 
-      curM.smallGroup = smallGroup;
-      curM.prayerMeeting = prayerMeeting;
-      curM.lordDayMeeting = lordDayMeeting;
-      curM.outreachVisit = outreachVisit;
-      curM.packedValue = packBase100(smallGroup, prayerMeeting, lordDayMeeting, outreachVisit);
+      curM.smallGroup = Boolean(mergedSolidifiedSet.has('smallGroup') || curM.smallGroup || sM.smallGroup || sM.group || (pendingM && (pendingM.smallGroup || pendingM.group)));
+      curM.prayerMeeting = Boolean(mergedSolidifiedSet.has('prayerMeeting') || curM.prayerMeeting || sM.prayerMeeting || sM.prayerMtg || (pendingM && (pendingM.prayerMeeting || pendingM.prayerMtg)));
+      curM.lordDayMeeting = Boolean(mergedSolidifiedSet.has('lordDayMeeting') || curM.lordDayMeeting || sM.lordDayMeeting || sM.lordDay || (pendingM && (pendingM.lordDayMeeting || pendingM.lordDay)));
+      curM.outreachVisit = Boolean(mergedSolidifiedSet.has('outreachVisit') || curM.outreachVisit || sM.outreachVisit || sM.outreach || sM.blend || sM.mutual || (pendingM && (pendingM.outreachVisit || pendingM.outreach)));
+      curM.packedValue = packBase100(curM.smallGroup, curM.prayerMeeting, curM.lordDayMeeting, curM.outreachVisit);
 
-      const isFullyConfirmedM = (!curM.smallGroup || sMeeting.smallGroup || sMeeting.group) &&
-                                (!curM.prayerMeeting || sMeeting.prayerMeeting || sMeeting.prayerMtg) &&
-                                (!curM.lordDayMeeting || sMeeting.lordDayMeeting || sMeeting.lordDay) &&
-                                (!curM.outreachVisit || sMeeting.outreachVisit || sMeeting.outreach || sMeeting.blend || sMeeting.mutual);
+      const isFullyConfirmedM = (!curM.smallGroup || sM.smallGroup || sM.group || mergedSolidifiedSet.has('smallGroup')) &&
+                                (!curM.prayerMeeting || sM.prayerMeeting || sM.prayerMtg || mergedSolidifiedSet.has('prayerMeeting')) &&
+                                (!curM.lordDayMeeting || sM.lordDayMeeting || sM.lordDay || mergedSolidifiedSet.has('lordDayMeeting')) &&
+                                (!curM.outreachVisit || sM.outreachVisit || sM.outreach || sM.blend || sM.mutual || mergedSolidifiedSet.has('outreachVisit'));
 
       if (!pendingM && (curM.syncStatus !== 'error' || isFullyConfirmedM)) {
         curM.syncStatus = 'synced';
@@ -626,7 +651,7 @@ class OptimisticPracticeStore {
     // 4. 上週聚會整併
     const lastWeekKey = payload.lastWeekKey;
     const sLastMeeting = payload.lastWeekMeeting;
-    if (lastWeekKey && sLastMeeting) {
+    if (lastWeekKey && (sLastMeeting || payload.lastWeekSolidifiedItems)) {
       if (!this.meetingState[lastWeekKey]) {
         this.meetingState[lastWeekKey] = {
           smallGroup: false,
@@ -635,27 +660,33 @@ class OptimisticPracticeStore {
           outreachVisit: false,
           packedValue: 0,
           syncStatus: 'synced',
-          hasAmberDot: false
+          hasAmberDot: false,
+          solidifiedItems: []
         };
       }
       const curLM = this.meetingState[lastWeekKey];
+      if (!Array.isArray(curLM.solidifiedItems)) curLM.solidifiedItems = [];
       const pendingLM = (this.pendingMeeting && this.pendingMeeting.get(lastWeekKey)) || null;
 
-      const smallGroupLM = Boolean(curLM.smallGroup || sLastMeeting.smallGroup || sLastMeeting.group || (pendingLM && (pendingLM.smallGroup || pendingLM.group)));
-      const prayerMeetingLM = Boolean(curLM.prayerMeeting || sLastMeeting.prayerMeeting || sLastMeeting.prayerMtg || (pendingLM && (pendingLM.prayerMeeting || pendingLM.prayerMtg)));
-      const lordDayMeetingLM = Boolean(curLM.lordDayMeeting || sLastMeeting.lordDayMeeting || sLastMeeting.lordDay || (pendingLM && (pendingLM.lordDayMeeting || pendingLM.lordDay)));
-      const outreachVisitLM = Boolean(curLM.outreachVisit || sLastMeeting.outreachVisit || sLastMeeting.outreach || sLastMeeting.blend || sLastMeeting.mutual || (pendingLM && (pendingLM.outreachVisit || pendingLM.outreach)));
+      const sLM = sLastMeeting || {};
+      const serverLastSolidified = sLM.solidifiedItems || payload.lastWeekSolidifiedItems || [];
+      const localLastSolidified = curLM.solidifiedItems || [];
+      const mergedLastSolidifiedSet = new Set([
+        ...localLastSolidified.map(normalizeMeetingKey),
+        ...(Array.isArray(serverLastSolidified) ? serverLastSolidified.map(normalizeMeetingKey) : [])
+      ]);
+      curLM.solidifiedItems = Array.from(mergedLastSolidifiedSet);
 
-      curLM.smallGroup = smallGroupLM;
-      curLM.prayerMeeting = prayerMeetingLM;
-      curLM.lordDayMeeting = lordDayMeetingLM;
-      curLM.outreachVisit = outreachVisitLM;
-      curLM.packedValue = packBase100(smallGroupLM, prayerMeetingLM, lordDayMeetingLM, outreachVisitLM);
+      curLM.smallGroup = Boolean(mergedLastSolidifiedSet.has('smallGroup') || curLM.smallGroup || sLM.smallGroup || sLM.group || (pendingLM && (pendingLM.smallGroup || pendingLM.group)));
+      curLM.prayerMeeting = Boolean(mergedLastSolidifiedSet.has('prayerMeeting') || curLM.prayerMeeting || sLM.prayerMeeting || sLM.prayerMtg || (pendingLM && (pendingLM.prayerMeeting || pendingLM.prayerMtg)));
+      curLM.lordDayMeeting = Boolean(mergedLastSolidifiedSet.has('lordDayMeeting') || curLM.lordDayMeeting || sLM.lordDayMeeting || sLM.lordDay || (pendingLM && (pendingLM.lordDayMeeting || pendingLM.lordDay)));
+      curLM.outreachVisit = Boolean(mergedLastSolidifiedSet.has('outreachVisit') || curLM.outreachVisit || sLM.outreachVisit || sLM.outreach || sLM.blend || sLM.mutual || (pendingLM && (pendingLM.outreachVisit || pendingLM.outreach)));
+      curLM.packedValue = packBase100(curLM.smallGroup, curLM.prayerMeeting, curLM.lordDayMeeting, curLM.outreachVisit);
 
-      const isFullyConfirmedLM = (!curLM.smallGroup || sLastMeeting.smallGroup || sLastMeeting.group) &&
-                                 (!curLM.prayerMeeting || sLastMeeting.prayerMeeting || sLastMeeting.prayerMtg) &&
-                                 (!curLM.lordDayMeeting || sLastMeeting.lordDayMeeting || sLastMeeting.lordDay) &&
-                                 (!curLM.outreachVisit || sLastMeeting.outreachVisit || sLastMeeting.outreach || sLastMeeting.blend || sLastMeeting.mutual);
+      const isFullyConfirmedLM = (!curLM.smallGroup || sLM.smallGroup || sLM.group || mergedLastSolidifiedSet.has('smallGroup')) &&
+                                 (!curLM.prayerMeeting || sLM.prayerMeeting || sLM.prayerMtg || mergedLastSolidifiedSet.has('prayerMeeting')) &&
+                                 (!curLM.lordDayMeeting || sLM.lordDayMeeting || sLM.lordDay || mergedLastSolidifiedSet.has('lordDayMeeting')) &&
+                                 (!curLM.outreachVisit || sLM.outreachVisit || sLM.outreach || sLM.blend || sLM.mutual || mergedLastSolidifiedSet.has('outreachVisit'));
 
       if (!pendingLM && (curLM.syncStatus !== 'error' || isFullyConfirmedLM)) {
         curLM.syncStatus = 'synced';
@@ -682,7 +713,7 @@ class OptimisticPracticeStore {
 }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { OptimisticPracticeStore };
+    module.exports = { OptimisticPracticeStore, normalizeMeetingKey };
   }
   global.OptimisticPracticeStore = OptimisticPracticeStore;
 

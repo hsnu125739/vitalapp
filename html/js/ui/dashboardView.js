@@ -151,6 +151,10 @@
       return `${thursdayYear}-W${String(weekNum).padStart(2, '0')}`;
     }
 
+    bindEvents() {
+      return this.initEvents_();
+    }
+
     initEvents_() {
       // 每日操練按鈕點擊
       const dailyMap = [
@@ -187,13 +191,20 @@
         const btn = document.querySelector(selector);
         if (btn) {
           btn.addEventListener('click', () => {
-            if (this.isPracticeLocked || btn.disabled) return;
-            if (this.isSyncing) return;
-            const currentItemState = this.practiceStore.meetingState[this.currentWeekKey];
-            const wasDone = Boolean(currentItemState && currentItemState[key]);
-            this.practiceStore.toggleMeetingPractice(this.currentWeekKey, key);
-            const isNowDone = !wasDone;
+            if (this.isPracticeLocked || btn.disabled || this.isSyncing) return;
+            if (!this.practiceStore || typeof this.practiceStore.toggleMeetingPractice !== 'function') return;
+            const res = this.practiceStore.toggleMeetingPractice(this.currentWeekKey, key);
+            if (res && res.isSolidified) {
+              this.showSolidifiedNoticeToast_();
+              return;
+            }
+            const isNowDone = Boolean(res && res[key]);
             this.applyOptimisticPointsDelta_(key, isNowDone, 'MEETING');
+            if (isNowDone) {
+              this.showMeetingPendingToast_();
+            } else {
+              this.dismissToast_();
+            }
           });
         }
       });
@@ -970,24 +981,42 @@
     }
 
     renderMeetingPracticeState(state) {
+      if (!state) return;
+      const normKeyFn = (k) => {
+        if (typeof normalizeMeetingKey === 'function') return normalizeMeetingKey(k);
+        const map = {
+          group: 'smallGroup', smallGroup: 'smallGroup', groupMeeting: 'smallGroup',
+          prayerMtg: 'prayerMeeting', prayerMeeting: 'prayerMeeting', prayer: 'prayerMeeting',
+          lordDay: 'lordDayMeeting', lordDayMeeting: 'lordDayMeeting', lordsDayMeeting: 'lordDayMeeting',
+          outreach: 'outreachVisit', outreachVisit: 'outreachVisit', blend: 'outreachVisit', mutual: 'outreachVisit', mutualPursuit: 'outreachVisit'
+        };
+        return (k && map[k]) || k;
+      };
+      const solidifiedSet = new Set(
+        (Array.isArray(state.solidifiedItems) ? state.solidifiedItems : []).map(normKeyFn)
+      );
+      const isItemSolidified = (key) => solidifiedSet.has(normKeyFn(key));
+
       const items = [
-        ['#homeWeeklySmallGroupBtn', '#homeWeeklySmallGroupStatus', state.smallGroup],
-        ['#homeWeeklyPrayerMeetingBtn', '#homeWeeklyPrayerMeetingStatus', state.prayerMeeting],
-        ['#homeWeeklyLordDayBtn', '#homeWeeklyLordDayStatus', state.lordDayMeeting],
-        ['#homeOutreachVisitBtn', '#homeOutreachVisitStatus', state.outreachVisit]
+        ['#homeWeeklySmallGroupBtn', '#homeWeeklySmallGroupStatus', (state.smallGroup !== undefined ? state.smallGroup : state.group), 'smallGroup'],
+        ['#homeWeeklyPrayerMeetingBtn', '#homeWeeklyPrayerMeetingStatus', (state.prayerMeeting !== undefined ? state.prayerMeeting : state.prayerMtg), 'prayerMeeting'],
+        ['#homeWeeklyLordDayBtn', '#homeWeeklyLordDayStatus', (state.lordDayMeeting !== undefined ? state.lordDayMeeting : state.lordDay), 'lordDayMeeting'],
+        ['#homeOutreachVisitBtn', '#homeOutreachVisitStatus', (state.outreachVisit !== undefined ? state.outreachVisit : state.outreach), 'outreachVisit']
       ];
 
-      items.forEach(([btnSel, statusSel, isDone]) => {
+      items.forEach(([btnSel, statusSel, isDone, itemKey]) => {
         const btn = document.querySelector(btnSel);
         const status = document.querySelector(statusSel);
-        const done = Boolean(isDone);
+        const isSolidified = isItemSolidified(itemKey);
+        const done = Boolean(isDone || isSolidified);
 
         if (btn) {
           btn.classList.toggle('done', done);
           btn.classList.toggle('has-amber-dot', Boolean(state.hasAmberDot));
+          btn.classList.toggle('is-solidified', isSolidified);
         }
         if (status) {
-          status.textContent = done ? '已完成' : '未完成';
+          status.textContent = isSolidified ? '✨ 已入帳' : (done ? '已完成' : '未完成');
         }
       });
     }
@@ -1507,6 +1536,103 @@
         return VitalUtils.escapeHtml(str);
       }
       return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    showToast_(message, { type = 'info', duration = 3000 } = {}) {
+      if (typeof document === 'undefined') return null;
+
+      let container = document.querySelector('.vital-toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.className = 'vital-toast-container';
+        (document.body || document).appendChild(container);
+      }
+
+      // 支援防重疊收斂：清理現存 Toast 與計時器
+      if (container._activeTimer) {
+        clearTimeout(container._activeTimer);
+        container._activeTimer = null;
+      }
+      const existing = container.querySelectorAll ? container.querySelectorAll('.vital-toast') : [];
+      Array.from(existing).forEach(t => (typeof t.remove === 'function' ? t.remove() : t.parentNode && t.parentNode.removeChild(t)));
+
+      const isGold = (type === 'gold');
+      if (container.classList && typeof container.classList.toggle === 'function') {
+        container.classList.toggle('toast-center', isGold);
+        container.classList.toggle('toast-bottom', !isGold);
+      }
+
+      const toast = document.createElement('div');
+      toast.className = `vital-toast ${isGold ? 'toast-gold' : 'toast-info'}`;
+      toast.textContent = message;
+      if (typeof toast.setAttribute === 'function') {
+        toast.setAttribute('role', 'status');
+        toast.setAttribute('aria-live', 'polite');
+      }
+      if (!toast.remove) {
+        toast.remove = function() {
+          if (this.parentNode && typeof this.parentNode.removeChild === 'function') {
+            this.parentNode.removeChild(this);
+          }
+        };
+      }
+
+      container.appendChild(toast);
+      if (!toast.parentNode) toast.parentNode = container;
+
+      // 觸發顯示動畫
+      const showFn = () => toast.classList && typeof toast.classList.add === 'function' && toast.classList.add('show');
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(showFn);
+      } else {
+        showFn();
+      }
+
+      // 定時自毀
+      const autoDismiss = () => {
+        if (toast.classList && typeof toast.classList.remove === 'function') {
+          toast.classList.remove('show');
+        }
+        setTimeout(() => {
+          if (typeof toast.remove === 'function') {
+            toast.remove();
+          } else if (toast.parentNode && typeof toast.parentNode.removeChild === 'function') {
+            toast.parentNode.removeChild(toast);
+          }
+        }, 300);
+      };
+
+      container._activeTimer = setTimeout(autoDismiss, duration);
+      return toast;
+    }
+
+    showMeetingPendingToast_() {
+      return this.showToast_('🕊️ 已記錄聚會打卡！將於明日凌晨 03:00 結算入帳，【今日內可隨時點擊撤回】。', {
+        type: 'info',
+        duration: 10000
+      });
+    }
+
+    showSolidifiedNoticeToast_() {
+      return this.showToast_('✨ 此聚會已於昨日完成結算入帳，不可取消打卡囉！', {
+        type: 'gold',
+        duration: 2500
+      });
+    }
+
+    dismissToast_() {
+      if (typeof document === 'undefined') return;
+      const container = document.querySelector('.vital-toast-container');
+      if (!container) return;
+      if (container._activeTimer) {
+        clearTimeout(container._activeTimer);
+        container._activeTimer = null;
+      }
+      const existing = container.querySelectorAll ? container.querySelectorAll('.vital-toast') : [];
+      Array.from(existing).forEach(t => {
+        if (t.classList && typeof t.classList.remove === 'function') t.classList.remove('show');
+        setTimeout(() => (typeof t.remove === 'function' ? t.remove() : t.parentNode && t.parentNode.removeChild(t)), 200);
+      });
     }
   }
 
