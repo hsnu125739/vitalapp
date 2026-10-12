@@ -1316,7 +1316,19 @@
           ? this.apiClient.getCachedFootprints(playerId)
           : null;
 
-        const cachedMonth = cached && (cached.monthSummary || cached.monthly || cached.month);
+        let cachedMonth = cached && (cached.monthSummary || cached.monthly || cached.month);
+        if (!cachedMonth && cached && (cached.teamDaily || (Array.isArray(cached.weeks) && typeof cached.weeks[0] === 'string'))) {
+          const assembleFn = (typeof assembleFootprintsData === 'function')
+            ? assembleFootprintsData
+            : (typeof FootprintsView !== 'undefined' && FootprintsView.assembleFootprintsData)
+            || (typeof require === 'function' ? (() => { try { return require('./footprintsView').assembleFootprintsData; } catch (_) { return null; } })() : null);
+          if (assembleFn) {
+            try {
+              const assembled = assembleFn(cached);
+              cachedMonth = assembled && assembled.monthSummary;
+            } catch (_) {}
+          }
+        }
         const isStaleMonth = Boolean(cachedMonth && cachedMonth.monthKey && cachedMonth.monthKey !== currentMonthKey);
 
         if (cachedMonth && !isStaleMonth && typeof cachedMonth.fullAttendanceDays === 'number' && !isNaN(cachedMonth.fullAttendanceDays)) {

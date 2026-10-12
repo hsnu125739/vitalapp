@@ -701,18 +701,18 @@
         matrixColIndex: options.matrixColIndex || this.getMatrixColIndexFromStorage()
       }).then((res) => {
         if (res && res.success) {
-          let data = res.data || res;
-          data = assembleFootprintPayload(data);
+          const rawData = res.data || res;
           if (this.storage) {
             try {
               this.storage.setItem(cacheKey, JSON.stringify({
-                ...data,
+                ...rawData,
                 _cachedAt: Date.now()
               }));
             } catch (e) {
               console.warn('[ApiClient] 寫入足跡快取失敗 (可能配額已滿):', e);
             }
           }
+          const data = assembleFootprintPayload(rawData);
           return {
             ...res,
             data,

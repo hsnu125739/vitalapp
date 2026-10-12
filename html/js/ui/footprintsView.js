@@ -142,14 +142,7 @@
           const isMorningScored = m || Boolean(todayItem.isMorningQualified);
           if (isMorningScored) liveDailyScore += (rule.morning !== undefined ? rule.morning : 50);
 
-          const oldScore = Number(todayItem.dailyScore || 0);
           todayItem.dailyScore = liveDailyScore;
-          if (raw.weeks[0].weeklyScore !== undefined) {
-            raw.weeks[0].weeklyScore = Number(raw.weeks[0].weeklyScore || 0) + (liveDailyScore - oldScore);
-          }
-          if (raw.weeks[0].totalWeekPoints !== undefined) {
-            raw.weeks[0].totalWeekPoints = Number(raw.weeks[0].totalWeekPoints || 0) + (liveDailyScore - oldScore);
-          }
         }
       }
       if (liveMeetingStore && raw.weeks[0]) {
@@ -160,36 +153,46 @@
         const vSelf = Boolean(liveMeetingStore.outreachVisit || liveMeetingStore.outreach);
         const vQual = Boolean(w0.isOutreachQualified || (w0.meeting && w0.meeting.isOutreachQualified));
 
-        const baseG = Boolean(w0.groupMeetingCompleted || (w0.meeting && (w0.meeting.smallGroup || w0.meeting.group)));
-        const baseP = Boolean(w0.prayerMeetingCompleted || (w0.meeting && (w0.meeting.prayerMeeting || w0.meeting.prayerMtg)));
-        const baseL = Boolean(w0.lordDayCompleted || (w0.meeting && (w0.meeting.lordDayMeeting || w0.meeting.lordDay)));
-        const baseV = Boolean(w0.visitCompleted || (w0.meeting && (w0.meeting.outreachVisit || w0.meeting.outreach)));
-
-        const resolvedRules = resolveRules_(raw, pointsConfig);
-        const wRepDate = w0.startDate ? new Date(new Date(w0.startDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10) : getLocalDateString();
-        const wRule = getRuleForDate(resolvedRules, wRepDate);
-
-        const mDelta = ((gDone ? 1 : 0) - (baseG ? 1 : 0)) * (wRule.group !== undefined ? wRule.group : 30)
-          + ((pDone ? 1 : 0) - (baseP ? 1 : 0)) * (wRule.prayerMtg !== undefined ? wRule.prayerMtg : 50)
-          + ((lDone ? 1 : 0) - (baseL ? 1 : 0)) * (wRule.lordDay !== undefined ? wRule.lordDay : 50)
-          + (((vSelf && vQual ? 1 : 0) - (baseV && vQual ? 1 : 0))) * (wRule.outreach !== undefined ? wRule.outreach : 100);
-
         w0.groupMeetingCompleted = gDone;
         w0.prayerMeetingCompleted = pDone;
         w0.lordDayCompleted = lDone;
         w0.visitCompleted = vSelf;
-        if (w0.meeting) {
-          w0.meeting.smallGroup = gDone;
-          w0.meeting.prayerMeeting = pDone;
-          w0.meeting.lordDayMeeting = lDone;
-          w0.meeting.outreachVisit = vSelf;
-          w0.meeting.points = Math.max(0, Number(w0.meeting.points || 0) + mDelta);
-        }
-        if (w0.weeklyScore !== undefined) {
-          w0.weeklyScore = Math.max(0, Number(w0.weeklyScore || 0) + mDelta);
-        }
-        if (w0.totalWeekPoints !== undefined) {
-          w0.totalWeekPoints = Math.max(0, Number(w0.totalWeekPoints || 0) + mDelta);
+        if (!w0.meeting) w0.meeting = {};
+        w0.meeting.smallGroup = gDone;
+        w0.meeting.prayerMeeting = pDone;
+        w0.meeting.lordDayMeeting = lDone;
+        w0.meeting.outreachVisit = vSelf;
+
+        const resolvedRules = resolveRules_(raw, pointsConfig);
+        const wRepDate = w0.startDate ? new Date(new Date(w0.startDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10) : getLocalDateString();
+        const wRule = getRuleForDate(resolvedRules, wRepDate);
+        let mScore = 0;
+        if (gDone) mScore += (wRule.group !== undefined ? wRule.group : 30);
+        if (pDone) mScore += (wRule.prayerMtg !== undefined ? wRule.prayerMtg : 50);
+        if (lDone) mScore += (wRule.lordDay !== undefined ? wRule.lordDay : 50);
+        if (vSelf && vQual) mScore += (wRule.outreach !== undefined ? wRule.outreach : 100);
+        w0.meeting.points = mScore;
+      }
+      if (raw.weeks[0]) {
+        const w0 = raw.weeks[0];
+        const hasDays = Array.isArray(w0.days) && w0.days.length > 0;
+        const daysSum = hasDays ? w0.days.reduce((s, d) => {
+          if (d.dailyScore !== undefined) return s + Number(d.dailyScore || 0);
+          const mPts = (d.morningCompleted && (d.isMorningQualified || d.isToday)) ? 50 : 0;
+          return s + mPts + (d.bibleCompleted ? 30 : 0) + (d.prayerCompleted ? 30 : 0) + (d.readingCompleted ? 30 : 0);
+        }, 0) : 0;
+        const mScore = Number((w0.meeting && w0.meeting.points) || 0);
+        if (hasDays) {
+          const totalWk = daysSum + mScore;
+          w0.weeklyScore = totalWk;
+          w0.totalWeekPoints = totalWk;
+        } else {
+          if (w0._baseScore === undefined) {
+            w0._baseScore = Number(w0.weeklyScore || w0.totalWeekPoints || 0);
+          }
+          const totalWk = w0._baseScore + mScore;
+          w0.weeklyScore = totalWk;
+          w0.totalWeekPoints = totalWk;
         }
       }
       return raw;
@@ -641,6 +644,18 @@
       if (this.currentData && this.currentData.dailyRecords && this.currentData.dailyRecords[targetDate]) {
         return this.currentData.dailyRecords[targetDate];
       }
+      if (typeof localStorage !== 'undefined') {
+        try {
+          const playerId = this.lastTargetPlayerId
+            || (typeof AppCoordinator !== 'undefined' && AppCoordinator.currentUserProfile && AppCoordinator.currentUserProfile.playerId)
+            || (this.apiClient && typeof this.apiClient.getPlayerIdFromToken === 'function' && this.apiClient.getPlayerIdFromToken());
+          if (playerId) {
+            const dKey = `vital_daily_records_${playerId}`;
+            const curRecs = JSON.parse(localStorage.getItem(dKey) || '{}');
+            if (curRecs && curRecs[targetDate]) return curRecs[targetDate];
+          }
+        } catch (_) {}
+      }
       return null;
     }
 
@@ -879,6 +894,9 @@
 
       const hasExplicitCurrent = weeks.some(wk => Boolean(wk.isCurrentWeek));
       const todayStr = (this.currentData && this.currentData.today) || this.getTodayDateString_();
+      const rules = this.getPointsRules_();
+      const todayRule = getRuleForDate(rules, todayStr);
+
       const weekArticles = weeks.map((w, index) => {
         const isCurrent = Boolean(w.isCurrentWeek || (index === 0 && !hasExplicitCurrent));
         const completedDays = Number(w.completedDays || 0);
@@ -921,26 +939,6 @@
           visitSummary
         ];
 
-        const baseGroup = Boolean(w.groupMeetingCompleted || (w.meeting && (w.meeting.smallGroup || w.meeting.group)));
-        const basePrayer = Boolean(w.prayerMeetingCompleted || (w.meeting && (w.meeting.prayerMeeting || w.meeting.prayerMtg)));
-        const baseLordDay = Boolean(w.lordDayCompleted || (w.meeting && (w.meeting.lordDayMeeting || w.meeting.lordDay)));
-        const baseVisit = Boolean(w.visitCompleted || (w.meeting && (w.meeting.outreachVisit || w.meeting.outreach)));
-
-        const rules = this.getPointsRules_();
-        const wRepDate = (w.startDate)
-          ? new Date(new Date(w.startDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10)
-          : todayStr;
-        const wRule = getRuleForDate(rules, wRepDate);
-
-        const currentMeetingScore = (groupDone ? (wRule.group !== undefined ? wRule.group : 30) : 0)
-          + (prayerDone ? (wRule.prayerMtg !== undefined ? wRule.prayerMtg : 50) : 0)
-          + (lordDayDone ? (wRule.lordDay !== undefined ? wRule.lordDay : 50) : 0)
-          + (visitSelf && visitQualified ? (wRule.outreach !== undefined ? wRule.outreach : 100) : 0);
-        const baseMeetingScore = (baseGroup ? (wRule.group !== undefined ? wRule.group : 30) : 0)
-          + (basePrayer ? (wRule.prayerMtg !== undefined ? wRule.prayerMtg : 50) : 0)
-          + (baseLordDay ? (wRule.lordDay !== undefined ? wRule.lordDay : 50) : 0)
-          + (baseVisit && visitQualified ? (wRule.outreach !== undefined ? wRule.outreach : 100) : 0);
-
         // 7 天清單列
         const days = Array.isArray(w.days) ? w.days : [];
         let wMorningActive = 0, wBibleActive = 0, wPrayerActive = 0, wBookActive = 0;
@@ -970,17 +968,15 @@
 
           let score = Number(d.dailyScore || 0);
           if (isToday) {
-            const rule = getRuleForDate(rules, todayStr);
             let liveScore = 0;
-            if (bActive) liveScore += (rule.bible !== undefined ? rule.bible : 30);
-            if (pActive) liveScore += (rule.prayer !== undefined ? rule.prayer : 30);
-            if (rActive) liveScore += (rule.book !== undefined ? rule.book : 30);
+            if (bActive) liveScore += (todayRule.bible !== undefined ? todayRule.bible : 30);
+            if (pActive) liveScore += (todayRule.prayer !== undefined ? todayRule.prayer : 30);
+            if (rActive) liveScore += (todayRule.book !== undefined ? todayRule.book : 30);
             const isMorningScored = mActive || Boolean(d.isMorningQualified);
             if (isMorningScored) {
-              liveScore += (rule.morning !== undefined ? rule.morning : 50);
+              liveScore += (todayRule.morning !== undefined ? todayRule.morning : 50);
             }
             score = liveScore;
-            d.dailyScore = liveScore;
           }
 
           // 晨興狀態判斷（今日樂觀呈現完成狀態，歷史未達標帶 is-pending）
@@ -1026,13 +1022,49 @@
         const displayPrayerDays = days.length >= 7 ? wPrayerActive : Math.max(Number(w.prayerDays || 0), wPrayerActive);
         const displayBookDays = days.length >= 7 ? wBookActive : Math.max(Number(w.readingDays || w.bookDays || 0), wBookActive);
 
-        const baseWeekScore = Number(w.weeklyScore || w.totalWeekPoints || 0);
-        const daysScore = days.length > 0
-          ? days.reduce((sum, d) => sum + Number(d.dailyScore || 0), 0)
-          : Math.max(0, baseWeekScore - baseMeetingScore);
-        const displayWeeklyScore = isCurrent
-          ? Math.max(0, daysScore + currentMeetingScore)
-          : baseWeekScore;
+        let displayWeeklyScore = Number(w.weeklyScore || w.totalWeekPoints || 0);
+        if (isCurrent) {
+          const wRepDate = (w.startDate)
+            ? new Date(new Date(w.startDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10)
+            : todayStr;
+          const wRule = getRuleForDate(rules, wRepDate);
+          const currentMeetingScore = (groupDone ? (wRule.group !== undefined ? wRule.group : 30) : 0)
+            + (prayerDone ? (wRule.prayerMtg !== undefined ? wRule.prayerMtg : 50) : 0)
+            + (lordDayDone ? (wRule.lordDay !== undefined ? wRule.lordDay : 50) : 0)
+            + (visitSelf && visitQualified ? (wRule.outreach !== undefined ? wRule.outreach : 100) : 0);
+
+          if (days.length > 0) {
+            const daysScore = days.reduce((sum, d) => {
+              const isToday = Boolean(d.isToday || (todayStr && (d.date === todayStr || d.recordDate === todayStr)));
+              if (isToday) {
+                const liveToday = this.getLiveToday_(todayStr);
+                const bActive = liveToday ? Boolean(liveToday.bible || liveToday.bibleReading) : Boolean(d.bibleCompleted || d.bibleReading || d.bible);
+                const pActive = liveToday ? Boolean(liveToday.prayer) : Boolean(d.prayerCompleted || d.prayer);
+                const rActive = liveToday ? Boolean(liveToday.book || liveToday.bookPursuit) : Boolean(d.readingCompleted || d.bookCompleted || d.bookPursuit || d.book);
+                const mActive = liveToday ? Boolean(liveToday.morning || liveToday.morningRevival) : Boolean(d.morningCompleted || d.morningRevival || d.morning);
+                let ls = 0;
+                if (bActive) ls += (todayRule.bible !== undefined ? todayRule.bible : 30);
+                if (pActive) ls += (todayRule.prayer !== undefined ? todayRule.prayer : 30);
+                if (rActive) ls += (todayRule.book !== undefined ? todayRule.book : 30);
+                if (mActive || Boolean(d.isMorningQualified)) ls += (todayRule.morning !== undefined ? todayRule.morning : 50);
+                return sum + ls;
+              }
+              return sum + Number(d.dailyScore || 0);
+            }, 0);
+            displayWeeklyScore = Math.max(0, daysScore + currentMeetingScore);
+          } else {
+            const baseGroup = Boolean(w.groupMeetingCompleted || (w.meeting && (w.meeting.smallGroup || w.meeting.group)));
+            const basePrayer = Boolean(w.prayerMeetingCompleted || (w.meeting && (w.meeting.prayerMeeting || w.meeting.prayerMtg)));
+            const baseLordDay = Boolean(w.lordDayCompleted || (w.meeting && (w.meeting.lordDayMeeting || w.meeting.lordDay)));
+            const baseVisit = Boolean(w.visitCompleted || (w.meeting && (w.meeting.outreachVisit || w.meeting.outreach)));
+            const baseMeetingScore = (baseGroup ? (wRule.group !== undefined ? wRule.group : 30) : 0)
+              + (basePrayer ? (wRule.prayerMtg !== undefined ? wRule.prayerMtg : 50) : 0)
+              + (baseLordDay ? (wRule.lordDay !== undefined ? wRule.lordDay : 50) : 0)
+              + (baseVisit && visitQualified ? (wRule.outreach !== undefined ? wRule.outreach : 100) : 0);
+            const baseWeekScore = Number(w.weeklyScore || w.totalWeekPoints || 0);
+            displayWeeklyScore = Math.max(0, baseWeekScore - baseMeetingScore + currentMeetingScore);
+          }
+        }
 
         return `
           <article class="footprint-week ${weekStateClass} ${defaultExpanded}" data-week-key="${escapeHtml(w.weekKey)}">
