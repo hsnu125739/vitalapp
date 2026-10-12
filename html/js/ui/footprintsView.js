@@ -364,7 +364,8 @@
 
       const startDate = weekDates[0];
       const endDate = weekDates[weekDates.length - 1] || weekDates[0];
-      const wNum = parseInt((wk.split('-W')[1] || '0'), 10);
+      const wMatch = String(wk || '').match(/-W(\d{1,2})/i);
+      const wNum = wMatch ? parseInt(wMatch[1], 10) : (parseInt((String(wk).split(/-W/i)[1] || '0'), 10) || 1);
       const weekLabel = '第 ' + wNum + ' 週';
       const dateRange = startDate.slice(5).replace('-', '/') + ' - ' + endDate.slice(5).replace('-', '/');
 
