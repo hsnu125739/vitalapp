@@ -158,7 +158,7 @@
           if (b) liveDailyScore += (rule.bible !== undefined ? rule.bible : 30);
           if (p) liveDailyScore += (rule.prayer !== undefined ? rule.prayer : 30);
           if (k) liveDailyScore += (rule.book !== undefined ? rule.book : 30);
-          const isMorningScored = (m && todayItem.isMorningQualified !== false) || (!m && todayItem.isMorningQualified === true);
+          const isMorningScored = m || Boolean(todayItem.isMorningQualified);
           if (isMorningScored) liveDailyScore += (rule.morning !== undefined ? rule.morning : 50);
 
           const oldScore = Number(todayItem.dailyScore || 0);
@@ -292,9 +292,10 @@
       if (unpacked.prayer) dailyScore += rule.prayer;
       if (unpacked.book) dailyScore += rule.book;
 
-      // 晨興：團體項目，同組≥2人且本人當日已入組才得分
+      // 晨興：團體項目，同組≥2人且本人當日已入組才得分；若為今日在組成員，本人打卡即樂觀計分
       const finalMorningQualified = (teamSize >= 2 && morningCount >= 2 && isJoinedToday);
-      if (finalMorningQualified) {
+      const isMorningScored = finalMorningQualified || (dateStr === todayStr && unpacked.morning && Boolean(groupId) && isJoinedToday);
+      if (isMorningScored) {
         dailyScore += rule.morning;
       }
 
@@ -331,6 +332,12 @@
 
       const selfMeetVal = selfMeetingArr[w] || 0;
       const unpackedM = unpackMeeting(selfMeetVal);
+      if (w === weekKeys.length - 1 && liveMeetingStore) {
+        unpackedM.group = Boolean(liveMeetingStore.smallGroup || liveMeetingStore.group);
+        unpackedM.prayerMtg = Boolean(liveMeetingStore.prayerMeeting || liveMeetingStore.prayerMtg);
+        unpackedM.lordDay = Boolean(liveMeetingStore.lordDayMeeting || liveMeetingStore.lordDay);
+        unpackedM.outreach = Boolean(liveMeetingStore.outreachVisit || liveMeetingStore.outreach);
+      }
 
       // 計算聚會得分：個人項目 + 團體探訪
       let meetingScore = 0;
@@ -959,29 +966,24 @@
         const baseLordDay = Boolean(w.lordDayCompleted || (w.meeting && (w.meeting.lordDayMeeting || w.meeting.lordDay)));
         const baseVisit = Boolean(w.visitCompleted || (w.meeting && (w.meeting.outreachVisit || w.meeting.outreach)));
 
-        let deltaMeeting = 0;
-        if (isCurrent) {
-          const rules = this.getPointsRules_();
-          const wRepDate = (w.startDate)
-            ? new Date(new Date(w.startDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10)
-            : todayStr;
-          const wRule = getRuleForDate(rules, wRepDate);
+        const rules = this.getPointsRules_();
+        const wRepDate = (w.startDate)
+          ? new Date(new Date(w.startDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10)
+          : todayStr;
+        const wRule = getRuleForDate(rules, wRepDate);
 
-          const groupDelta = (groupDone ? 1 : 0) - (baseGroup ? 1 : 0);
-          const prayerDelta = (prayerDone ? 1 : 0) - (basePrayer ? 1 : 0);
-          const lordDayDelta = (lordDayDone ? 1 : 0) - (baseLordDay ? 1 : 0);
-          const visitDelta = (visitSelf && visitQualified ? 1 : 0) - (baseVisit && visitQualified ? 1 : 0);
-
-          deltaMeeting = (groupDelta * (wRule.group !== undefined ? wRule.group : 30))
-            + (prayerDelta * (wRule.prayerMtg !== undefined ? wRule.prayerMtg : 50))
-            + (lordDayDelta * (wRule.lordDay !== undefined ? wRule.lordDay : 50))
-            + (visitDelta * (wRule.outreach !== undefined ? wRule.outreach : 100));
-        }
+        const currentMeetingScore = (groupDone ? (wRule.group !== undefined ? wRule.group : 30) : 0)
+          + (prayerDone ? (wRule.prayerMtg !== undefined ? wRule.prayerMtg : 50) : 0)
+          + (lordDayDone ? (wRule.lordDay !== undefined ? wRule.lordDay : 50) : 0)
+          + (visitSelf && visitQualified ? (wRule.outreach !== undefined ? wRule.outreach : 100) : 0);
+        const baseMeetingScore = (baseGroup ? (wRule.group !== undefined ? wRule.group : 30) : 0)
+          + (basePrayer ? (wRule.prayerMtg !== undefined ? wRule.prayerMtg : 50) : 0)
+          + (baseLordDay ? (wRule.lordDay !== undefined ? wRule.lordDay : 50) : 0)
+          + (baseVisit && visitQualified ? (wRule.outreach !== undefined ? wRule.outreach : 100) : 0);
 
         // 7 天清單列
         const days = Array.isArray(w.days) ? w.days : [];
         let wMorningActive = 0, wBibleActive = 0, wPrayerActive = 0, wBookActive = 0;
-        let weekScoreDelta = 0;
         const daysRows = days.map(d => {
           const dName = DAY_NAMES[d.dayOfWeek] || '';
           const dDate = String(d.date || d.recordDate || '').slice(5).replace('-', '/');
@@ -1008,26 +1010,27 @@
 
           let score = Number(d.dailyScore || 0);
           if (isToday) {
-            const rules = this.getPointsRules_();
             const rule = getRuleForDate(rules, todayStr);
             let liveScore = 0;
             if (bActive) liveScore += (rule.bible !== undefined ? rule.bible : 30);
             if (pActive) liveScore += (rule.prayer !== undefined ? rule.prayer : 30);
             if (rActive) liveScore += (rule.book !== undefined ? rule.book : 30);
-            const isMorningScored = (mActive && d.isMorningQualified !== false) || (!mActive && d.isMorningQualified === true);
+            const isMorningScored = mActive || Boolean(d.isMorningQualified);
             if (isMorningScored) {
               liveScore += (rule.morning !== undefined ? rule.morning : 50);
             }
-            weekScoreDelta += (liveScore - score);
             score = liveScore;
             d.dailyScore = liveScore;
           }
 
-          // 晨興狀態判斷（方案二選項 C：語意樣式分流，零符號雜訊，尺寸完全對齊）
+          // 晨興狀態判斷（今日樂觀呈現完成狀態，歷史未達標帶 is-pending）
           let morningClass = '';
           let morningTitle = '晨興：未打卡';
           if (mActive) {
-            if (d.isMorningQualified === false) {
+            if (isToday) {
+              morningClass = d.isMorningQualified ? 'is-active is-group-qualified' : 'is-active is-optimistic';
+              morningTitle = `晨興：已完成${d.isMorningQualified ? ' (團體達標)' : ' (預計計分)'}`;
+            } else if (d.isMorningQualified === false) {
               morningClass = 'is-active is-pending';
               morningTitle = '晨興：個人已打卡 (同組未滿2人未計分)';
             } else {
@@ -1064,7 +1067,12 @@
         const displayBookDays = days.length >= 7 ? wBookActive : Math.max(Number(w.readingDays || w.bookDays || 0), wBookActive);
 
         const baseWeekScore = Number(w.weeklyScore || w.totalWeekPoints || 0);
-        const displayWeeklyScore = Math.max(0, baseWeekScore + weekScoreDelta + deltaMeeting);
+        const daysScore = days.length > 0
+          ? days.reduce((sum, d) => sum + Number(d.dailyScore || 0), 0)
+          : Math.max(0, baseWeekScore - baseMeetingScore);
+        const displayWeeklyScore = isCurrent
+          ? Math.max(0, daysScore + currentMeetingScore)
+          : baseWeekScore;
 
         return `
           <article class="footprint-week ${weekStateClass} ${defaultExpanded}" data-week-key="${escapeHtml(w.weekKey)}">
