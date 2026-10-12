@@ -2909,10 +2909,6 @@ body[data-theme="night"] .auth-hero{
   display:none;
 }
 
-#homeView .quest-card.done:before{
-  background:linear-gradient(90deg,#2f9a77,#8ed269);
-}
-
 #homeView .quest-card.done em{
   color:#fff;
     background:#2f9a77;
