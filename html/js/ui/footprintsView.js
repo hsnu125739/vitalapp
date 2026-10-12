@@ -443,8 +443,9 @@
       mTotalScore += dr.dailyScore;
     }
 
-    // 週聚會以週四作為唯一代表日判斷所屬月份
+    // 週聚會以週四作為唯一代表日判斷所屬月份，嚴格只統計已結算歷史（排除當週未結算週）
     for (const w of formattedWeeks) {
+      if (w.isCurrentWeek) continue;
       const wThurs = new Date(new Date(w.startDate + 'T00:00:00Z').getTime() + 3 * 86400000);
       const wRepDate = wThurs.toISOString().slice(0, 10);
       if (wRepDate.indexOf(currentMonthKey) === 0) {

@@ -937,22 +937,7 @@
         if (Array.isArray(cache.weeks)) updateWeekInList(cache.weeks);
         if (Array.isArray(cache.weekly)) updateWeekInList(cache.weekly);
 
-        // 即時增量更新本月成果卡 (聚會次數)
-        if (cache.monthSummary) {
-          if (groupVal !== Boolean(oldRec.group)) {
-            cache.monthSummary.groupMeetingCount = Math.max(0, (cache.monthSummary.groupMeetingCount || 0) + (groupVal ? 1 : -1));
-          }
-          if (prayerVal !== Boolean(oldRec.prayerMtg)) {
-            cache.monthSummary.prayerMeetingCount = Math.max(0, (cache.monthSummary.prayerMeetingCount || 0) + (prayerVal ? 1 : -1));
-          }
-          if (lordDayVal !== Boolean(oldRec.lordDay)) {
-            cache.monthSummary.lordDayMeetingCount = Math.max(0, (cache.monthSummary.lordDayMeetingCount || 0) + (lordDayVal ? 1 : -1));
-          }
-          if (outreachVal !== Boolean(oldRec.outreach)) {
-            cache.monthSummary.visitCount = Math.max(0, (cache.monthSummary.visitCount || 0) + (outreachVal ? 1 : -1));
-          }
-        }
-
+        // 快取作為純淨副本，不直接竄改 monthSummary 聚會次數，成果一律由 assembleFootprintsData 純函數組裝
         cache._cachedAt = Date.now();
         this.storage.setItem(cacheKey, JSON.stringify(cache));
         return true;
