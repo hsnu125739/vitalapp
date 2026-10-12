@@ -67,11 +67,23 @@
     };
   }
 
+  const MEETING_KEY_MAP = Object.freeze({
+    group: 'smallGroup', smallGroup: 'smallGroup', groupMeeting: 'smallGroup',
+    prayerMtg: 'prayerMeeting', prayerMeeting: 'prayerMeeting', prayer: 'prayerMeeting',
+    lordDay: 'lordDayMeeting', lordDayMeeting: 'lordDayMeeting', lordsDayMeeting: 'lordDayMeeting',
+    outreach: 'outreachVisit', outreachVisit: 'outreachVisit', blend: 'outreachVisit', mutual: 'outreachVisit', mutualPursuit: 'outreachVisit'
+  });
+
+  function normalizeMeetingKey(k) {
+    return (k && MEETING_KEY_MAP[k]) || k;
+  }
+
   /**
    * 試算待結算點數與完成細項
    * @param {Object} params
    * @param {Object} [params.daily] - 今日操練打卡狀態 { morning, bible, prayer, book }
-   * @param {Object} [params.meeting] - 本週聚會打卡狀態 { smallGroup/group, prayerMeeting/prayerMtg, lordDayMeeting/lordDay, outreachVisit/outreach }
+   * @param {Object} [params.meeting] - 本週聚會打卡狀態 { smallGroup/group, prayerMeeting/prayerMtg, lordDayMeeting/lordDay, outreachVisit/outreach, solidifiedItems }
+   * @param {Array<string>} [params.solidifiedItems] - 已固化入帳項目清單（待結算點數排除該項目）
    * @param {Object|Array} [params.pointsConfig] - 自訂或後端下發之權重設定（物件或多期間陣列）
    * @param {string} [params.date] - 適用基準日期 'YYYY-MM-DD'
    * @returns {Object} { today, week, totalPoints }
@@ -88,28 +100,43 @@
     const isPrayer = Boolean(daily.prayer);
     const isBook = Boolean(daily.book || daily.bookPursuit);
 
+    const rawDailySolidified = (daily && Array.isArray(daily.solidifiedItems))
+      ? daily.solidifiedItems
+      : (params && Array.isArray(params.dailySolidifiedItems) ? params.dailySolidifiedItems : []);
+    const dailySolidifiedSet = new Set(rawDailySolidified.map(k => String(k).trim()));
+
     const todayBreakdown = {
-      morning: isMorning ? cfg.morning : 0,
-      bible: isBible ? cfg.bible : 0,
-      prayer: isPrayer ? cfg.prayer : 0,
-      book: isBook ? cfg.book : 0
+      morning: (isMorning && !dailySolidifiedSet.has('morning') && !dailySolidifiedSet.has('morningRevival')) ? cfg.morning : 0,
+      bible: (isBible && !dailySolidifiedSet.has('bible') && !dailySolidifiedSet.has('bibleReading')) ? cfg.bible : 0,
+      prayer: (isPrayer && !dailySolidifiedSet.has('prayer')) ? cfg.prayer : 0,
+      book: (isBook && !dailySolidifiedSet.has('book') && !dailySolidifiedSet.has('bookPursuit')) ? cfg.book : 0
     };
 
     const todayCompletedCount = (isMorning ? 1 : 0) + (isBible ? 1 : 0) + (isPrayer ? 1 : 0) + (isBook ? 1 : 0);
     const todayPoints = todayBreakdown.morning + todayBreakdown.bible + todayBreakdown.prayer + todayBreakdown.book;
     const isAllCompleted = todayCompletedCount === 4;
 
-    // 2. 本週聚會細項與加總
+    // 2. 本週聚會細項與加總 (只能算尚未固化的操練項目分數，已固化的代表分數已經入帳)
+    const rawMeetingSolidified = (meeting && Array.isArray(meeting.solidifiedItems))
+      ? meeting.solidifiedItems
+      : (params && Array.isArray(params.solidifiedItems) ? params.solidifiedItems : []);
+    const meetingSolidifiedSet = new Set(rawMeetingSolidified.map(normalizeMeetingKey));
+
     const isSmallGroup = Boolean(meeting.smallGroup || meeting.group);
     const isPrayerMeeting = Boolean(meeting.prayerMeeting || meeting.prayerMtg);
     const isLordDay = Boolean(meeting.lordDayMeeting || meeting.lordDay);
     const isOutreach = Boolean(meeting.outreachVisit || meeting.outreach || meeting.mutual || meeting.blend);
 
+    const isSmallGroupSolidified = meetingSolidifiedSet.has('smallGroup');
+    const isPrayerMeetingSolidified = meetingSolidifiedSet.has('prayerMeeting');
+    const isLordDaySolidified = meetingSolidifiedSet.has('lordDayMeeting');
+    const isOutreachSolidified = meetingSolidifiedSet.has('outreachVisit');
+
     const weekBreakdown = {
-      smallGroup: isSmallGroup ? cfg.group : 0,
-      prayerMeeting: isPrayerMeeting ? cfg.prayerMtg : 0,
-      lordDayMeeting: isLordDay ? cfg.lordDay : 0,
-      outreachVisit: isOutreach ? cfg.outreach : 0
+      smallGroup: (isSmallGroup && !isSmallGroupSolidified) ? cfg.group : 0,
+      prayerMeeting: (isPrayerMeeting && !isPrayerMeetingSolidified) ? cfg.prayerMtg : 0,
+      lordDayMeeting: (isLordDay && !isLordDaySolidified) ? cfg.lordDay : 0,
+      outreachVisit: (isOutreach && !isOutreachSolidified) ? cfg.outreach : 0
     };
 
     const weekCompletedCount = (isSmallGroup ? 1 : 0) + (isPrayerMeeting ? 1 : 0) + (isLordDay ? 1 : 0) + (isOutreach ? 1 : 0);
@@ -133,6 +160,8 @@
 
   const PendingPointsEngine = {
     DEFAULT_POINTS_CONFIG,
+    MEETING_KEY_MAP,
+    normalizeMeetingKey,
     getRuleForDate,
     evaluate
   };

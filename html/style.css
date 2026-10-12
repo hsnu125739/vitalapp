@@ -6682,11 +6682,6 @@ body[data-theme="night"] .footprint-meeting-tag {
   font-weight: 700;
 }
 
-/* 已固化頂部金光飾條 */
-#homeView .quest-card.is-solidified:before {
-  background: linear-gradient(90deg, #f59e0b, #fbbf24) !important;
-}
-
 /* 極簡自包含 Toast 容器與卡片樣式 */
 .vital-toast-container {
   position: fixed;

@@ -1240,9 +1240,11 @@
         : (typeof require === 'function' ? require('../modules/pendingPointsEngine') : null);
 
       if (engine && typeof engine.evaluate === 'function') {
+        const meetingState = this.practiceStore?.meetingState?.[curWeek];
         const res = engine.evaluate({
           daily: this.practiceStore?.dailyState?.[curDate],
-          meeting: this.practiceStore?.meetingState?.[curWeek],
+          meeting: meetingState,
+          solidifiedItems: meetingState?.solidifiedItems || [],
           pointsConfig: this.pointsConfig
         });
         return res.totalPoints;
@@ -1277,6 +1279,7 @@
       const res = engine.evaluate({
         daily: dailyState,
         meeting: meetingState,
+        solidifiedItems: (meetingState && meetingState.solidifiedItems) || [],
         pointsConfig: this.pointsConfig
       });
 
