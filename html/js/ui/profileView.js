@@ -307,7 +307,71 @@
           }
 
           const grpName = dash.groupName || fallbackGrpName;
-          const members = dash.members || [];
+
+          // 健壯解析 members：支援陣列、JSON 字串、物件 Map 等多種後端與快照格式
+          const normalizeMembersList = (raw) => {
+            if (!raw) return [];
+            let parsed = raw;
+            if (typeof parsed === 'string') {
+              try { parsed = JSON.parse(parsed); } catch (_) { return []; }
+            }
+            if (Array.isArray(parsed)) {
+              return parsed.map(m => {
+                if (typeof m === 'string') return { playerId: m, name: m };
+                return m && typeof m === 'object' ? m : { playerId: String(m), name: String(m) };
+              });
+            }
+            if (parsed && typeof parsed === 'object') {
+              return Object.keys(parsed).map(pid => ({
+                playerId: pid,
+                name: pid
+              }));
+            }
+            return [];
+          };
+
+          let members = normalizeMembersList(dash.members);
+          if (members.length === 0 && dash.activeMembers) {
+            members = normalizeMembersList(dash.activeMembers);
+          }
+          if (members.length === 0 && dash.activeMembersJson) {
+            members = normalizeMembersList(dash.activeMembersJson);
+          }
+          if (members.length === 0) {
+            try {
+              const cachedGm = JSON.parse(localStorage.getItem(`vital_group_members_${groupId}`) || 'null');
+              if (cachedGm) {
+                members = normalizeMembersList(cachedGm.members || cachedGm);
+              }
+            } catch (_) {}
+          }
+
+          // 嘗試從本地 vital_group_members_ 補齊名稱與頭像
+          try {
+            const cachedGm = JSON.parse(localStorage.getItem(`vital_group_members_${groupId}`) || 'null');
+            const metaList = Array.isArray(cachedGm) ? cachedGm : (cachedGm && Array.isArray(cachedGm.members) ? cachedGm.members : null);
+            if (metaList && metaList.length > 0) {
+              const metaMap = new Map();
+              metaList.forEach(item => {
+                if (item && item.playerId) metaMap.set(String(item.playerId).trim().toLowerCase(), item);
+              });
+              members = members.map(m => {
+                const meta = metaMap.get(String(m.playerId).trim().toLowerCase());
+                if (meta) {
+                  return {
+                    ...meta,
+                    ...m,
+                    name: (m.name && m.name !== m.playerId) ? m.name : (meta.name || m.name || m.playerId),
+                    avatarUrl: m.avatarUrl || meta.avatarUrl || '',
+                    avatarKey: m.avatarKey || meta.avatarKey || '',
+                    gender: m.gender || meta.gender || ''
+                  };
+                }
+                return m;
+              });
+            }
+          } catch (_) {}
+
           const memberCount = (typeof dash.memberCount === 'number')
             ? dash.memberCount
             : (members.length > 0 ? members.length : 1);
@@ -433,9 +497,16 @@
             const populatePicker = () => {
               if (!pickerList) return;
               pickerList.innerHTML = '';
-              members.forEach(m => {
-                if (String(m.playerId || '').trim().toLowerCase() === String(this.currentUserProfile.playerId || '').trim().toLowerCase()) return;
-                
+              const selectableMembers = members.filter(m => 
+                String(m.playerId || '').trim().toLowerCase() !== String(this.currentUserProfile.playerId || '').trim().toLowerCase()
+              );
+
+              if (selectableMembers.length === 0) {
+                pickerList.innerHTML = '<div style="font-size:13px;color:#94a3b8;padding:8px 0;text-align:center;">載入其他組員資訊中...</div>';
+                return;
+              }
+
+              selectableMembers.forEach(m => {
                 let avatarUrl = m.avatarUrl;
                 if (!avatarUrl && m.avatarKey) {
                   if (String(m.avatarKey).includes('.png')) {
@@ -458,7 +529,7 @@
                 item.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;';
                 item.innerHTML = `
                   <div style="display:flex;align-items:center;gap:8px;">
-                    <img src="${this.escapeAttr(avatarUrl)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;background:#e2e8f0;" onerror="this.src='../avatar-male/avatar-male-direct-001.png';" />
+                    <img src="${this.escapeHtml(avatarUrl)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;background:#e2e8f0;" onerror="this.src='../avatar-male/avatar-male-direct-001.png';" />
                     <span style="font-size:14px;color:#334155;font-weight:500;">${this.escapeHtml(m.name || m.playerId)}</span>
                   </div>
                   <button type="button" class="primary-btn" style="padding:4px 10px;font-size:12px;border-radius:4px;">交接</button>
@@ -1224,6 +1295,13 @@
         return VitalUtils.escapeHtml(str);
       }
       return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    escapeAttr(str) {
+      if (typeof VitalUtils !== 'undefined' && VitalUtils.escapeAttr) {
+        return VitalUtils.escapeAttr(str);
+      }
+      return this.escapeHtml(str);
     }
   }
 
