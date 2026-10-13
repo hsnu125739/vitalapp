@@ -1298,9 +1298,6 @@
     }
 
     escapeAttr(str) {
-      if (typeof VitalUtils !== 'undefined' && VitalUtils.escapeAttr) {
-        return VitalUtils.escapeAttr(str);
-      }
       return this.escapeHtml(str);
     }
   }
