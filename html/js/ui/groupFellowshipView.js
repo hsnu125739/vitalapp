@@ -35,6 +35,13 @@
       this.currentPlayerId = val;
     }
 
+    get currentUserName() {
+      return this._currentUserName || (typeof currentUserProfile !== 'undefined' && currentUserProfile && currentUserProfile.name) || '';
+    }
+    set currentUserName(val) {
+      this._currentUserName = val;
+    }
+
     initModalEvents_() {
       if (typeof document === 'undefined') return;
       document.querySelectorAll('[data-close-modal="groupPostModal"]').forEach(btn => {
@@ -145,13 +152,27 @@
       const input = this.container.querySelector('#chatInput');
 
       if (form) {
-        form.addEventListener('submit', (e) => {
+        form.addEventListener('submit', async (e) => {
           e.preventDefault();
-          const text = input.value.trim();
+          if (this.isSubmittingMessage_) return;
+          const text = input ? input.value.trim() : '';
           if (!text) return;
-          this.chatStore.sendMessage(this.currentPlayerId, text, this.currentUserName, this.postsColIndex);
-          input.value = '';
-          this.scrollToBottom_();
+
+          const submitBtn = this.container.querySelector('#btnSendChat') || form.querySelector('button[type="submit"]');
+          this.isSubmittingMessage_ = true;
+          if (submitBtn) submitBtn.disabled = true;
+          if (input) input.value = '';
+
+          try {
+            if (this.chatStore && typeof this.chatStore.sendMessage === 'function') {
+              await this.chatStore.sendMessage(this.currentPlayerId, text, this.currentUserName, this.postsColIndex);
+            }
+            this.scrollToBottom_();
+          } finally {
+            this.isSubmittingMessage_ = false;
+            if (submitBtn) submitBtn.disabled = false;
+            if (input) input.focus();
+          }
         });
       }
 
@@ -231,7 +252,7 @@
       const showPinBtn = Boolean(this.isLeader && this.isSelectingPin);
 
       msgContainer.innerHTML = sortedMessages.map(msg => {
-        const isOwn = msg.authorPlayerId === this.currentPlayerId;
+        const isOwn = String(msg.authorPlayerId || '').trim().toLowerCase() === String(this.currentPlayerId || '').trim().toLowerCase();
         const authorText = isOwn ? '我' : (msg.authorName || '聖徒');
         const bg = isOwn ? '#e0f2fe' : '#ffffff';
         const align = isOwn ? 'flex-end' : 'flex-start';
@@ -248,7 +269,7 @@
 
         const bubbleHtml = `
           <div style="max-width: 80%; background: ${bg}; border: 1px solid #cbd5e1; border-radius: 12px; padding: 8px 12px;">
-            <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 2px;">${authorText}</div>
+            <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 2px;">${this.escapeHtml(authorText)}</div>
             <div style="font-size: 13px; color: #1e293b; line-height: 1.4;">${this.escapeHtml(msg.content)}</div>
           </div>
         `;

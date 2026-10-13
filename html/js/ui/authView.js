@@ -65,8 +65,18 @@
               const profile = (res.data && res.data.player) || res.player || (res.data && res.data.profile) || res.profile || res.data || {};
               const group = (res.data && res.data.group) !== undefined ? res.data.group : (res.group || null);
               const practice = (res.data && res.data.practice) !== undefined ? res.data.practice : (res.practice || null);
-              if (keepLogin && typeof localStorage !== 'undefined') {
-                localStorage.setItem('vital_keep_login', 'true');
+              if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('vital_keep_login', keepLogin ? 'true' : 'false');
+              }
+              if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem('vital_keep_login', keepLogin ? 'true' : 'false');
+              }
+              if (this.apiClient && typeof this.apiClient.setSessionToken === 'function' && (res.token || (res.data && res.data.token))) {
+                this.apiClient.setSessionToken(res.token || (res.data && res.data.token), keepLogin);
+              }
+              if (!keepLogin && typeof localStorage !== 'undefined') {
+                localStorage.removeItem('vital_session_token');
+                localStorage.removeItem('vital_current_player');
               }
               this.hideAuth();
               if (typeof this.onLoginSuccess === 'function') {
@@ -217,7 +227,12 @@
             });
 
             if (res && res.success) {
-              alert('註冊成功！已為您自動登入進入旅程');
+              const msg = '註冊成功！已為您自動登入進入旅程';
+              if (typeof VitalToast !== 'undefined' && typeof VitalToast.show === 'function') {
+                VitalToast.show(msg, { position: 'center', type: 'success', icon: '✨' });
+              } else {
+                alert(msg);
+              }
               if (this.registerModal) this.registerModal.classList.add('hidden');
               this.hideAuth();
               const profile = (res.data && res.data.player) || res.player || (res.data && res.data.profile) || res.profile || res.data || {};
@@ -285,7 +300,11 @@
         regMsgEl.className = 'result-box error';
         regMsgEl.classList.remove('hidden');
       } else {
-        alert(msg);
+        if (typeof VitalToast !== 'undefined' && typeof VitalToast.show === 'function') {
+          VitalToast.show(msg, { position: 'top', type: 'error' });
+        } else {
+          alert(msg);
+        }
       }
     }
 

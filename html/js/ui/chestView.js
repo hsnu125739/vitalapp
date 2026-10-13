@@ -29,12 +29,15 @@
   }));
 
   const PRELOADED_CHEST_IMAGES = [];
+  let _hasPreloadedChests = false;
 
   /**
    * 預先載入 WebP 寶箱資源（全部 10 個階層，嚴格排除 PNG 以免拖慢效能）
    */
   function preloadChestAssets() {
     if (typeof window === 'undefined' || typeof Image === 'undefined') return [];
+    if (_hasPreloadedChests && PRELOADED_CHEST_IMAGES.length > 0) return PRELOADED_CHEST_IMAGES;
+    _hasPreloadedChests = true;
     for (let i = 1; i <= 10; i++) {
       const num = String(i).padStart(2, '0');
       const imgWebp = new Image();
@@ -103,6 +106,15 @@
       this.currentUserProfile = null;
 
       this.initEvents_();
+
+      // 啟動 WebP 寶箱資源預載（閒置時自動排程，杜絕死碼並保證卡片與詳情彈窗秒開零延遲）
+      if (typeof window !== 'undefined') {
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(() => preloadChestAssets());
+        } else {
+          setTimeout(preloadChestAssets, 200);
+        }
+      }
     }
 
     initEvents_() {
@@ -270,7 +282,7 @@
             const imgFilter = !isUnlocked || isMystery ? 'grayscale(0.8) opacity(0.6)' : 'none';
 
             return `
-              <div class="chest-card-item" data-index="${index}" style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:12px; text-align:center; cursor:pointer; transition:transform 0.15s ease;">
+              <div class="chest-card-item treasure-collection-item" data-index="${index}" style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:12px; text-align:center; cursor:pointer; transition:transform 0.15s ease;">
                 <picture>
                   <source srcset="${safeWebp}" type="image/webp">
                   <img src="${safePng}" alt="${escapeHtml(chest.displayName)}" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='../Chest_Assets/Chest_01.png';" style="width:64px; height:64px; object-fit:contain; margin:0 auto; display:block; filter:${imgFilter};">

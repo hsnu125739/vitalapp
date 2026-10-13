@@ -37,6 +37,23 @@
     return `${y}-${m}`;
   }
 
+  /**
+   * 標準化日曆日期為 YYYY-MM-DD（委託 TemporalMath 與 VitalUtils，不重複造輪子）
+   */
+  const normalizeDateString_ = (typeof TemporalMath !== 'undefined' && typeof TemporalMath.toDateString === 'function' && TemporalMath.toDateString.bind(TemporalMath))
+    || (typeof VitalUtils !== 'undefined' && typeof VitalUtils.toDateString === 'function' && VitalUtils.toDateString.bind(VitalUtils))
+    || ((typeof require === 'function') ? (function () {
+        try {
+          const tm = require('../../../../src/backend/modules/temporalMath').TemporalMath || require('../../../../src/backend/modules/temporalMath');
+          if (tm && typeof tm.toDateString === 'function') return tm.toDateString.bind(tm);
+        } catch (e) {}
+        try {
+          const vu = require('../utils/vitalUtils').VitalUtils;
+          if (vu && typeof vu.toDateString === 'function') return vu.toDateString.bind(vu);
+        } catch (e) {}
+        return (val) => String(val || '').trim().slice(0, 10).replace(/\//g, '-');
+      })() : ((val) => String(val || '').trim().slice(0, 10).replace(/\//g, '-')));
+
   const PendingEngine = (typeof PendingPointsEngine !== 'undefined')
     ? PendingPointsEngine
     : (typeof require === 'function' ? require('../modules/pendingPointsEngine') : null);
@@ -208,7 +225,7 @@
     const teamMeeting = raw.teamMeeting || {};
     const selfId = raw.selfPlayerId || '';
     const groupId = raw.groupId || '';
-    const joinGroupDate = (raw.joinGroupTime && typeof raw.joinGroupTime === 'string') ? raw.joinGroupTime.slice(0, 10) : '';
+    const joinGroupDate = normalizeDateString_(raw.joinGroupTime);
 
     const teamMemberIds = Array.from(new Set([...Object.keys(teamDaily), ...Object.keys(teamMeeting)]));
     const teamSize = teamMemberIds.length;
@@ -522,11 +539,22 @@
     constructor({ apiClient, practiceStore, currentDate } = {}) {
       this.apiClient = apiClient;
       this.practiceStore = practiceStore || null;
-      this.currentDate = currentDate || null;
+      this._overrideDate = currentDate || null;
       this.infoModal = typeof document !== 'undefined' ? document.getElementById('infoModal') : null;
       this.infoModalTitle = typeof document !== 'undefined' ? document.getElementById('infoModalTitle') : null;
       this.infoModalContent = typeof document !== 'undefined' ? document.getElementById('infoModalContent') : null;
       this.currentData = null;
+    }
+
+    /** 全動態日期 Getter */
+    get currentDate() {
+      if (this._overrideDate) return this._overrideDate;
+      return (typeof dashboardView !== 'undefined' && dashboardView && typeof dashboardView.getTodayDateString === 'function')
+        ? dashboardView.getTodayDateString()
+        : getLocalDateString();
+    }
+    set currentDate(val) {
+      this._overrideDate = val;
     }
 
     /**
@@ -1143,9 +1171,10 @@
 
   // 模組與全域導出
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { FootprintsView, assembleFootprintsData, unpackDaily, unpackMeeting, DEFAULT_POINTS_CONFIG };
+    module.exports = { FootprintsView, assembleFootprintsData, unpackDaily, unpackMeeting, DEFAULT_POINTS_CONFIG, normalizeDateString_ };
   }
   global.FootprintsView = FootprintsView;
   global.assembleFootprintsData = assembleFootprintsData;
+  global.normalizeDateString_ = normalizeDateString_;
 
 })(typeof window !== 'undefined' ? window : global);

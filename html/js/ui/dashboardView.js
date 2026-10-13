@@ -58,8 +58,8 @@
       this.currentUserProfile = null;
       this.baseFullAttendanceDays = null;
       this.baseFullAttendanceMonthKey = null;
-      this.currentDate = this.getTodayDateString();
-      this.currentWeekKey = this.getCurrentWeekKey();
+      this._overrideDate = null;
+      this._overrideWeekKey = null;
 
       this.currentAnnouncements = [];
       try {
@@ -93,6 +93,21 @@
       this.initEvents_();
       this.subscribeStore_();
       this.renderTaskCards(this.pointsConfig);
+    }
+
+    /** 全動態日期與週次 Getter (杜絕跨夜時鐘粘滯缺陷) */
+    get currentDate() {
+      return this._overrideDate || this.getTodayDateString();
+    }
+    set currentDate(val) {
+      this._overrideDate = val;
+    }
+
+    get currentWeekKey() {
+      return this._overrideWeekKey || this.getCurrentWeekKey();
+    }
+    set currentWeekKey(val) {
+      this._overrideWeekKey = val;
     }
 
     getTodayDateString() {
@@ -620,13 +635,13 @@
 
       const defaultChapters = [
         { chapterId: 'CHP_01', order: 1, status: 'ACTIVE', targetPoint: 0, name: '信心篇', subtitle: '義人必本於信得生並活著', description: '萬事起頭難，需要有同伴一同立定心志，在信心裡往前！\n(基礎條件：活力組至少2人)', themeColor: '#f59e0b', pictureKey: 'journey_1.webp' },
-        { chapterId: 'CHP_02', order: 2, status: 'ACTIVE', targetPoint: 1000, name: '美德篇', subtitle: '藉這榮耀和美德，祂已將又寶貴又極大的應許賜給我們', description: '因著神聖生命的能力而產生有活力的行動，在人面前有好見證！', themeColor: '#3b82f6', pictureKey: 'journey_2.webp' },
-        { chapterId: 'CHP_03', order: 3, status: 'ACTIVE', targetPoint: 2000, name: '知識篇', subtitle: '直到我們眾人都達到了對神兒子之完全認識上的一', description: '對我們主的知識的領會等於真理，就是祂一切所是的實際，我們需要在真理上長大！', themeColor: '#10b981', pictureKey: 'journey_3.webp' },
-        { chapterId: 'CHP_04', order: 4, status: 'ACTIVE', targetPoint: 4000, name: '節制篇', subtitle: '凡較力爭勝的，諸事都有節制', description: '生活中操練從主受限制，讓主管治我們的全人，為著生命正確的長大，也為著得著不能壞的華冠！', themeColor: '#8b5cf6', pictureKey: 'journey_4.webp' },
-        { chapterId: 'CHP_05', order: 5, status: 'ACTIVE', targetPoint: 7000, name: '忍耐篇', subtitle: '那美好的仗我已經打過了', description: '同心奔跑屬天賽程，在日常繁忙職場與生活中見證基督的得勝。', themeColor: '#ec4899', pictureKey: 'journey_5.webp' },
-        { chapterId: 'CHP_06', order: 6, status: 'ACTIVE', targetPoint: 10000, name: '敬虔篇', subtitle: '榮上加榮，同被變化', description: '同心合意，滿有屬天的喜樂與長進，成為團體發光的榮耀見證。', themeColor: '#f97316', pictureKey: 'journey_6.webp' },
-        { chapterId: 'CHP_07', order: 7, status: 'ACTIVE', targetPoint: 15000, name: '弟兄相愛篇', subtitle: '聯絡得合式，百節各按各職', description: '彼此相顧，激發愛心，勉勵行善；每週同聚禱告與小排交通。', themeColor: '#06b6d4', pictureKey: 'journey_7.webp' },
-        { chapterId: 'CHP_08', order: 8, status: 'ACTIVE', targetPoint: 20000, name: '愛篇', subtitle: '世上的國成了我主和祂基督的國', description: '在榮耀裡作王同掌權，成為羔羊的伴侶，完全達到基督的身量。', themeColor: '#eab308', pictureKey: 'journey_8.webp' }
+        { chapterId: 'CHP_02', order: 2, status: 'ACTIVE', targetPoint: 2000, name: '美德篇', subtitle: '藉這榮耀和美德，祂已將又寶貴又極大的應許賜給我們', description: '因著神聖生命的能力而產生有活力的行動，在人面前有好見證！', themeColor: '#3b82f6', pictureKey: 'journey_2.webp' },
+        { chapterId: 'CHP_03', order: 3, status: 'ACTIVE', targetPoint: 5500, name: '知識篇', subtitle: '直到我們眾人都達到了對神兒子之完全認識上的一', description: '對我們主的知識的領會等於真理，就是祂一切所是的實際，我們需要在真理上長大！', themeColor: '#10b981', pictureKey: 'journey_3.webp' },
+        { chapterId: 'CHP_04', order: 4, status: 'ACTIVE', targetPoint: 10000, name: '節制篇', subtitle: '凡較力爭勝的，諸事都有節制', description: '生活中操練從主受限制，讓主管治我們的全人，為著生命正確的長大，也為著得著不能壞的華冠！', themeColor: '#8b5cf6', pictureKey: 'journey_4.webp' },
+        { chapterId: 'CHP_05', order: 5, status: 'ACTIVE', targetPoint: 16000, name: '忍耐篇', subtitle: '那美好的仗我已經打過了', description: '同心奔跑屬天賽程，在日常繁忙職場與生活中見證基督的得勝。', themeColor: '#ec4899', pictureKey: 'journey_5.webp' },
+        { chapterId: 'CHP_06', order: 6, status: 'ACTIVE', targetPoint: 24000, name: '敬虔篇', subtitle: '榮上加榮，同被變化', description: '同心合意，滿有屬天的喜樂與長進，成為團體發光的榮耀見證。', themeColor: '#f97316', pictureKey: 'journey_6.webp' },
+        { chapterId: 'CHP_07', order: 7, status: 'ACTIVE', targetPoint: 35000, name: '弟兄相愛篇', subtitle: '聯絡得合式，百節各按各職', description: '彼此相顧，激發愛心，勉勵行善；每週同聚禱告與小排交通。', themeColor: '#06b6d4', pictureKey: 'journey_7.webp' },
+        { chapterId: 'CHP_08', order: 8, status: 'ACTIVE', targetPoint: 50000, name: '愛篇', subtitle: '世上的國成了我主和祂基督的國', description: '在榮耀裡作王同掌權，成為羔羊的伴侶，完全達到基督的身量。', themeColor: '#eab308', pictureKey: 'journey_8.webp' }
       ];
 
       if (!Array.isArray(chapters) || chapters.length === 0) {
@@ -1544,6 +1559,16 @@
     showToast_(message, { type = 'info', duration = 3000 } = {}) {
       if (typeof document === 'undefined') return null;
 
+      const VT = (typeof VitalToast !== 'undefined') ? VitalToast : ((typeof global !== 'undefined' && global.VitalToast) || (typeof window !== 'undefined' && window.VitalToast));
+      if (VT && typeof VT.show === 'function') {
+        const isGold = (type === 'gold');
+        return VT.show(message, {
+          type,
+          position: isGold ? 'center' : 'bottom',
+          duration
+        });
+      }
+
       let container = document.querySelector('.vital-toast-container');
       if (!container) {
         container = document.createElement('div');
@@ -1610,6 +1635,14 @@
     }
 
     showMeetingPendingToast_() {
+      const VT = (typeof VitalToast !== 'undefined') ? VitalToast : ((typeof global !== 'undefined' && global.VitalToast) || (typeof window !== 'undefined' && window.VitalToast));
+      if (VT && typeof VT.show === 'function') {
+        return VT.show('🕊️ 已記錄聚會打卡！將於明日凌晨 03:00 結算入帳，【今日內可隨時點擊撤回】。', {
+          type: 'info',
+          position: 'bottom',
+          duration: 10000
+        });
+      }
       return this.showToast_('🕊️ 已記錄聚會打卡！將於明日凌晨 03:00 結算入帳，【今日內可隨時點擊撤回】。', {
         type: 'info',
         duration: 10000
@@ -1617,6 +1650,14 @@
     }
 
     showSolidifiedNoticeToast_() {
+      const VT = (typeof VitalToast !== 'undefined') ? VitalToast : ((typeof global !== 'undefined' && global.VitalToast) || (typeof window !== 'undefined' && window.VitalToast));
+      if (VT && typeof VT.show === 'function') {
+        return VT.show('✨ 此聚會已於昨日完成結算入帳，不可取消打卡囉！', {
+          type: 'gold',
+          position: 'center',
+          duration: 2500
+        });
+      }
       return this.showToast_('✨ 此聚會已於昨日完成結算入帳，不可取消打卡囉！', {
         type: 'gold',
         duration: 2500
@@ -1625,6 +1666,11 @@
 
     dismissToast_() {
       if (typeof document === 'undefined') return;
+      const VT = (typeof VitalToast !== 'undefined') ? VitalToast : ((typeof global !== 'undefined' && global.VitalToast) || (typeof window !== 'undefined' && window.VitalToast));
+      if (VT && typeof VT.dismiss === 'function') {
+        VT.dismiss();
+        return;
+      }
       const container = document.querySelector('.vital-toast-container');
       if (!container) return;
       if (container._activeTimer) {

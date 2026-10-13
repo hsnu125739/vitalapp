@@ -169,7 +169,8 @@
         removeItem(k) { delete this.store[k]; }
       }));
 
-      this.token = this.storage.getItem('vital_session_token') || null;
+      this.token = null;
+      this.token = this.getSessionToken();
       this.requestSeq = 0;
       this.pendingRequests = new Map();
       this.inFlightMutex = new Set();
@@ -197,17 +198,64 @@
       }
     }
 
-    setSessionToken(token) {
+    setSessionToken(token, keepLogin = null) {
       this.token = token;
-      if (token) {
-        this.storage.setItem('vital_session_token', token);
+      let isKeep = true;
+      if (keepLogin !== null) {
+        isKeep = Boolean(keepLogin);
       } else {
-        this.storage.removeItem('vital_session_token');
+        const storedKeep = (typeof localStorage !== 'undefined' ? localStorage.getItem('vital_keep_login') : null) ||
+                           (this.storage ? this.storage.getItem('vital_keep_login') : null);
+        isKeep = storedKeep !== 'false';
+      }
+
+      if (token) {
+        if (isKeep) {
+          this.storage.setItem('vital_session_token', token);
+          if (typeof sessionStorage !== 'undefined') {
+            try { sessionStorage.setItem('vital_session_token', token); } catch (_) {}
+          }
+        } else {
+          if (typeof sessionStorage !== 'undefined') {
+            try { sessionStorage.setItem('vital_session_token', token); } catch (_) {}
+          }
+          this.storage.removeItem('vital_session_token');
+          if (typeof localStorage !== 'undefined') {
+            try { localStorage.removeItem('vital_session_token'); } catch (_) {}
+          }
+        }
+      } else {
+        this.clearSessionToken();
       }
     }
 
     getSessionToken() {
-      return this.token;
+      if (this.token) return this.token;
+
+      // 1. 先檢驗 sessionStorage (單一分頁生命週期)
+      if (typeof sessionStorage !== 'undefined') {
+        try {
+          const sToken = sessionStorage.getItem('vital_session_token');
+          if (sToken) {
+            this.token = sToken;
+            return sToken;
+          }
+        } catch (_) {}
+      }
+
+      // 2. 檢驗「保持登入」設定，若明確設為 false 則禁止自持久化 localStorage 恢復會話
+      const storedKeep = (typeof localStorage !== 'undefined' ? localStorage.getItem('vital_keep_login') : null) ||
+                         (this.storage ? this.storage.getItem('vital_keep_login') : null);
+      if (storedKeep === 'false') {
+        return null;
+      }
+
+      const lToken = this.storage ? this.storage.getItem('vital_session_token') : null;
+      if (lToken) {
+        this.token = lToken;
+        return lToken;
+      }
+      return null;
     }
 
     getPlayerIdFromToken() {
@@ -309,8 +357,24 @@
 
     clearSessionToken() {
       this.token = null;
-      this.storage.removeItem('vital_session_token');
-      this.storage.removeItem('vital_current_player');
+      if (this.storage) {
+        try {
+          this.storage.removeItem('vital_session_token');
+          this.storage.removeItem('vital_current_player');
+        } catch (_) {}
+      }
+      if (typeof sessionStorage !== 'undefined') {
+        try {
+          sessionStorage.removeItem('vital_session_token');
+          sessionStorage.removeItem('vital_current_player');
+        } catch (_) {}
+      }
+      if (typeof localStorage !== 'undefined') {
+        try {
+          localStorage.removeItem('vital_session_token');
+          localStorage.removeItem('vital_current_player');
+        } catch (_) {}
+      }
     }
 
     handleSessionExpired_() {

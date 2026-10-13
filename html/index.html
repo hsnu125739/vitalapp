@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-title" content="高雄青職｜活力同行">
   <meta name="application-name" content="高雄青職｜活力同行">
   <meta name="theme-color" content="#8fd3ff">
-  <link rel="stylesheet" href="style.css?v=20261013-v93">
+  <link rel="stylesheet" href="style.css?v=20261013-v94">
   <link rel="stylesheet" href="login-webp-perf.css?v=20261005-v52">
   <style id="hero-score-override">
     #homeView .home-hero-card .hero-score-grid .hero-score-card strong,
@@ -462,11 +462,11 @@
   </div>
 
   <!-- 註冊 -->
-  <div id="registerModal" class="modal-layer hidden" role="dialog" aria-modal="true">
+  <div id="registerModal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="registerModalTitle">
     <div class="modal-card large-modal-card">
       <div class="modal-header">
-        <button class="modal-close-btn" data-close-modal="registerModal" type="button">‹</button>
-        <h2>新活力人註冊</h2>
+        <button class="modal-close-btn" data-close-modal="registerModal" type="button" aria-label="關閉">‹</button>
+        <h2 id="registerModalTitle">新活力人註冊</h2>
         <span></span>
       </div>
 
@@ -561,11 +561,11 @@
     </div>
   </div>
 
-  <div id="avatarModal" class="modal-layer hidden" role="dialog" aria-modal="true">
+  <div id="avatarModal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="avatarModalTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <button class="modal-close-btn" data-close-modal="avatarModal" type="button">‹</button>
-        <h2>更換頭像</h2>
+        <button class="modal-close-btn" data-close-modal="avatarModal" type="button" aria-label="關閉">‹</button>
+        <h2 id="avatarModalTitle">更換頭像</h2>
         <span></span>
       </div>
 
@@ -600,11 +600,11 @@
     </div>
   </div>
 
-  <div id="groupPostModal" class="modal-layer hidden" role="dialog" aria-modal="true">
+  <div id="groupPostModal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="groupPostModalTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <button class="modal-close-btn" data-close-modal="groupPostModal" type="button">‹</button>
-        <h2>小組公告</h2>
+        <button class="modal-close-btn" data-close-modal="groupPostModal" type="button" aria-label="關閉">‹</button>
+        <h2 id="groupPostModalTitle">小組公告</h2>
         <span></span>
       </div>
 
@@ -624,11 +624,11 @@
   </div>
 
   <!-- 帳號設定 -->
-  <div id="accountSettingsModal" class="modal-layer hidden" role="dialog" aria-modal="true">
+  <div id="accountSettingsModal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="accountSettingsModalTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <button class="modal-close-btn" data-close-modal="accountSettingsModal" type="button">‹</button>
-        <h2>帳號設定</h2>
+        <button class="modal-close-btn" data-close-modal="accountSettingsModal" type="button" aria-label="關閉">‹</button>
+        <h2 id="accountSettingsModalTitle">帳號設定</h2>
         <span></span>
       </div>
 
@@ -654,11 +654,11 @@
   </div>
 
   <!-- 活力組管理 -->
-  <div id="vitalGroupsModal" class="modal-layer hidden" role="dialog" aria-modal="true">
+  <div id="vitalGroupsModal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="vitalGroupsModalTitle">
     <div class="modal-card wide-modal-card">
       <div class="modal-header">
-        <button class="modal-close-btn" data-close-modal="vitalGroupsModal" type="button">‹</button>
-        <h2>活力組管理</h2>
+        <button class="modal-close-btn" data-close-modal="vitalGroupsModal" type="button" aria-label="關閉">‹</button>
+        <h2 id="vitalGroupsModalTitle">活力組管理</h2>
         <span></span>
       </div>
 
@@ -693,50 +693,12 @@
     </div>
   </div>
 
-  <!-- 操練確認 -->
-  <div id="practiceModal" class="modal-layer hidden" role="dialog" aria-modal="true">
-    <div class="modal-card">
-      <div class="modal-header">
-        <button class="modal-close-btn" data-close-modal="practiceModal" type="button">‹</button>
-        <h2>完成今日任務</h2>
-        <span></span>
-      </div>
 
-      <section class="confirm-info-card">
-        <strong id="practiceModalHeading">小組晨興</strong>
-        <p id="practiceModalDescription"></p>
-        <span id="practiceModalReward" class="reward-chip"></span>
-      </section>
-
-      <button id="practiceSubmitBtn" class="primary-btn" type="button">確認完成</button>
-      <div id="practiceModalMessage" class="result-box hidden"></div>
-    </div>
-  </div>
-
-  <!-- 本週任務確認 -->
-  <div id="weeklyTaskModal" class="modal-layer hidden" role="dialog" aria-modal="true">
-    <div class="modal-card">
-      <div class="modal-header">
-        <button class="modal-close-btn" data-close-modal="weeklyTaskModal" type="button">‹</button>
-        <h2>完成本週任務</h2>
-        <span></span>
-      </div>
-
-      <section class="confirm-info-card">
-        <strong id="weeklyTaskModalHeading">外出探訪</strong>
-        <p id="weeklyTaskModalDescription"></p>
-        <span id="weeklyTaskModalReward" class="reward-chip"></span>
-      </section>
-
-      <button id="weeklyTaskSubmitBtn" class="primary-btn" type="button">確認完成</button>
-      <div id="weeklyTaskModalMessage" class="result-box hidden"></div>
-    </div>
-  </div>
   <!-- 確認 -->
-  <div id="confirmModal" class="modal-layer hidden" role="dialog" aria-modal="true">
+  <div id="confirmModal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
     <div class="modal-card confirm-modal-card">
       <div class="modal-header">
-        <button class="modal-close-btn" data-close-modal="confirmModal" type="button">‹</button>
+        <button class="modal-close-btn" data-close-modal="confirmModal" type="button" aria-label="關閉">‹</button>
         <h2 id="confirmModalTitle">確認操作</h2>
         <span></span>
       </div>
@@ -754,10 +716,10 @@
   </div>
 
   <!-- 通用資料 -->
-  <div id="infoModal" class="modal-layer hidden" role="dialog" aria-modal="true">
+  <div id="infoModal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle">
     <div class="modal-card wide-modal-card">
       <div class="modal-header">
-        <button class="modal-close-btn" data-close-modal="infoModal" type="button">‹</button>
+        <button class="modal-close-btn" data-close-modal="infoModal" type="button" aria-label="關閉">‹</button>
         <h2 id="infoModalTitle">詳細資料</h2>
         <span></span>
       </div>
@@ -916,31 +878,24 @@
     </div>
   </div>
 
-  <!-- Loading -->
-  <div id="loadingOverlay" class="loading-overlay hidden">
-    <div class="loading-card">
-      <div class="spinner"></div>
-      <span id="loadingText">處理中...</span>
-    </div>
-  </div>
 
   <script src="runtime-settings.js?v=20261005-v52"></script>
-  <script src="js/utils/vitalUtils.js?v=20261005-v52"></script>
+  <script src="js/utils/vitalUtils.js?v=20261013-v94"></script>
   <script src="js/utils/avatarManager.js?v=20261005-v52"></script>
   <script src="js/modules/journeyEngine.js?v=20261009-v72"></script>
   <script src="js/modules/storageGateway.js?v=20261012-v87"></script>
   <script src="js/modules/userSessionCoordinator.js?v=20261009-v72"></script>
   <script src="js/modules/pendingPointsEngine.js?v=20261013-v93"></script>
   <script src="js/api/apiClient.js?v=20261012-v90"></script>
-  <script src="js/store/practiceStore.js?v=20261013-v93"></script>
+  <script src="js/store/practiceStore.js?v=20261013-v94"></script>
   <script src="js/store/chatStore.js?v=20261005-v52"></script>
-  <script src="js/ui/authView.js?v=20261009-v72"></script>
-  <script src="js/ui/dashboardView.js?v=20261013-v93"></script>
+  <script src="js/ui/authView.js?v=20261013-v94"></script>
+  <script src="js/ui/dashboardView.js?v=20261013-v94"></script>
   <script src="js/ui/chestView.js?v=20261011-v81"></script>
   <script src="js/ui/footprintsView.js?v=20261012-v90"></script>
-  <script src="js/ui/profileView.js?v=20261011-v81"></script>
+  <script src="js/ui/profileView.js?v=20261013-v94"></script>
   <script src="js/ui/groupFellowshipView.js?v=20261005-v52"></script>
-  <script src="js/app.js?v=20261013-v93"></script>
+  <script src="js/app.js?v=20261013-v94"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

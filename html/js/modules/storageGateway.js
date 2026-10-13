@@ -85,6 +85,14 @@
 
     getItem(key) {
       try {
+        if (typeof window !== 'undefined' && window.sessionStorage && (key === 'vital_session_token' || key === 'vital_current_player')) {
+          const sVal = window.sessionStorage.getItem(key);
+          if (sVal !== null && sVal !== undefined) return sVal;
+          const keep = (window.localStorage && window.localStorage.getItem('vital_keep_login')) || this.storage.getItem('vital_keep_login');
+          if (keep === 'false') {
+            return null;
+          }
+        }
         return this.storage.getItem(key);
       } catch (_) {
         return null;
@@ -92,12 +100,27 @@
     }
 
     setItem(key, value) {
-      this.storage.setItem(key, String(value));
+      try {
+        const valStr = String(value);
+        if (typeof window !== 'undefined' && window.sessionStorage && (key === 'vital_session_token' || key === 'vital_current_player')) {
+          const keep = (window.localStorage && window.localStorage.getItem('vital_keep_login')) || this.storage.getItem('vital_keep_login');
+          if (keep === 'false') {
+            window.sessionStorage.setItem(key, valStr);
+            this.storage.removeItem(key);
+            return;
+          }
+          window.sessionStorage.setItem(key, valStr);
+        }
+        this.storage.setItem(key, valStr);
+      } catch (_) {}
     }
 
     removeItem(key) {
       try {
         this.storage.removeItem(key);
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          window.sessionStorage.removeItem(key);
+        }
       } catch (_) {}
     }
 
@@ -220,6 +243,9 @@
 
       for (const k of targetKeys) {
         this.removeItem(k);
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          try { window.sessionStorage.removeItem(k); } catch (_) {}
+        }
       }
 
       // Phase 2: 全域掃描 vital_ 前綴快取，白名單保護全域設定
@@ -240,6 +266,21 @@
         if (typeof k === 'string' && k.startsWith('vital_') && !WHITELIST.has(k)) {
           this.removeItem(k);
         }
+      }
+
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        try {
+          const sKeys = [];
+          for (let i = 0; i < window.sessionStorage.length; i++) {
+            const sk = window.sessionStorage.key(i);
+            if (sk && sk.startsWith('vital_') && !WHITELIST.has(sk)) {
+              sKeys.push(sk);
+            }
+          }
+          for (const sk of sKeys) {
+            window.sessionStorage.removeItem(sk);
+          }
+        } catch (_) {}
       }
     }
 

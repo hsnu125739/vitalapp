@@ -165,12 +165,68 @@
         onFootprintClick: () => footprintsView && footprintsView.openFootprintsModal(),
         onFellowshipClick: () => {
           if (!currentUserProfile || !currentUserProfile.groupId) {
-            alert('您尚未加入任何活力組！請先於首頁或個人手冊中加入或建立活力組，才能使用小組公告與交通功能。');
+            const msg = '您尚未加入任何活力組！請先於首頁或個人手冊中加入或建立活力組，才能使用小組公告與交通功能。';
+            if (typeof VitalToast !== 'undefined' && typeof VitalToast.show === 'function') {
+              VitalToast.show(msg, { position: 'center', type: 'error', icon: '⚠️' });
+            } else {
+              alert(msg);
+            }
             return;
           }
           if (fellowshipView) fellowshipView.openModal();
         }
       });
+    }
+
+    // 跨夜/前景喚醒時鐘校準監聽 (自動重新整理過夜打卡狀態)
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      let lastKnownDate = (dashboardView && dashboardView.currentDate) || '';
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          const freshToday = (dashboardView && dashboardView.currentDate) || '';
+          if (lastKnownDate && freshToday && lastKnownDate !== freshToday) {
+            lastKnownDate = freshToday;
+            if (currentUserProfile && typeof refreshUserData === 'function') {
+              refreshUserData();
+            }
+          }
+        }
+      });
+    }
+
+    // 全域彈窗背景防穿透滾動監聽 (Background Scroll Bleed Prevention)
+    if (typeof document !== 'undefined' && document.body) {
+      const syncModalScrollLock = () => {
+        try {
+          const hasOpenModal = typeof document.querySelector === 'function' ? document.querySelector('.modal-layer:not(.hidden)') : null;
+          if (document.body.classList) {
+            if (hasOpenModal) {
+              document.body.classList.add('modal-open');
+            } else {
+              document.body.classList.remove('modal-open');
+            }
+          }
+        } catch (e) {}
+      };
+
+      if (typeof MutationObserver !== 'undefined' && typeof document.querySelectorAll === 'function') {
+        try {
+          const modalObserver = new MutationObserver(syncModalScrollLock);
+          document.querySelectorAll('.modal-layer').forEach(modal => {
+            modalObserver.observe(modal, { attributes: true, attributeFilter: ['class', 'style'] });
+          });
+        } catch (e) {}
+      }
+      if (typeof document.addEventListener === 'function') {
+        document.addEventListener('click', (e) => {
+          // 點擊遮罩背景 (Click-Outside) 安全關閉彈窗 (點擊目標即為 .modal-layer 本身)
+          if (e && e.target && e.target.classList && typeof e.target.classList.contains === 'function' && e.target.classList.contains('modal-layer')) {
+            e.target.classList.add('hidden');
+          }
+          setTimeout(syncModalScrollLock, 10);
+        });
+      }
+      syncModalScrollLock();
     }
 
     // 4. 驗證現有 Session
@@ -331,10 +387,14 @@
             if (practiceStore && typeof practiceStore.mergeServerPractice === 'function') {
               practiceStore.mergeServerPractice(pRes.data);
             }
-            const today = dashboardView.currentDate || pRes.data.todayStr || (dashboardView.getTodayDateString && dashboardView.getTodayDateString());
-            const yesterday = pRes.data.yesterdayStr || (dashboardView.getYesterdayDateString && dashboardView.getYesterdayDateString(today));
-            const curWeek = dashboardView.currentWeekKey || pRes.data.weekKey || (dashboardView.getCurrentWeekKey && dashboardView.getCurrentWeekKey());
+            const today = pRes.data.todayStr || (dashboardView && dashboardView.currentDate) || (dashboardView && dashboardView.getTodayDateString && dashboardView.getTodayDateString());
+            const yesterday = pRes.data.yesterdayStr || (dashboardView && dashboardView.getYesterdayDateString && dashboardView.getYesterdayDateString(today));
+            const curWeek = pRes.data.weekKey || (dashboardView && dashboardView.currentWeekKey) || (dashboardView && dashboardView.getCurrentWeekKey && dashboardView.getCurrentWeekKey());
             const lastWeek = pRes.data.lastWeekKey || '';
+            if (dashboardView) {
+              if (pRes.data.weekKey) dashboardView.currentWeekKey = pRes.data.weekKey;
+              if (pRes.data.todayStr) dashboardView.currentDate = pRes.data.todayStr;
+            }
             const dRec = pRes.data.daily || {};
             const yRec = pRes.data.yesterdayDaily || null;
             const mRec = pRes.data.meeting || {};
@@ -478,7 +538,7 @@
       const announcementsPromise = apiClient.getAnnouncements().then(res => {
         if (res && res.success) {
           const list = res.announcements || res.data?.announcements || (Array.isArray(res.data) ? res.data : []);
-          if (Array.isArray(list) && list.length > 0) {
+          if (Array.isArray(list)) {
             try { localStorage.setItem('vital_announcements', JSON.stringify(list)); } catch (e) {}
             if (dashboardView && typeof dashboardView.renderAnnouncements_ === 'function') {
               dashboardView.currentAnnouncements = list;
@@ -693,7 +753,7 @@
           }
           if (groupMembersData.leaderPlayerId) {
             currentUserProfile.leaderPlayerId = groupMembersData.leaderPlayerId;
-            currentUserProfile.isLeader = (groupMembersData.leaderPlayerId === currentUserProfile.playerId);
+            currentUserProfile.isLeader = (String(groupMembersData.leaderPlayerId || '').trim().toLowerCase() === String(currentUserProfile.playerId || '').trim().toLowerCase());
           }
         }
       }
@@ -1424,9 +1484,15 @@
         currentUserProfile.activeMembers = group.activeMembers || null;
       }
     }
-    if (currentUserProfile && typeof localStorage !== 'undefined') {
+    const isKeepLogin = (typeof localStorage !== 'undefined' ? localStorage.getItem('vital_keep_login') : 'true') !== 'false';
+    const targetStorage = isKeepLogin ? localStorage : (typeof sessionStorage !== 'undefined' ? sessionStorage : localStorage);
+    if (currentUserProfile && typeof targetStorage !== 'undefined') {
       try {
-        localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
+        targetStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
+        if (!isKeepLogin && typeof localStorage !== 'undefined') {
+          localStorage.removeItem('vital_current_player');
+          localStorage.removeItem('vital_session_token');
+        }
       } catch (e) {}
     }
 
@@ -1438,6 +1504,10 @@
       const pid = currentUserProfile?.playerId;
       const today = initialPractice.todayStr || (dashboardView && dashboardView.currentDate);
       const curWeek = initialPractice.weekKey || (dashboardView && dashboardView.currentWeekKey);
+      if (dashboardView) {
+        if (initialPractice.weekKey) dashboardView.currentWeekKey = initialPractice.weekKey;
+        if (initialPractice.todayStr) dashboardView.currentDate = initialPractice.todayStr;
+      }
       
       // 快取打卡至本地儲存
       if (pid && typeof localStorage !== 'undefined') {
@@ -1496,8 +1566,38 @@
         sessionCoordinator.updateProfile(currentUserProfile);
       }
       try {
-        localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
+        if (typeof storageGateway !== 'undefined' && storageGateway.setItem) {
+          storageGateway.setItem('vital_current_player', JSON.stringify(currentUserProfile));
+        } else {
+          localStorage.setItem('vital_current_player', JSON.stringify(currentUserProfile));
+        }
       } catch (e) {}
+
+      // 同步更新小組交流看板視圖的當前使用者名稱
+      if (fellowshipView) {
+        fellowshipView.currentUserName = currentUserProfile.name;
+      }
+
+      // 同步更新小組成員快取中自身的資料
+      const gid = currentUserProfile.groupId;
+      if (gid && typeof localStorage !== 'undefined') {
+        try {
+          const gmKey = `vital_group_members_${gid}`;
+          const gmRaw = localStorage.getItem(gmKey);
+          if (gmRaw) {
+            const gmData = JSON.parse(gmRaw);
+            const list = Array.isArray(gmData) ? gmData : (gmData.members || []);
+            list.forEach(m => {
+              if (m && String(m.playerId || '').trim().toLowerCase() === String(currentUserProfile.playerId || '').trim().toLowerCase()) {
+                if (newName) m.name = newName;
+                if (newUrl) m.avatarUrl = newUrl;
+              }
+            });
+            localStorage.setItem(gmKey, JSON.stringify(gmData));
+          }
+        } catch (e) {}
+      }
+
       dashboardView.render(currentUserProfile, currentJourneyData);
       profileView.render(currentUserProfile);
     }
@@ -1535,6 +1635,26 @@
           localStorage.removeItem(`vital_group_members_${gid}`);
         }
         localStorage.removeItem('vital_offline_queue');
+      } catch (e) {}
+    }
+    if (typeof sessionStorage !== 'undefined') {
+      try {
+        sessionStorage.removeItem('vital_current_player');
+        sessionStorage.removeItem('vital_session_token');
+        if (pid) {
+          sessionStorage.removeItem(`vital_player_milestones_${pid}`);
+          sessionStorage.removeItem(`vital_daily_records_${pid}`);
+          sessionStorage.removeItem(`vital_meeting_records_${pid}`);
+          sessionStorage.removeItem(`vital_footprints_cache_${pid}`);
+        }
+        sessionStorage.removeItem('vital_footprints_cache_guest');
+        if (gid) {
+          sessionStorage.removeItem(`vital_group_progress_${gid}`);
+          sessionStorage.removeItem(`vital_group_milestones_${gid}`);
+          sessionStorage.removeItem(`vital_group_profile_${gid}`);
+          sessionStorage.removeItem(`vital_group_members_${gid}`);
+        }
+        sessionStorage.removeItem('vital_offline_queue');
       } catch (e) {}
     }
     

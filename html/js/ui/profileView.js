@@ -40,6 +40,14 @@
       this.showHome();
     }
 
+    toast_(message, options = {}) {
+      const VT = (typeof VitalToast !== 'undefined') ? VitalToast : ((typeof global !== 'undefined' && global.VitalToast) || (typeof window !== 'undefined' && window.VitalToast));
+      if (VT && typeof VT.show === 'function') {
+        return VT.show(message, options);
+      }
+      alert(message);
+    }
+
     initEvents_() {
       // 底部導航切換
       const navHomeBtn = document.getElementById('navHomeBtn');
@@ -73,14 +81,14 @@
       if (this.avatarSaveBtn) {
         this.avatarSaveBtn.addEventListener('click', async () => {
           if (!this.selectedAvatarUrl) {
-            alert('請先點選想更換的頭像');
+            this.toast_('請先點選想更換的頭像', { position: 'top', type: 'error' });
             return;
           }
 
           const nameInput = document.getElementById('avatarDisplayNameInput');
           const newName = nameInput ? nameInput.value.trim() : '';
           if (nameInput && !newName) {
-            alert('請輸入顯示名稱');
+            this.toast_('請輸入顯示名稱', { position: 'top', type: 'error' });
             return;
           }
 
@@ -90,7 +98,7 @@
           try {
             const res = await this.apiClient.updateAvatar(this.selectedAvatarUrl, newName);
             if (res && res.success) {
-              alert('個人資料更新成功！');
+              this.toast_('個人資料更新成功！', { position: 'bottom', type: 'success' });
               if (this.currentUserProfile) {
                 if (this.selectedAvatarUrl) this.currentUserProfile.avatarUrl = this.selectedAvatarUrl;
                 if (newName) this.currentUserProfile.name = newName;
@@ -100,10 +108,10 @@
                 this.onAvatarUpdated(this.selectedAvatarUrl, newName);
               }
             } else {
-              alert((res && (res.error || res.message)) || '更新失敗');
+              this.toast_((res && (res.error || res.message)) || '更新失敗', { position: 'top', type: 'error' });
             }
           } catch (err) {
-            alert(err.message || '更新逾時，請稍後再試');
+            this.toast_(err.message || '更新逾時，請稍後再試', { position: 'top', type: 'error' });
           } finally {
             this.avatarSaveBtn.textContent = '儲存頭像';
             this.avatarSaveBtn.disabled = false;
@@ -199,17 +207,17 @@
           const confirmPwd = (document.getElementById('confirmNewPasswordCode') || {}).value?.trim();
 
           if (!currentPwd || !newPwd) {
-            alert('請填寫目前密碼與新密碼');
+            this.toast_('請填寫目前密碼與新密碼', { position: 'top', type: 'error' });
             if (submitBtn) submitBtn.disabled = false;
             return;
           }
           if (newPwd !== confirmPwd) {
-            alert('兩次輸入的新密碼不一致，請重新確認');
+            this.toast_('兩次輸入的新密碼不一致，請重新確認', { position: 'top', type: 'error' });
             if (submitBtn) submitBtn.disabled = false;
             return;
           }
           if (newPwd.length < 6) {
-            alert('新密碼長度至少需 6 碼以上');
+            this.toast_('新密碼長度至少需 6 碼以上', { position: 'top', type: 'error' });
             if (submitBtn) submitBtn.disabled = false;
             return;
           }
@@ -217,14 +225,14 @@
           try {
             const res = await this.apiClient.updatePassword(currentPwd, newPwd);
             if (res && res.success) {
-              alert('密碼更新成功！');
+              this.toast_('密碼更新成功！', { position: 'bottom', type: 'success' });
               if (this.accountSettingsModal) this.accountSettingsModal.classList.add('hidden');
               changePwdForm.reset();
             } else {
-              alert((res && (res.error || res.message)) || '更新密碼失敗');
+              this.toast_((res && (res.error || res.message)) || '更新密碼失敗', { position: 'top', type: 'error' });
             }
           } catch (err) {
-            alert(err.message || '更新密碼逾時，請稍後再試');
+            this.toast_(err.message || '更新密碼逾時，請稍後再試', { position: 'top', type: 'error' });
           } finally {
             if (submitBtn) submitBtn.disabled = false;
           }
@@ -297,7 +305,7 @@
           const isLeader = Boolean(
             (dash.isLeader !== undefined)
               ? dash.isLeader
-              : (this.currentUserProfile.isLeader || dash.leaderPlayerId === this.currentUserProfile.playerId)
+              : (this.currentUserProfile.isLeader || String(dash.leaderPlayerId || '').trim().toLowerCase() === String(this.currentUserProfile.playerId || '').trim().toLowerCase())
           );
 
           // 依人數判斷按鈕文字：只剩 1 人為「解散活力組」，2 人以上為「退出活力組」
@@ -352,23 +360,23 @@
                     if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
                       window.AppCoordinator.updateUserGroupState('', '', false, 0);
                     }
-                    alert('已成功解散該活力組。');
+                    this.toast_('已成功解散該活力組。', { position: 'bottom', type: 'info' });
                     if (vitalModal) vitalModal.classList.add('hidden');
                     if (typeof window.AppCoordinator?.refreshUserData === 'function') {
                       window.AppCoordinator.refreshUserData();
                     }
                   } else {
-                    alert('解散失敗：' + (res.error || res.message || '網路異常'));
+                    this.toast_('解散失敗：' + (res.error || res.message || '網路異常'), { position: 'top', type: 'error' });
                   }
                 } catch (e) {
-                  alert('解散失敗：' + e.message);
+                  this.toast_('解散失敗：' + e.message, { position: 'top', type: 'error' });
                 } finally {
                   leaveBtn.textContent = leaveBtnText;
                   leaveBtn.disabled = false;
                 }
               } else {
                 if (isLeader) {
-                  alert('您是組長，請先轉讓組長身份後再退出！');
+                  this.toast_('您是組長，請先轉讓組長身份後再退出！', { position: 'center', type: 'error', icon: '⚠️' });
                   return;
                 }
                 const ok = confirm(`確定要退出「${grpName}」嗎？您先前的操練貢獻仍會保留在該組，但您未來的操練將不會計入。您可自由加入新組。`);
@@ -390,16 +398,16 @@
                     if (typeof window.AppCoordinator?.updateUserGroupState === 'function') {
                       window.AppCoordinator.updateUserGroupState('', '', false, 0);
                     }
-                    alert('已成功退出該活力組。');
+                    this.toast_('已成功退出該活力組。', { position: 'bottom', type: 'info' });
                     if (vitalModal) vitalModal.classList.add('hidden');
                     if (typeof window.AppCoordinator?.refreshUserData === 'function') {
                       window.AppCoordinator.refreshUserData();
                     }
                   } else {
-                    alert('退出失敗：' + (res.error || res.message || '網路異常'));
+                    this.toast_('退出失敗：' + (res.error || res.message || '網路異常'), { position: 'top', type: 'error' });
                   }
                 } catch (e) {
-                  alert('退出失敗：' + e.message);
+                  this.toast_('退出失敗：' + e.message, { position: 'top', type: 'error' });
                 } finally {
                   leaveBtn.textContent = leaveBtnText;
                   leaveBtn.disabled = false;
@@ -418,7 +426,7 @@
               if (isHidden) {
                 pickerList.innerHTML = '';
                 members.forEach(m => {
-                  if (m.playerId === this.currentUserProfile.playerId) return;
+                  if (String(m.playerId || '').trim().toLowerCase() === String(this.currentUserProfile.playerId || '').trim().toLowerCase()) return;
                   const item = document.createElement('div');
                   item.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;';
                   item.innerHTML = `
@@ -443,15 +451,15 @@
                           this.currentUserProfile.leaderPlayerId = m.playerId;
                           try { localStorage.setItem('vital_current_player', JSON.stringify(this.currentUserProfile)); } catch(e) {}
                         }
-                        alert('交接成功！您已卸任組長。');
+                        this.toast_('交接成功！您已卸任組長。', { position: 'bottom', type: 'success' });
                         if (typeof window.AppCoordinator?.refreshUserData === 'function') {
                           window.AppCoordinator.refreshUserData();
                         }
                       } else {
-                        alert('交接失敗：' + (res.error || res.message || '未知錯誤'));
+                        this.toast_('交接失敗：' + (res.error || res.message || '未知錯誤'), { position: 'top', type: 'error' });
                       }
                     } catch (err) {
-                      alert('交接失敗：' + err.message);
+                      this.toast_('交接失敗：' + err.message, { position: 'top', type: 'error' });
                     } finally {
                       tBtn.textContent = '交接';
                       tBtn.disabled = false;
@@ -510,14 +518,14 @@
           if (submitBtn) submitBtn.disabled = true;
 
           if (this.currentUserProfile && this.currentUserProfile.groupId) {
-            alert('您目前已在活力組中，無法重複建立小組。若需換組請先退出原小組。');
+            this.toast_('您目前已在活力組中，無法重複建立小組。若需換組請先退出原小組。', { position: 'top', type: 'error' });
             if (submitBtn) submitBtn.disabled = false;
             return;
           }
           const nameInput = document.getElementById('createVitalGroupName');
           const groupName = nameInput ? nameInput.value.trim() : '';
           if (!groupName) {
-            alert('請輸入活力組名稱');
+            this.toast_('請輸入活力組名稱', { position: 'top', type: 'error' });
             if (submitBtn) submitBtn.disabled = false;
             return;
           }
@@ -548,17 +556,17 @@
                 await window.AppCoordinator.updateUserGroupState(createdGId, groupName, true, 1);
               }
 
-              alert(`恭喜！活力組【${groupName}】建立成功！`);
+              this.toast_(`恭喜！活力組【${groupName}】建立成功！`, { position: 'center', type: 'gold', icon: '👑' });
               if (vitalModal) vitalModal.classList.add('hidden');
               if (nameInput) nameInput.value = '';
               if (typeof window.AppCoordinator?.refreshUserData === 'function') {
                 await window.AppCoordinator.refreshUserData();
               }
             } else {
-              alert((res && (res.error || res.message)) || '建立活力組失敗');
+              this.toast_((res && (res.error || res.message)) || '建立活力組失敗', { position: 'top', type: 'error' });
             }
           } catch (err) {
-            alert(err.message || '連線逾時，請稍後再試');
+            this.toast_(err.message || '連線逾時，請稍後再試', { position: 'top', type: 'error' });
           } finally {
             if (submitBtn) submitBtn.disabled = false;
           }
@@ -572,14 +580,14 @@
           if (submitBtn) submitBtn.disabled = true;
 
           if (this.currentUserProfile && this.currentUserProfile.groupId) {
-            alert('您目前已在活力組中，無法重複加入小組。若需換組請先退出原小組。');
+            this.toast_('您目前已在活力組中，無法重複加入小組。若需換組請先退出原小組。', { position: 'top', type: 'error' });
             if (submitBtn) submitBtn.disabled = false;
             return;
           }
           const codeInput = document.getElementById('joinVitalGroupCode');
           const inviteCode = codeInput ? codeInput.value.trim() : '';
           if (!inviteCode) {
-            alert('請輸入邀請碼');
+            this.toast_('請輸入邀請碼', { position: 'top', type: 'error' });
             if (submitBtn) submitBtn.disabled = false;
             return;
           }
@@ -616,17 +624,17 @@
                 await window.AppCoordinator.updateUserGroupState(newGId, newGName, false, mCount);
               }
 
-              alert('成功加入活力組！歡迎一同在主裡奔跑！');
+              this.toast_('成功加入活力組！歡迎一同在主裡奔跑！', { position: 'center', type: 'success', icon: '🌱' });
               if (vitalModal) vitalModal.classList.add('hidden');
               if (codeInput) codeInput.value = '';
               if (typeof window.AppCoordinator?.refreshUserData === 'function') {
                 await window.AppCoordinator.refreshUserData();
               }
             } else {
-              alert((res && (res.error || res.message)) || '加入活力組失敗，請檢查邀請碼');
+              this.toast_((res && (res.error || res.message)) || '加入活力組失敗，請檢查邀請碼', { position: 'top', type: 'error' });
             }
           } catch (err) {
-            alert(err.message || '連線逾時，請稍後再試');
+            this.toast_(err.message || '連線逾時，請稍後再試', { position: 'top', type: 'error' });
           } finally {
             if (submitBtn) submitBtn.disabled = false;
           }
@@ -657,7 +665,7 @@
       if (fellowshipBtn) {
         fellowshipBtn.addEventListener('click', () => {
           if (this.currentUserProfile && !this.currentUserProfile.groupId) {
-            alert('您尚未加入任何活力組！請先加入或建立活力組，才能使用小組公告與交通功能。');
+            this.toast_('您尚未加入任何活力組！請先加入或建立活力組，才能使用小組公告與交通功能。', { position: 'center', type: 'error', icon: '⚠️' });
             return;
           }
           if (typeof this.onFellowshipClick === 'function') this.onFellowshipClick();
@@ -872,7 +880,11 @@
 
       const groupName = (journeyData && journeyData.groupName) || p.groupName || groupId;
       const chapterTitle = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.title || journeyData.currentChapter.name)) || (journeyData && journeyData.chapterTitle) || '起步啟航';
-      const chapterIndex = (journeyData && journeyData.currentChapter && (journeyData.currentChapter.index || journeyData.currentChapter.chapterIndex)) || (journeyData && journeyData.currentChapter) || 1;
+      const chapterIndex = Number(
+        (journeyData && journeyData.currentChapter && (journeyData.currentChapter.index || journeyData.currentChapter.chapterIndex || journeyData.currentChapter.order)) ||
+        (journeyData && (journeyData.chapterIndex || journeyData.currentLevel)) ||
+        1
+      ) || 1;
 
       // 內部渲染輔助函式
       const renderModalContent = (summaryData, isRefreshing = false) => {
@@ -881,8 +893,8 @@
         const pendingPoints = this.getPendingPoints();
 
         const totalGroupScore = Number(
-          (summaryData && summaryData.groupTotalPoints !== undefined ? summaryData.groupTotalPoints : 0) ||
-          (journeyData && journeyData.groupTotalPoints !== undefined ? journeyData.groupTotalPoints : 0) ||
+          (summaryData && (summaryData.groupTotalPoints !== undefined ? summaryData.groupTotalPoints : (summaryData.journeyPoints !== undefined ? summaryData.journeyPoints : summaryData.totalScore))) ||
+          (journeyData && (journeyData.groupTotalPoints !== undefined ? journeyData.groupTotalPoints : (journeyData.journeyPoints !== undefined ? journeyData.journeyPoints : journeyData.totalScore))) ||
           0
         );
 
@@ -902,7 +914,8 @@
         if (Array.isArray(membersMeta)) {
           membersMeta.forEach(m => {
             if (m && m.playerId) {
-              membersMap.set(m.playerId, {
+              const pidKey = String(m.playerId).trim().toLowerCase();
+              membersMap.set(pidKey, {
                 playerId: m.playerId,
                 name: m.name || m.playerName || m.playerId,
                 avatarUrl: m.avatarUrl || '',
@@ -914,13 +927,14 @@
           });
         }
 
-        // 匯入各組員貢獻點數
+        // 匯入各組員貢獻點數 (大小寫不敏感匹配)
         for (const mId in contribs) {
           const pts = Number(contribs[mId]) || 0;
-          if (membersMap.has(mId)) {
-            membersMap.get(mId).points = pts;
+          const mIdKey = String(mId).trim().toLowerCase();
+          if (membersMap.has(mIdKey)) {
+            membersMap.get(mIdKey).points = pts;
           } else {
-            membersMap.set(mId, {
+            membersMap.set(mIdKey, {
               playerId: mId,
               name: mId,
               avatarUrl: '',
@@ -931,10 +945,11 @@
           }
         }
 
-        // 若當前使用者尚未在 membersMap 中
+        // 若當前使用者尚未在 membersMap 中 (大小寫不敏感判斷)
         const currentPid = p.playerId || (this.currentUserProfile && (this.currentUserProfile.playerId || this.currentUserProfile.id));
-        if (currentPid && !membersMap.has(currentPid)) {
-          membersMap.set(currentPid, {
+        const currentPidKey = String(currentPid || '').trim().toLowerCase();
+        if (currentPidKey && !membersMap.has(currentPidKey)) {
+          membersMap.set(currentPidKey, {
             playerId: currentPid,
             name: p.name || p.username || currentPid,
             avatarUrl: p.avatarUrl || '',
@@ -956,9 +971,11 @@
 
         const memberCount = (groupProfile && (typeof groupProfile.memberCount === 'number' ? groupProfile.memberCount : groupProfile.members?.length)) || (membersArray.length > 0 ? membersArray.length : 1);
 
-        // 組員卡片 HTML
+        // 組員卡片 HTML (大小寫不敏感辨識本人)
+        const pIdKey = String(p.id || '').trim().toLowerCase();
         const memberRows = membersArray.map(m => {
-          const isMe = (m.playerId === currentPid) || (m.playerId === p.id);
+          const mKey = String(m.playerId || '').trim().toLowerCase();
+          const isMe = (mKey === currentPidKey) || (Boolean(pIdKey) && mKey === pIdKey);
           const name = m.name || m.playerId;
           const initial = name ? name.charAt(0) : '?';
 
