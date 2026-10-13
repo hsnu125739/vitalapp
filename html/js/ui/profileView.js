@@ -276,6 +276,9 @@
           listMount.innerHTML = `<div style="padding:16px;text-align:center;color:#64748b;">載入小組資訊中...</div>`;
         }
 
+        // 記憶組長交接選單展開狀態 (避免 SWR 背景覆寫時選單自動縮回消失)
+        let isPickerOpen = false;
+
         // 定義渲染函式以便 SWR 重複使用
         const renderDashboard = (dash) => {
           if (!dash) return;
@@ -295,6 +298,12 @@
             if (joinGrpForm) joinGrpForm.classList.remove('hidden');
             listMount.innerHTML = `<div class="empty-card" style="padding:16px;text-align:center;color:#64748b;">目前尚未加入任何活力組，可於下方建立新組或以邀請碼加入。</div>`;
             return;
+          }
+
+          // 記憶當前 DOM 中的展開狀態 (以防使用者在 SWR 請求完成前已手動展開或收合)
+          const currentPicker = listMount.querySelector('#vitalGroupMembersPicker');
+          if (currentPicker) {
+            isPickerOpen = (currentPicker.style.display !== 'none');
           }
 
           const grpName = dash.groupName || fallbackGrpName;
@@ -329,7 +338,7 @@
                 </div>
               </div>
               ${canTransferLeader ? `
-                <div id="vitalGroupMembersPicker" style="display:none;margin-top:12px;padding-top:12px;border-top:1px dashed #cbd5e1;">
+                <div id="vitalGroupMembersPicker" style="display:${isPickerOpen ? 'block' : 'none'};margin-top:12px;padding-top:12px;border-top:1px dashed #cbd5e1;">
                   <div style="font-size:13px;font-weight:600;color:#334155;margin-bottom:8px;">請選擇欲交接組長之成員：</div>
                   <div id="membersPickerList" style="display:flex;flex-direction:column;gap:6px;"></div>
                 </div>
@@ -420,53 +429,83 @@
           if (btnToggleTransfer && canTransferLeader) {
             const pickerDiv = listMount.querySelector('#vitalGroupMembersPicker');
             const pickerList = listMount.querySelector('#membersPickerList');
-            btnToggleTransfer.addEventListener('click', () => {
-              const isHidden = (pickerDiv.style.display === 'none');
-              pickerDiv.style.display = isHidden ? 'block' : 'none';
-              if (isHidden) {
-                pickerList.innerHTML = '';
-                members.forEach(m => {
-                  if (String(m.playerId || '').trim().toLowerCase() === String(this.currentUserProfile.playerId || '').trim().toLowerCase()) return;
-                  const item = document.createElement('div');
-                  item.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;';
-                  item.innerHTML = `
-                    <div style="display:flex;align-items:center;gap:8px;">
-                      <img src="../avatar-male/avatar-male-direct-001.png" style="width:24px;height:24px;border-radius:50%;object-fit:cover;background:#e2e8f0;" onerror="this.style.display='none';" />
-                      <span style="font-size:14px;color:#334155;font-weight:500;">${this.escapeHtml(m.name || m.playerId)}</span>
-                    </div>
-                    <button type="button" class="primary-btn" style="padding:4px 10px;font-size:12px;border-radius:4px;">交接</button>
-                  `;
-                  const tBtn = item.querySelector('button');
-                  tBtn.addEventListener('click', async () => {
-                    const ok = confirm(`確定要將組長交接給「${m.name || m.playerId}」嗎？`);
-                    if (!ok) return;
 
-                    tBtn.disabled = true;
-                    tBtn.textContent = '交接中...';
-                    try {
-                      const res = await this.apiClient.transferGroupLeader(m.playerId, groupId);
-                      if (res && res.success) {
-                        if (this.currentUserProfile) {
-                          this.currentUserProfile.isLeader = false;
-                          this.currentUserProfile.leaderPlayerId = m.playerId;
-                          try { localStorage.setItem('vital_current_player', JSON.stringify(this.currentUserProfile)); } catch(e) {}
-                        }
-                        this.toast_('交接成功！您已卸任組長。', { position: 'bottom', type: 'success' });
-                        if (typeof window.AppCoordinator?.refreshUserData === 'function') {
-                          window.AppCoordinator.refreshUserData();
-                        }
-                      } else {
-                        this.toast_('交接失敗：' + (res.error || res.message || '未知錯誤'), { position: 'top', type: 'error' });
+            const populatePicker = () => {
+              if (!pickerList) return;
+              pickerList.innerHTML = '';
+              members.forEach(m => {
+                if (String(m.playerId || '').trim().toLowerCase() === String(this.currentUserProfile.playerId || '').trim().toLowerCase()) return;
+                
+                let avatarUrl = m.avatarUrl;
+                if (!avatarUrl && m.avatarKey) {
+                  if (String(m.avatarKey).includes('.png')) {
+                    avatarUrl = m.avatarKey;
+                  } else {
+                    const isFemale = String(m.gender).toUpperCase() === 'SISTER';
+                    const folder = isFemale ? 'avatar-female' : 'avatar-male';
+                    const prefix = isFemale ? 'avatar-female-direct' : 'avatar-male-direct';
+                    const match = String(m.avatarKey).match(/\d+/);
+                    const no = match ? match[0].padStart(3, '0') : '001';
+                    avatarUrl = `../${folder}/${prefix}-${no}.png`;
+                  }
+                }
+                if (!avatarUrl) {
+                  const isFemale = String(m.gender).toUpperCase() === 'SISTER';
+                  avatarUrl = isFemale ? '../avatar-female/avatar-female-direct-001.png' : '../avatar-male/avatar-male-direct-001.png';
+                }
+
+                const item = document.createElement('div');
+                item.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;';
+                item.innerHTML = `
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <img src="${this.escapeAttr(avatarUrl)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;background:#e2e8f0;" onerror="this.src='../avatar-male/avatar-male-direct-001.png';" />
+                    <span style="font-size:14px;color:#334155;font-weight:500;">${this.escapeHtml(m.name || m.playerId)}</span>
+                  </div>
+                  <button type="button" class="primary-btn" style="padding:4px 10px;font-size:12px;border-radius:4px;">交接</button>
+                `;
+                const tBtn = item.querySelector('button');
+                tBtn.addEventListener('click', async () => {
+                  const ok = confirm(`確定要將組長交接給「${m.name || m.playerId}」嗎？`);
+                  if (!ok) return;
+
+                  tBtn.disabled = true;
+                  tBtn.textContent = '交接中...';
+                  try {
+                    const res = await this.apiClient.transferGroupLeader(m.playerId, groupId);
+                    if (res && res.success) {
+                      if (this.currentUserProfile) {
+                        this.currentUserProfile.isLeader = false;
+                        this.currentUserProfile.leaderPlayerId = m.playerId;
+                        try { localStorage.setItem('vital_current_player', JSON.stringify(this.currentUserProfile)); } catch(e) {}
                       }
-                    } catch (err) {
-                      this.toast_('交接失敗：' + err.message, { position: 'top', type: 'error' });
-                    } finally {
-                      tBtn.textContent = '交接';
-                      tBtn.disabled = false;
+                      this.toast_('交接成功！您已卸任組長。', { position: 'bottom', type: 'success' });
+                      if (typeof window.AppCoordinator?.refreshUserData === 'function') {
+                        window.AppCoordinator.refreshUserData();
+                      }
+                    } else {
+                      this.toast_('交接失敗：' + (res.error || res.message || '未知錯誤'), { position: 'top', type: 'error' });
                     }
-                  });
-                  pickerList.appendChild(item);
+                  } catch (err) {
+                    this.toast_('交接失敗：' + err.message, { position: 'top', type: 'error' });
+                  } finally {
+                    tBtn.textContent = '交接';
+                    tBtn.disabled = false;
+                  }
                 });
+                pickerList.appendChild(item);
+              });
+            };
+
+            // 若先前已處於展開狀態，SWR 背景請求返回覆寫後立即重新填充組員清單
+            if (isPickerOpen) {
+              populatePicker();
+            }
+
+            btnToggleTransfer.addEventListener('click', () => {
+              isPickerOpen = (pickerDiv.style.display === 'none');
+              pickerDiv.style.display = isPickerOpen ? 'block' : 'none';
+              if (isPickerOpen) {
+                populatePicker();
               }
             });
           }
