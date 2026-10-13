@@ -108,14 +108,14 @@
       if (!this.container) return;
 
       this.container.innerHTML = `
-        <section class="chat-section" id="chatSection" style="padding:12px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
-          <div class="section-title" style="margin: 0 0 10px 0; font-weight:700; color:#1e293b;">
+        <section class="chat-section" id="chatSection" style="padding:10px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0; display:flex; flex-direction:column; flex:1; min-height:0; height:100%; box-sizing:border-box;">
+          <div class="section-title" style="margin: 0 0 10px 0; font-weight:700; color:#1e293b; flex-shrink:0;">
             <span>小組交通看板</span>
             <span class="section-subtitle" style="font-size:12px; color:#64748b; margin-left:8px;">即時同行交通</span>
           </div>
 
           <!-- 置頂留言橫幅 -->
-          <div class="pinned-banner hidden" id="pinnedBanner" style="background:#fef3c7; border:1px solid #fde68a; border-radius:8px; padding:8px 12px; margin-bottom:10px; position:relative;">
+          <div class="pinned-banner hidden" id="pinnedBanner" style="background:#fef3c7; border:1px solid #fde68a; border-radius:8px; padding:8px 12px; margin-bottom:10px; position:relative; flex-shrink:0;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <span class="pinned-badge" style="color:#b45309; font-weight:700; font-size:12px;">📌 置頂公告</span>
               <button type="button" id="btnUnpinAnnouncement" class="hidden" style="background:#fee2e2; border:1px solid #fca5a5; color:#dc2626; border-radius:6px; padding:3px 10px; font-size:12px; font-weight:700; cursor:pointer; display:none; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="取消目前置頂公告">
@@ -125,15 +125,15 @@
             <div class="pinned-content" id="pinnedContent" style="font-size:13px; color:#92400e; margin-top:4px; word-break:break-word;">尚無置頂訊息</div>
           </div>
 
-          <!-- 留言清單容器 -->
-          <div class="chat-messages-container" id="chatMessagesContainer" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+          <!-- 留言清單容器（全彈窗唯一允許之垂直滾動軸） -->
+          <div class="chat-messages-container" id="chatMessagesContainer" style="flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; display:flex; flex-direction:column; gap:8px; margin-bottom:8px; padding-right:4px;">
             <div style="text-align: center; color: #94a3b8; font-size: 13px; padding: 20px;">
               正在載入小組交流...
             </div>
           </div>
 
           <!-- 發言輸入列 -->
-          <form class="chat-input-bar" id="chatForm" style="display: flex; gap: 8px;">
+          <form class="chat-input-bar" id="chatForm" style="display: flex; gap: 8px; flex-shrink:0;">
             <input type="text" class="chat-input" id="chatInput" placeholder="分享今日晨興心得、禱告負擔..." maxlength="200" required autocomplete="off" style="flex:1; border:1px solid #cbd5e1; border-radius:8px; padding:8px 12px; font-size:14px;" />
             <button type="submit" class="btn-primary" id="btnSendChat" style="background:#0284c7; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-weight:600; cursor:pointer;">送出</button>
           </form>

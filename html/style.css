@@ -6364,3 +6364,86 @@ body[data-theme="night"] .footprint-meeting-tag {
   backdrop-filter: blur(10px);
   box-shadow: 0 8px 24px rgba(220, 38, 38, 0.25);
 }
+
+
+/* ==========================================================================
+   小組交通看板彈窗：精準視窗高度計算與單一滾動軸架構（嚴禁多層捲軸）
+   ========================================================================== */
+#groupPostModal .modal-card {
+  height: min(88vh, 720px);
+  max-height: min(88vh, 720px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+  padding: 14px 14px 14px;
+  box-sizing: border-box;
+}
+
+#groupPostModal .modal-header {
+  flex-shrink: 0;
+  margin-bottom: 6px;
+}
+
+#groupPostModal #groupLeaderAnnouncementControls {
+  flex-shrink: 0;
+  margin-bottom: 8px !important;
+}
+
+#groupPostModal .management-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+  margin-top: 2px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+}
+
+#groupPostModal .management-section h4 {
+  flex-shrink: 0;
+  margin: 0 0 6px 0;
+}
+
+#groupPostModal #myGroupPostList.modal-list {
+  flex: 1;
+  min-height: 0;
+  max-height: none !important;
+  overflow: hidden !important;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+#groupPostModal .chat-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+  height: 100%;
+  padding: 10px !important;
+  box-sizing: border-box;
+}
+
+#groupPostModal .chat-section .section-title,
+#groupPostModal .chat-section .pinned-banner {
+  flex-shrink: 0;
+}
+
+/* 全彈窗唯一允許的垂直捲軸：聊天訊息列表 */
+#groupPostModal .chat-messages-container {
+  flex: 1 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+#groupPostModal .chat-input-bar {
+  flex-shrink: 0;
+  margin-top: 8px;
+}
