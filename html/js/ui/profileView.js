@@ -1268,26 +1268,18 @@
       const evalRes = engine.evaluate({
         daily: dailyState,
         meeting: meetingState,
+        solidifiedItems: (meetingState && meetingState.solidifiedItems) || [],
         pointsConfig: pointsConfig
       });
 
       if (!evalRes) return 0;
 
-      // 判定今日是否為週日 (Sunday is day 0)
-      let isSunday = false;
-      if (typeof curDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(curDate)) {
-        const [y, m, d] = curDate.split('-').map(Number);
-        isSunday = new Date(y, m - 1, d).getDay() === 0;
-      } else {
-        isSunday = new Date().getDay() === 0;
-      }
-
       const todayPoints = (evalRes.today && typeof evalRes.today.points === 'number') ? evalRes.today.points : 0;
       const weekPoints = (evalRes.week && typeof evalRes.week.points === 'number') ? evalRes.week.points : 0;
 
-      // 若今日不是週日：XX = 今日任務未結算點數
-      // 若今日是週日：XX = 今日任務 + 本週任務未結算點數
-      return isSunday ? (todayPoints + weekPoints) : todayPoints;
+      // 聚會任務已改為每日結算，每日凌晨皆會結算今日任務與本週未固化任務
+      // 待結算點數 = 【今日任務待結算分數】+【本週任務待結算分數】
+      return todayPoints + weekPoints;
     }
 
     escapeHtml(str) {
