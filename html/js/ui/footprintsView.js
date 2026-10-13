@@ -124,6 +124,18 @@
   }
 
   /**
+   * 標準化聚會項目鍵名
+   */
+  function normalizeMeetingKey_(k) {
+    if (!k || typeof k !== 'string') return '';
+    if (k === 'smallGroup' || k === 'group' || k === 'groupMeeting') return 'smallGroup';
+    if (k === 'prayerMeeting' || k === 'prayerMtg' || k === 'prayer') return 'prayerMeeting';
+    if (k === 'lordDayMeeting' || k === 'lordDay' || k === 'lordsDayMeeting') return 'lordDayMeeting';
+    if (k === 'outreachVisit' || k === 'outreach' || k === 'blend' || k === 'mutual' || k === 'mutualPursuit') return 'outreachVisit';
+    return k;
+  }
+
+  /**
    * 前端解算引擎核心：將後端極簡 Raw Data 組裝為完整的足跡資料
    * @param {Object} raw 後端回傳的極簡格式 { today, dates, weeks, teamDaily, teamMeeting, selfPlayerId, groupId, joinGroupTime, pointsRules }
    * @param {Object} [pointsConfig] 點數設定或規則陣列
@@ -210,6 +222,68 @@
           const totalWk = w0._baseScore + mScore;
           w0.weeklyScore = totalWk;
           w0.totalWeekPoints = totalWk;
+        }
+      }
+
+      // 快取動態水合：當週已固化項目點數與次數增量水合至 raw.monthSummary (支援微分冪等)
+      if (raw.monthSummary && raw.weeks[0]) {
+        const w0 = raw.weeks[0];
+        const wRepDate = w0.startDate ? new Date(new Date(w0.startDate + 'T00:00:00Z').getTime() + 3 * 86400000).toISOString().slice(0, 10) : getLocalDateString();
+        const currentMonthKey = (raw.today || getLocalDateString()).slice(0, 7);
+        if (wRepDate.indexOf(currentMonthKey) === 0) {
+          const curSolidList = (liveMeetingStore && liveMeetingStore.solidifiedItems)
+            || (raw && raw.solidifiedItems)
+            || (raw && raw.meeting && raw.meeting.solidifiedItems)
+            || (w0 && w0.solidifiedItems)
+            || (w0 && w0.meeting && w0.meeting.solidifiedItems)
+            || [];
+          const solidifiedSet = new Set(
+            (Array.isArray(curSolidList) ? curSolidList : []).map(normalizeMeetingKey_)
+          );
+          const resolvedRules = resolveRules_(raw, pointsConfig);
+          const wRule = getRuleForDate(resolvedRules, wRepDate);
+
+          let newSolidScore = 0;
+          let newG = 0, newP = 0, newL = 0, newV = 0;
+          if (solidifiedSet.has('smallGroup')) {
+            newG = 1;
+            newSolidScore += (wRule.group !== undefined ? wRule.group : 30);
+          }
+          if (solidifiedSet.has('prayerMeeting')) {
+            newP = 1;
+            newSolidScore += (wRule.prayerMtg !== undefined ? wRule.prayerMtg : 50);
+          }
+          if (solidifiedSet.has('lordDayMeeting')) {
+            newL = 1;
+            newSolidScore += (wRule.lordDay !== undefined ? wRule.lordDay : 50);
+          }
+          if (solidifiedSet.has('outreachVisit')) {
+            newV = 1;
+            newSolidScore += (wRule.outreach !== undefined ? wRule.outreach : 100);
+          }
+
+          const oldSolidScore = Number(w0._solidifiedScore || 0);
+          const scoreDelta = newSolidScore - oldSolidScore;
+          if (scoreDelta !== 0) {
+            raw.monthSummary.totalScore = Math.max(0, Number(raw.monthSummary.totalScore || 0) + scoreDelta);
+            w0._solidifiedScore = newSolidScore;
+          }
+
+          const oldCounts = w0._solidifiedCounts || { group: 0, prayerMtg: 0, lordDay: 0, outreach: 0 };
+          const dG = newG - (oldCounts.group || 0);
+          const dP = newP - (oldCounts.prayerMtg || 0);
+          const dL = newL - (oldCounts.lordDay || 0);
+          const dV = newV - (oldCounts.outreach || 0);
+          if (dG !== 0) raw.monthSummary.groupMeetingCount = Math.max(0, Number(raw.monthSummary.groupMeetingCount || 0) + dG);
+          if (dP !== 0) raw.monthSummary.prayerMeetingCount = Math.max(0, Number(raw.monthSummary.prayerMeetingCount || 0) + dP);
+          if (dL !== 0) raw.monthSummary.lordDayMeetingCount = Math.max(0, Number(raw.monthSummary.lordDayMeetingCount || 0) + dL);
+          if (dV !== 0) raw.monthSummary.visitCount = Math.max(0, Number(raw.monthSummary.visitCount || 0) + dV);
+          if (dG !== 0 || dP !== 0 || dL !== 0) {
+            raw.monthSummary.meetingCount = Number(raw.monthSummary.groupMeetingCount || 0) +
+                                           Number(raw.monthSummary.prayerMeetingCount || 0) +
+                                           Number(raw.monthSummary.lordDayMeetingCount || 0);
+          }
+          w0._solidifiedCounts = { group: newG, prayerMtg: newP, lordDay: newL, outreach: newV };
         }
       }
       return raw;
@@ -406,6 +480,14 @@
         });
       }
 
+      const curSolidList = isCurrentWeek
+        ? ((liveMeetingStore && liveMeetingStore.solidifiedItems)
+          || (raw && raw.solidifiedItems)
+          || (raw && raw.meeting && raw.meeting.solidifiedItems)
+          || [])
+        : [];
+      const curSolidNorm = (Array.isArray(curSolidList) ? curSolidList : []).map(normalizeMeetingKey_);
+
       formattedWeeks.push({
         weekKey: wk,
         weekLabel,
@@ -426,12 +508,14 @@
         lordDayCompleted: Boolean(wr.unpackedMeeting.lordDay),
         visitCompleted: Boolean(wr.unpackedMeeting.outreach),
         isOutreachQualified: wr.isOutreachQualified,
+        solidifiedItems: curSolidNorm,
         meeting: {
           smallGroup: Boolean(wr.unpackedMeeting.group),
           prayerMeeting: Boolean(wr.unpackedMeeting.prayerMtg),
           lordDayMeeting: Boolean(wr.unpackedMeeting.lordDay),
           outreachVisit: Boolean(wr.unpackedMeeting.outreach),
           isOutreachQualified: wr.isOutreachQualified,
+          solidifiedItems: curSolidNorm,
           points: wr.meetingScore
         },
         days
@@ -460,17 +544,57 @@
       mTotalScore += dr.dailyScore;
     }
 
-    // 週聚會以週四作為唯一代表日判斷所屬月份，嚴格只統計已結算歷史（排除當週未結算週）
+    // 週聚會以週四作為唯一代表日判斷所屬月份：
+    // 歷史結算週完整計入；當週因已改為每日結算，僅累計已固化項目（solidifiedItems）的分數與次數
     for (const w of formattedWeeks) {
-      if (w.isCurrentWeek) continue;
       const wThurs = new Date(new Date(w.startDate + 'T00:00:00Z').getTime() + 3 * 86400000);
       const wRepDate = wThurs.toISOString().slice(0, 10);
-      if (wRepDate.indexOf(currentMonthKey) === 0) {
+      if (wRepDate.indexOf(currentMonthKey) !== 0) continue;
+
+      if (!w.isCurrentWeek) {
         if (w.groupMeetingCompleted) mGroupCount++;
         if (w.prayerMeetingCompleted) mPrayerMtgCount++;
         if (w.lordDayCompleted) mLordDayCount++;
         if (w.visitCompleted) mVisitCount++;
         mTotalScore += (w.meeting.points || 0);
+      } else {
+        const curSolidList = (liveMeetingStore && liveMeetingStore.solidifiedItems)
+          || (raw && raw.solidifiedItems)
+          || (raw && raw.meeting && raw.meeting.solidifiedItems)
+          || (w && w.solidifiedItems)
+          || (w && w.meeting && w.meeting.solidifiedItems)
+          || [];
+        const solidifiedSet = new Set(
+          (Array.isArray(curSolidList) ? curSolidList : []).map(normalizeMeetingKey_)
+        );
+        const wRule = getRuleForDate(resolvedRules, wRepDate);
+        let curSolidScore = 0;
+
+        if (solidifiedSet.has('smallGroup')) {
+          mGroupCount++;
+          curSolidScore += (wRule.group !== undefined ? wRule.group : 30);
+        }
+        if (solidifiedSet.has('prayerMeeting')) {
+          mPrayerMtgCount++;
+          curSolidScore += (wRule.prayerMtg !== undefined ? wRule.prayerMtg : 50);
+        }
+        if (solidifiedSet.has('lordDayMeeting')) {
+          mLordDayCount++;
+          curSolidScore += (wRule.lordDay !== undefined ? wRule.lordDay : 50);
+        }
+        if (solidifiedSet.has('outreachVisit')) {
+          mVisitCount++;
+          curSolidScore += (wRule.outreach !== undefined ? wRule.outreach : 100);
+        }
+
+        mTotalScore += curSolidScore;
+        w._solidifiedScore = curSolidScore;
+        w._solidifiedCounts = {
+          group: solidifiedSet.has('smallGroup') ? 1 : 0,
+          prayerMtg: solidifiedSet.has('prayerMeeting') ? 1 : 0,
+          lordDay: solidifiedSet.has('lordDayMeeting') ? 1 : 0,
+          outreach: solidifiedSet.has('outreachVisit') ? 1 : 0
+        };
       }
     }
 
@@ -1171,10 +1295,11 @@
 
   // 模組與全域導出
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { FootprintsView, assembleFootprintsData, unpackDaily, unpackMeeting, DEFAULT_POINTS_CONFIG, normalizeDateString_ };
+    module.exports = { FootprintsView, assembleFootprintsData, unpackDaily, unpackMeeting, DEFAULT_POINTS_CONFIG, normalizeDateString_, normalizeMeetingKey_ };
   }
   global.FootprintsView = FootprintsView;
   global.assembleFootprintsData = assembleFootprintsData;
   global.normalizeDateString_ = normalizeDateString_;
+  global.normalizeMeetingKey_ = normalizeMeetingKey_;
 
 })(typeof window !== 'undefined' ? window : global);
