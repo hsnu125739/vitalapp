@@ -165,7 +165,7 @@
         onFootprintClick: () => footprintsView && footprintsView.openFootprintsModal(),
         onFellowshipClick: () => {
           if (!currentUserProfile || !currentUserProfile.groupId) {
-            const msg = '您尚未加入任何活力組！請先於首頁或個人手冊中加入或建立活力組，才能使用小組公告與交通功能。';
+            const msg = '您尚未加入任何活力組！請先於首頁或個人手冊中加入或建立活力組，才能使用小組交通功能。';
             if (typeof VitalToast !== 'undefined' && typeof VitalToast.show === 'function') {
               VitalToast.show(msg, { position: 'center', type: 'error', icon: '⚠️' });
             } else {

@@ -704,7 +704,7 @@
       if (fellowshipBtn) {
         fellowshipBtn.addEventListener('click', () => {
           if (this.currentUserProfile && !this.currentUserProfile.groupId) {
-            this.toast_('您尚未加入任何活力組！請先加入或建立活力組，才能使用小組公告與交通功能。', { position: 'center', type: 'error', icon: '⚠️' });
+            this.toast_('您尚未加入任何活力組！請先加入或建立活力組，才能使用小組交通功能。', { position: 'center', type: 'error', icon: '⚠️' });
             return;
           }
           if (typeof this.onFellowshipClick === 'function') this.onFellowshipClick();
