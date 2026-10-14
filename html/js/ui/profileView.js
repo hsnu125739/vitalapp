@@ -600,6 +600,7 @@
                 } catch(e) {}
               }
               // 覆寫渲染
+              if (!vitalModal || vitalModal.classList.contains('hidden')) return;
               renderDashboard(newDashboard);
             }
           }
@@ -931,6 +932,10 @@
     }
 
     async openContributionModal() {
+      const guard = (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard)
+        ? VitalUtils.InfoModalGuard.claim('contribution')
+        : ((typeof InfoModalGuard !== 'undefined') ? InfoModalGuard.claim('contribution') : null);
+
       if (this.infoModalTitle) this.infoModalTitle.textContent = '當年度同行貢獻總覽';
       if (this.infoModal) this.infoModal.classList.remove('hidden');
       if (this.infoModalContent) {
@@ -946,6 +951,7 @@
       const myContribPoints = Number(p.contributionPoints !== undefined ? p.contributionPoints : (p.baseContributionPoints !== undefined ? p.baseContributionPoints : (p.contribution || 0)));
 
       if (!groupId) {
+        if (guard && !guard.isCurrent()) return;
         if (this.infoModalContent) {
           this.infoModalContent.innerHTML = `
             <div style="text-align:center; padding:32px 16px;">
@@ -964,6 +970,7 @@
           const goBtn = document.getElementById('contribGoVitalBtn');
           if (goBtn) {
             goBtn.addEventListener('click', () => {
+              if (guard && typeof guard.invalidate === 'function') guard.invalidate();
               if (this.infoModal) this.infoModal.classList.add('hidden');
               const vitalModal = document.getElementById('vitalGroupsModal');
               if (vitalModal) vitalModal.classList.remove('hidden');
@@ -998,6 +1005,7 @@
 
       // 內部渲染輔助函式
       const renderModalContent = (summaryData, isRefreshing = false) => {
+        if (guard && !guard.isCurrent()) return;
         if (!this.infoModalContent) return;
 
         const pendingPoints = this.getPendingPoints();
@@ -1163,6 +1171,7 @@
       if (cachedSummary && cachedSummary.groupTotalPoints !== undefined) {
         renderModalContent(cachedSummary, true);
       } else {
+        if (guard && !guard.isCurrent()) return;
         if (this.infoModalContent) {
           this.infoModalContent.innerHTML = '<div style="text-align:center;padding:30px;color:#64748b;">讀取當年度同行貢獻資料中...</div>';
         }
@@ -1183,6 +1192,7 @@
         }
 
         const [progressRes, profileRes] = await Promise.allSettled(promises);
+        if (guard && !guard.isCurrent()) return;
         let latestProgress = null;
 
         if (profileRes.status === 'fulfilled' && profileRes.value && (profileRes.value.success || profileRes.value.data)) {
@@ -1218,6 +1228,7 @@
           }
         }
       } catch (err) {
+        if (guard && !guard.isCurrent()) return;
         console.warn('[ProfileView] 獲取最新小組進度失敗:', err);
         if (!cachedSummary || cachedSummary.groupTotalPoints === undefined) {
           if (this.infoModalContent) {

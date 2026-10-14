@@ -121,6 +121,11 @@
       // 關閉 Modal
       document.querySelectorAll('[data-close-modal="infoModal"]').forEach(btn => {
         btn.addEventListener('click', () => {
+          if (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard) {
+            VitalUtils.InfoModalGuard.invalidate();
+          } else if (typeof InfoModalGuard !== 'undefined') {
+            InfoModalGuard.invalidate();
+          }
           if (this.infoModal) this.infoModal.classList.add('hidden');
         });
       });
@@ -133,6 +138,11 @@
     }
 
     openChestModal(userPoints = 0, selectedIdx = null, passedMilestones = null, passedAchievements = null) {
+      if (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard) {
+        VitalUtils.InfoModalGuard.claim('chest_list');
+      } else if (typeof InfoModalGuard !== 'undefined') {
+        InfoModalGuard.claim('chest_list');
+      }
       if (this.infoModalTitle) this.infoModalTitle.textContent = '個人成就收藏';
       if (this.infoModal) this.infoModal.classList.remove('hidden');
 

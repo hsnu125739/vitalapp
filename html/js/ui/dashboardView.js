@@ -288,6 +288,11 @@
       // 關閉通用彈窗
       document.querySelectorAll('[data-close-modal="infoModal"]').forEach(btn => {
         btn.addEventListener('click', () => {
+          if (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard) {
+            VitalUtils.InfoModalGuard.invalidate();
+          } else if (typeof InfoModalGuard !== 'undefined') {
+            InfoModalGuard.invalidate();
+          }
           if (this.infoModal) this.infoModal.classList.add('hidden');
         });
       });
@@ -991,6 +996,11 @@
 
     openAnnouncementsModal_() {
       if (!this.infoModal || !this.currentAnnouncements || this.currentAnnouncements.length === 0) return;
+      if (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard) {
+        VitalUtils.InfoModalGuard.claim('announcements');
+      } else if (typeof InfoModalGuard !== 'undefined') {
+        InfoModalGuard.claim('announcements');
+      }
       if (this.infoModalTitle) this.infoModalTitle.textContent = '系統公告';
       if (this.infoModalContent) {
         this.infoModalContent.innerHTML = `
@@ -1159,6 +1169,10 @@
     }
 
     async openGroupJourneyListModal() {
+      const guard = (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard)
+        ? VitalUtils.InfoModalGuard.claim('journey_list')
+        : ((typeof InfoModalGuard !== 'undefined') ? InfoModalGuard.claim('journey_list') : null);
+
       if (this.infoModalTitle) this.infoModalTitle.textContent = '全召會活力組旅程榜';
       if (this.infoModal) this.infoModal.classList.remove('hidden');
 
@@ -1168,10 +1182,12 @@
 
       try {
         const res = await this.apiClient.getGroupJourneyList();
+        if (guard && !guard.isCurrent()) return;
         const data = (res && res.data) || res || {};
         const groups = (data && data.groups) || (res && res.groups) || [];
         this.renderGroupJourneyList_(groups);
       } catch (err) {
+        if (guard && !guard.isCurrent()) return;
         if (this.infoModalContent) {
           this.infoModalContent.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444;">讀取失敗：${this.escapeHtml_(err.message || '網路異常')}</div>`;
         }
@@ -1574,6 +1590,11 @@
     openGroupPracticeRequiredModal(lockReason) {
       if (this.apiClient && typeof this.apiClient.getSessionToken === 'function' && !this.apiClient.getSessionToken()) return;
       if (!this.infoModal) return;
+      if (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard) {
+        VitalUtils.InfoModalGuard.claim('group_required');
+      } else if (typeof InfoModalGuard !== 'undefined') {
+        InfoModalGuard.claim('group_required');
+      }
       if (this.infoModalTitle) {
         this.infoModalTitle.textContent = '需要活力組同行';
       }
@@ -1598,6 +1619,11 @@
         const goBtn = this.infoModalContent.querySelector('#goToProfileFromLockBtn');
         if (goBtn) {
           goBtn.addEventListener('click', () => {
+            if (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard) {
+              VitalUtils.InfoModalGuard.invalidate();
+            } else if (typeof InfoModalGuard !== 'undefined') {
+              InfoModalGuard.invalidate();
+            }
             if (this.infoModal) this.infoModal.classList.add('hidden');
             const navMyBtn = document.getElementById('navMyBtn');
             if (navMyBtn) {
@@ -1610,6 +1636,11 @@
 
         this.infoModalContent.querySelectorAll('[data-close-modal="infoModal"]').forEach(btn => {
           btn.addEventListener('click', () => {
+            if (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard) {
+              VitalUtils.InfoModalGuard.invalidate();
+            } else if (typeof InfoModalGuard !== 'undefined') {
+              InfoModalGuard.invalidate();
+            }
             if (this.infoModal) this.infoModal.classList.add('hidden');
           });
         });

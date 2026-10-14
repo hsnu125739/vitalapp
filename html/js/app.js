@@ -222,6 +222,22 @@
           // 點擊遮罩背景 (Click-Outside) 安全關閉彈窗 (點擊目標即為 .modal-layer 本身)
           if (e && e.target && e.target.classList && typeof e.target.classList.contains === 'function' && e.target.classList.contains('modal-layer')) {
             e.target.classList.add('hidden');
+            if (e.target.id === 'infoModal') {
+              if (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard) {
+                VitalUtils.InfoModalGuard.invalidate();
+              } else if (typeof InfoModalGuard !== 'undefined') {
+                InfoModalGuard.invalidate();
+              }
+            }
+          }
+          // 點擊關閉按鈕 [data-close-modal="infoModal"]
+          const closeBtn = e && e.target && typeof e.target.closest === 'function' && e.target.closest('[data-close-modal="infoModal"]');
+          if (closeBtn) {
+            if (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard) {
+              VitalUtils.InfoModalGuard.invalidate();
+            } else if (typeof InfoModalGuard !== 'undefined') {
+              InfoModalGuard.invalidate();
+            }
           }
           setTimeout(syncModalScrollLock, 10);
         });

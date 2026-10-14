@@ -685,6 +685,10 @@
      * 開啟同行足跡彈窗 (SWR 混合載入策略)
      */
     async openFootprintsModal(playerId = null, options = {}) {
+      const guard = (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard)
+        ? VitalUtils.InfoModalGuard.claim('footprints')
+        : ((typeof InfoModalGuard !== 'undefined') ? InfoModalGuard.claim('footprints') : null);
+
       if (this.infoModalTitle) {
         this.infoModalTitle.textContent = '👣 同行足跡與月度成果';
       }
@@ -715,6 +719,7 @@
         if (cached && (cached.teamDaily || (cached.weeks && cached.monthSummary))) {
           const curWeekKey = (cached.weeks && cached.weeks[0] && (cached.weeks[0].weekKey || cached.weeks[0].key)) || null;
           const assembled = assembleFootprintsData(cached, null, this.getLiveToday_(cached.today), this.getLiveMeeting_(curWeekKey));
+          if (guard && !guard.isCurrent()) return;
           this.render(assembled);
           hasRenderedCache = true;
         }
@@ -728,12 +733,14 @@
 
       // 3. 僅在無快取時（如冷啟動尚未預載完成），顯示骨架屏並請求後台數據
       if (!hasRenderedCache) {
+        if (guard && !guard.isCurrent()) return;
         this.renderSkeleton();
       }
 
       if (this.apiClient && typeof this.apiClient.getFootprints === 'function') {
         try {
           const res = await this.apiClient.getFootprints({ playerId: targetPlayerId, weeks: 10, forceRefresh });
+          if (guard && !guard.isCurrent()) return;
           if (res && res.success) {
             const freshRaw = res.data || res;
             const curWeekKey = (freshRaw.weeks && freshRaw.weeks[0] && (freshRaw.weeks[0].weekKey || freshRaw.weeks[0].key)) || null;
@@ -743,6 +750,7 @@
             // 若為 SWR 快取返回且帶有背景 revalidatePromise，等網路返回時無縫更新畫面
             if (res.revalidatePromise) {
               res.revalidatePromise.then(freshRes => {
+                if (guard && !guard.isCurrent()) return;
                 if (freshRes && freshRes.success) {
                   const latestRaw = freshRes.data || freshRes;
                   const latestWeekKey = (latestRaw.weeks && latestRaw.weeks[0] && (latestRaw.weeks[0].weekKey || latestRaw.weeks[0].key)) || null;
@@ -752,9 +760,11 @@
               }).catch(() => {});
             }
           } else if (!hasRenderedCache) {
+            if (guard && !guard.isCurrent()) return;
             this.renderError(res ? res.error : '載入足跡資料失敗');
           }
         } catch (netErr) {
+          if (guard && !guard.isCurrent()) return;
           if (!hasRenderedCache) {
             this.renderError(netErr.message || '網路連線異常，請稍後再試');
           }
@@ -848,6 +858,12 @@
      * 骨架屏載入動畫
      */
     renderSkeleton() {
+      if (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard) {
+        const modal = document.getElementById('infoModal');
+        if (modal && (modal.classList.contains('hidden') || (modal.dataset && modal.dataset.activeModalType && modal.dataset.activeModalType !== 'footprints'))) {
+          return;
+        }
+      }
       if (!this.infoModalContent) return;
       this.infoModalContent.innerHTML = `
         <div class="footprint-dashboard">
@@ -886,6 +902,12 @@
      * 錯誤狀態渲染
      */
     renderError(errorMessage) {
+      if (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard) {
+        const modal = document.getElementById('infoModal');
+        if (modal && (modal.classList.contains('hidden') || (modal.dataset && modal.dataset.activeModalType && modal.dataset.activeModalType !== 'footprints'))) {
+          return;
+        }
+      }
       if (!this.infoModalContent) return;
       this.infoModalContent.innerHTML = `
         <div style="text-align: center; padding: 40px 16px; color: #ef4444;">
@@ -906,6 +928,12 @@
      * 主要渲染入口
      */
     render(dashboardData = {}) {
+      if (typeof VitalUtils !== 'undefined' && VitalUtils.InfoModalGuard) {
+        const modal = document.getElementById('infoModal');
+        if (modal && (modal.classList.contains('hidden') || (modal.dataset && modal.dataset.activeModalType && modal.dataset.activeModalType !== 'footprints'))) {
+          return;
+        }
+      }
       if (!this.infoModalContent) return;
       this.currentData = dashboardData;
 

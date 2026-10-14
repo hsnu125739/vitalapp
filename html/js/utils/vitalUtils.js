@@ -242,13 +242,97 @@
     }
   };
 
+  /**
+   * 通用彈窗作用域與會話防護器 (InfoModalGuard)
+   * 杜絕多個視圖共用 #infoModal 時，非同步網路請求延遲回傳造成的「標題與內容不一致 / 互相覆蓋」競態缺陷
+   */
+  let _infoModalSessionCounter = 0;
+
+  const InfoModalGuard = {
+    /**
+     * 宣告取得 #infoModal 的當前控制權 (Claim Ownership)
+     * @param {string} modalType 彈窗類型代碼 ('contribution' | 'footprints' | 'journey_list' | 'announcements' | 'chest_list' | 'group_required')
+     * @returns {Object} { sessionId, modalType, isCurrent() }
+     */
+    claim: function(modalType) {
+      const sessionId = ++_infoModalSessionCounter;
+      if (typeof document !== 'undefined') {
+        const modal = document.getElementById('infoModal');
+        if (modal) {
+          if (!modal.dataset) modal.dataset = {};
+          modal.dataset.activeModalType = String(modalType || '');
+          modal.dataset.modalSessionId = String(sessionId);
+        }
+      }
+      return {
+        sessionId: sessionId,
+        modalType: modalType,
+        isCurrent: function() {
+          return InfoModalGuard.isActive(modalType, sessionId);
+        },
+        invalidate: function() {
+          InfoModalGuard.invalidate();
+        }
+      };
+    },
+
+    /**
+     * 檢驗特定會話與類型是否依然擁有 #infoModal 的有效渲染權
+     * @param {string} modalType 預期的彈窗類型
+     * @param {number} sessionId 發起時所獲取之會話序號
+     * @returns {boolean} 是否仍可安全寫入 DOM
+     */
+    isActive: function(modalType, sessionId) {
+      if (typeof document === 'undefined') return true;
+      const modal = document.getElementById('infoModal');
+      if (!modal) return false;
+      // 1. 彈窗已被關閉 (classList 含 hidden) 視為無效
+      if (modal.classList && modal.classList.contains && modal.classList.contains('hidden')) return false;
+      if (!modal.dataset) return false;
+      // 2. 當前彈窗類型不符 視為已被其他功能接管
+      if (modal.dataset.activeModalType !== String(modalType || '')) return false;
+      // 3. 會話序號不符 視為已被同一功能的更新請求取代
+      if (Number(modal.dataset.modalSessionId) !== Number(sessionId)) return false;
+      return true;
+    },
+
+    /**
+     * 關閉或撤銷目前 #infoModal 作用域
+     */
+    invalidate: function() {
+      if (typeof document !== 'undefined') {
+        const modal = document.getElementById('infoModal');
+        if (modal && modal.dataset) {
+          modal.dataset.activeModalType = '';
+          modal.dataset.modalSessionId = '0';
+        }
+      }
+    },
+
+    /**
+     * 取得當前會話序號計數值 (測試或診斷用)
+     */
+    getSessionCounter: function() {
+      return _infoModalSessionCounter;
+    },
+
+    /**
+     * 重設會話計數器 (測試重置用)
+     */
+    resetForTest: function() {
+      _infoModalSessionCounter = 0;
+      this.invalidate();
+    }
+  };
+
   const VitalUtils = {
     escapeHtml,
     escapeAttr,
     toDateString,
     normalizeDateString,
     VitalToast,
-    showToast: VitalToast.show.bind(VitalToast)
+    showToast: VitalToast.show.bind(VitalToast),
+    InfoModalGuard
   };
 
   // 匯出至 Node.js CommonJS 環境
@@ -259,13 +343,15 @@
       escapeAttr,
       toDateString,
       normalizeDateString,
-      VitalToast
+      VitalToast,
+      InfoModalGuard
     };
   }
 
   // 匯出至瀏覽器全域環境
   global.VitalUtils = VitalUtils;
   global.VitalToast = VitalToast;
+  global.InfoModalGuard = InfoModalGuard;
   if (!global.escapeHtml) {
     global.escapeHtml = escapeHtml;
   }
