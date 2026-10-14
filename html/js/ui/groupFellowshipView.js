@@ -133,8 +133,8 @@
           </div>
 
           <!-- 發言輸入列 -->
-          <form class="chat-input-bar" id="chatForm" style="display: flex; gap: 8px; flex-shrink:0;">
-            <input type="text" class="chat-input" id="chatInput" placeholder="分享今日晨興心得、禱告負擔..." maxlength="200" required autocomplete="off" style="flex:1; border:1px solid #cbd5e1; border-radius:8px; padding:8px 12px; font-size:14px;" />
+          <form class="chat-input-bar" id="chatForm" autocomplete="off" style="display: flex; gap: 8px; flex-shrink:0;">
+            <input type="text" class="chat-input" id="chatInput" name="chat_fellowship_message" placeholder="分享今日晨興心得、禱告負擔..." maxlength="200" required autocomplete="off" enterkeyhint="send" autocorrect="on" autocapitalize="sentences" spellcheck="false" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" style="flex:1; border:1px solid #cbd5e1; border-radius:8px; padding:8px 12px; font-size:14px;" />
             <button type="submit" class="btn-primary" id="btnSendChat" style="background:#0284c7; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-weight:600; cursor:pointer;">送出</button>
           </form>
         </section>
