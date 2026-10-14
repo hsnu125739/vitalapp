@@ -4529,7 +4529,7 @@ body{
     text-shadow:0 2px 0 #fff;
 }
 
-#homeView .hero-score-card.hero-group-score strong{
+#homeView .hero-score-card.hero-personal-score strong{
   color:#2f8f7e;
 }
 
@@ -4770,15 +4770,15 @@ body[data-theme="night"] #homeView .hero-score-card .score-sync-badge.is-settlin
   text-align:left !important;
 }
 
-#homeView .home-hero-card .hero-score-grid .hero-personal-score,
+#homeView .home-hero-card .hero-score-grid .hero-group-score,
 #homeView .home-hero-card .hero-score-grid .hero-score-card:first-child{
   grid-row:1 !important;
   border-bottom:1px solid rgba(151,106,82,.34) !important;
 }
 
+#homeView .home-hero-card .hero-score-grid .hero-personal-score,
 #homeView .home-hero-card .hero-score-grid .hero-contribution,
-#homeView .home-hero-card .hero-score-grid .hero-score-card:nth-child(2),
-#homeView .home-hero-card .hero-score-grid .hero-group-score{
+#homeView .home-hero-card .hero-score-grid .hero-score-card:nth-child(2){
   grid-row:2 !important;
   border-bottom:0 !important;
 }
@@ -4800,7 +4800,7 @@ body[data-theme="night"] #homeView .hero-score-card .score-sync-badge.is-settlin
 }
 
 #homeView .home-hero-card .hero-score-grid .hero-score-card strong,
-#homeView .home-hero-card .hero-score-grid .hero-personal-score strong,
+#homeView .home-hero-card .hero-score-grid .hero-group-score strong,
 #homeView .home-hero-card .hero-score-grid .hero-score-card:first-child strong{
   position:absolute;
     right:24px;
@@ -4817,9 +4817,9 @@ body[data-theme="night"] #homeView .hero-score-card .score-sync-badge.is-settlin
     text-shadow:0 2px 0 #fff;
 }
 
+#homeView .home-hero-card .hero-score-grid .hero-personal-score strong,
 #homeView .home-hero-card .hero-score-grid .hero-contribution strong,
-#homeView .home-hero-card .hero-score-grid .hero-score-card:nth-child(2) strong,
-#homeView .home-hero-card .hero-score-grid .hero-group-score strong{
+#homeView .home-hero-card .hero-score-grid .hero-score-card:nth-child(2) strong{
   color:#2f8f7e !important;
   font-size:28px !important;
 }

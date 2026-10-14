@@ -274,13 +274,12 @@
         });
       }
 
-      // 點擊同行貢獻卡片開啟彈窗
-      // 點擊貢獻卡開啟彈窗（事件委託確保支援動態修復元素）
+      // 點擊首頁點數面板（無論上半或下半卡片）皆打開同行貢獻面板
       const scoreGrid = document.querySelector('.hero-score-grid');
       if (scoreGrid) {
         scoreGrid.addEventListener('click', (e) => {
-          const contribTarget = e.target.closest('.hero-contribution') || e.target.closest('.hero-score-card:nth-child(2)');
-          if (contribTarget) {
+          const cardTarget = e.target.closest('.hero-score-card') || e.target.closest('.hero-score-grid');
+          if (cardTarget) {
             if (typeof this.onContributionClick === 'function') this.onContributionClick();
           }
         });
@@ -449,31 +448,63 @@
         greetingEl.textContent = `平安，${userProfile.name || '聖徒'}！歡迎一同在主裡同奔賽程。`;
       }
 
-      // 自我修復與結構防禦：確保卡片 1 為【個人】、卡片 2 為【貢獻】
+      // 自我修復與結構防禦：確保卡片 1 為【小組】、卡片 2 為【個人】
       const scoreGridEl = document.querySelector('.hero-score-grid');
       if (scoreGridEl) {
         const cards = scoreGridEl.querySelectorAll('.hero-score-card');
         if (cards.length >= 2) {
-          // 第一張卡必為【個人】
-          cards[0].className = 'hero-score-card hero-personal-score';
+          // 第一張卡必為【小組】
+          cards[0].className = 'hero-score-card hero-group-score';
+          cards[0].style.cursor = 'pointer';
           const label1 = cards[0].querySelector('span');
-          if (label1) label1.textContent = '個人';
+          if (label1) label1.textContent = '小組';
           const strong1 = cards[0].querySelector('strong');
           if (strong1) {
-            strong1.id = 'homePersonalScoreText';
+            strong1.id = 'homeGroupScoreText';
             strong1.style.setProperty('font-size', '28px', 'important');
           }
+          const unit1 = cards[0].querySelector('small');
+          if (unit1) unit1.id = 'homeGroupScoreUnit';
 
-          // 第二張卡必為【貢獻】
-          cards[1].className = 'hero-score-card hero-contribution';
+          // 第二張卡必為【個人】
+          cards[1].className = 'hero-score-card hero-personal-score';
           cards[1].style.cursor = 'pointer';
           const label2 = cards[1].querySelector('span');
-          if (label2) label2.textContent = '貢獻';
+          if (label2) label2.textContent = '個人';
           const strong2 = cards[1].querySelector('strong');
           if (strong2) {
-            strong2.id = 'homeContributionText';
+            strong2.id = 'homePersonalScoreText';
             strong2.style.setProperty('font-size', '28px', 'important');
           }
+        }
+      }
+
+      // 【小組點數】（未加入活力組顯示 "---"，單位隱藏；加入則顯示整組累積總點數）
+      const homeGroupScoreEl = document.getElementById('homeGroupScoreText');
+      const groupUnitEl = document.getElementById('homeGroupScoreUnit');
+      if (hasGroup) {
+        let groupScore = 0;
+        if (journeyData && (journeyData.groupTotalPoints !== undefined || journeyData.journeyPoints !== undefined)) {
+          groupScore = Number(journeyData.groupTotalPoints !== undefined ? journeyData.groupTotalPoints : journeyData.journeyPoints);
+        } else if (typeof localStorage !== 'undefined') {
+          try {
+            const cachedGp = JSON.parse(localStorage.getItem(`vital_group_progress_${userProfile.groupId}`) || 'null');
+            if (cachedGp) {
+              const cp = Number(cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : (cachedGp.journeyPoints || 0));
+              if (!isNaN(cp)) groupScore = cp;
+            }
+          } catch (e) {}
+        }
+        if (homeGroupScoreEl) homeGroupScoreEl.textContent = groupScore.toLocaleString();
+        if (groupUnitEl) {
+          if (typeof groupUnitEl.removeAttribute === 'function') groupUnitEl.removeAttribute('hidden');
+          groupUnitEl.hidden = false;
+        }
+      } else {
+        if (homeGroupScoreEl) homeGroupScoreEl.textContent = '---';
+        if (groupUnitEl) {
+          if (typeof groupUnitEl.setAttribute === 'function') groupUnitEl.setAttribute('hidden', '');
+          groupUnitEl.hidden = true;
         }
       }
 
@@ -482,7 +513,7 @@
       const personalEl = document.getElementById('homePersonalScoreText');
       if (personalEl) personalEl.textContent = personalPoints.toLocaleString();
 
-      // 【貢獻點數】（未加入活力組則固定為 0；在目前組別累積貢獻點 contributionPoints + 今日未結算操練分數）
+      // 【相容更新隱藏的貢獻點數】（確保測試與外部呼叫相容性）
       const contribution = this.currentUserProfile.groupId
         ? Number(this.currentUserProfile.contributionPoints || 0)
         : 0;
@@ -674,6 +705,15 @@
         }
       }
       this.currentGroupScore = groupScore;
+      if (this.currentUserProfile && this.currentUserProfile.groupId) {
+        const gEl = typeof document !== 'undefined' ? document.getElementById('homeGroupScoreText') : null;
+        const gUnitEl = typeof document !== 'undefined' ? document.getElementById('homeGroupScoreUnit') : null;
+        if (gEl) gEl.textContent = groupScore.toLocaleString();
+        if (gUnitEl) {
+          if (typeof gUnitEl.removeAttribute === 'function') gUnitEl.removeAttribute('hidden');
+          gUnitEl.hidden = false;
+        }
+      }
 
       // 完全根據後端回傳的真實成就紀錄來判定篇章進度
       const isChapterPassed = (chapId) => this.isChapterPassed_(chapId, journeyData);
@@ -1408,9 +1448,10 @@
 
       const pSyncEl = document.getElementById('homePersonalSyncText');
       const cSyncEl = document.getElementById('homeContributionSyncText');
+      const gSyncEl = document.getElementById('homeGroupSyncText');
       const isSettling = Boolean(this.isSettlingYesterday);
 
-      [pSyncEl, cSyncEl].forEach(el => {
+      [pSyncEl, cSyncEl, gSyncEl].forEach(el => {
         if (!el) return;
         if (isSettling) {
           el.textContent = '⏳ 結算中';
@@ -1440,11 +1481,39 @@
       const personalEl = (typeof document !== 'undefined') ? document.getElementById('homePersonalScoreText') : null;
       if (personalEl) personalEl.textContent = personalPoints.toLocaleString();
 
+      const homeGroupScoreEl = (typeof document !== 'undefined') ? document.getElementById('homeGroupScoreText') : null;
+      const groupUnitEl = (typeof document !== 'undefined') ? document.getElementById('homeGroupScoreUnit') : null;
+
       if (this.currentUserProfile.groupId) {
+        let groupScore = 0;
+        const jData = this.currentJourneyData;
+        if (jData && (jData.groupTotalPoints !== undefined || jData.journeyPoints !== undefined)) {
+          groupScore = Number(jData.groupTotalPoints !== undefined ? jData.groupTotalPoints : jData.journeyPoints);
+        } else if (typeof localStorage !== 'undefined') {
+          try {
+            const cachedGp = JSON.parse(localStorage.getItem(`vital_group_progress_${this.currentUserProfile.groupId}`) || 'null');
+            if (cachedGp) {
+              const cp = Number(cachedGp.groupTotalPoints !== undefined ? cachedGp.groupTotalPoints : (cachedGp.journeyPoints || 0));
+              if (!isNaN(cp)) groupScore = cp;
+            }
+          } catch (e) {}
+        }
+        if (homeGroupScoreEl) homeGroupScoreEl.textContent = groupScore.toLocaleString();
+        if (groupUnitEl) {
+          if (typeof groupUnitEl.removeAttribute === 'function') groupUnitEl.removeAttribute('hidden');
+          groupUnitEl.hidden = false;
+        }
+
         const contribPoints = Number(this.currentUserProfile.contributionPoints || 0);
         const contribEl = (typeof document !== 'undefined') ? document.getElementById('homeContributionText') : null;
         if (contribEl) contribEl.textContent = contribPoints.toLocaleString();
       } else {
+        if (homeGroupScoreEl) homeGroupScoreEl.textContent = '---';
+        if (groupUnitEl) {
+          if (typeof groupUnitEl.setAttribute === 'function') groupUnitEl.setAttribute('hidden', '');
+          groupUnitEl.hidden = true;
+        }
+
         this.currentUserProfile.contributionPoints = 0;
         const contribEl = (typeof document !== 'undefined') ? document.getElementById('homeContributionText') : null;
         if (contribEl) contribEl.textContent = '0';

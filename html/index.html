@@ -15,8 +15,8 @@
   <meta name="apple-mobile-web-app-title" content="高雄青職｜活力同行">
   <meta name="application-name" content="高雄青職｜活力同行">
   <meta name="theme-color" content="#8fd3ff">
-  <link rel="stylesheet" href="style.css?v=20261014-v103">
-  <link rel="stylesheet" href="login-webp-perf.css?v=20261014-v103">
+  <link rel="stylesheet" href="style.css?v=20261014-v104">
+  <link rel="stylesheet" href="login-webp-perf.css?v=20261014-v104">
   <style id="hero-score-override">
     #homeView .home-hero-card .hero-score-grid .hero-score-card strong,
     #homeView .home-hero-card .hero-score-grid .hero-personal-score strong,
@@ -174,19 +174,21 @@
             <div class="hero-announcement-item">尚無公告</div>
           </div>
 
-          <div class="hero-score-grid" aria-label="操練與同行積分">
-            <section class="hero-score-card hero-personal-score">
+          <div class="hero-score-grid" aria-label="操練與同行積分" style="cursor: pointer;">
+            <section class="hero-score-card hero-group-score" style="cursor: pointer;">
+              <span>小組</span>
+              <strong id="homeGroupScoreText">---</strong>
+              <small id="homeGroupScoreUnit" hidden>點</small>
+              <em id="homeGroupSyncText" class="score-sync-badge" hidden></em>
+            </section>
+
+            <section class="hero-score-card hero-personal-score" style="cursor: pointer;">
               <span>個人</span>
               <strong id="homePersonalScoreText">0</strong>
               <small>點</small>
               <em id="homePersonalSyncText" class="score-sync-badge" hidden></em>
-            </section>
-
-            <section class="hero-score-card hero-contribution">
-              <span>貢獻</span>
-              <strong id="homeContributionText">0</strong>
-              <small>點</small>
-              <em id="homeContributionSyncText" class="score-sync-badge" hidden></em>
+              <span id="homeContributionText" style="display:none;" hidden>0</span>
+              <em id="homeContributionSyncText" style="display:none;" hidden></em>
             </section>
           </div>
 
@@ -876,23 +878,23 @@
   </div>
 
 
-  <script src="runtime-settings.js?v=20261014-v103"></script>
-  <script src="js/utils/vitalUtils.js?v=20261014-v103"></script>
-  <script src="js/utils/avatarManager.js?v=20261014-v103"></script>
-  <script src="js/modules/journeyEngine.js?v=20261014-v103"></script>
-  <script src="js/modules/storageGateway.js?v=20261014-v103"></script>
-  <script src="js/modules/userSessionCoordinator.js?v=20261014-v103"></script>
-  <script src="js/modules/pendingPointsEngine.js?v=20261014-v103"></script>
-  <script src="js/api/apiClient.js?v=20261014-v103"></script>
-  <script src="js/store/practiceStore.js?v=20261014-v103"></script>
-  <script src="js/store/chatStore.js?v=20261014-v103"></script>
-  <script src="js/ui/authView.js?v=20261014-v103"></script>
-  <script src="js/ui/dashboardView.js?v=20261014-v103"></script>
-  <script src="js/ui/chestView.js?v=20261014-v103"></script>
-  <script src="js/ui/footprintsView.js?v=20261014-v103"></script>
-  <script src="js/ui/profileView.js?v=20261014-v103"></script>
-  <script src="js/ui/groupFellowshipView.js?v=20261014-v103"></script>
-  <script src="js/app.js?v=20261014-v103"></script>
+  <script src="runtime-settings.js?v=20261014-v104"></script>
+  <script src="js/utils/vitalUtils.js?v=20261014-v104"></script>
+  <script src="js/utils/avatarManager.js?v=20261014-v104"></script>
+  <script src="js/modules/journeyEngine.js?v=20261014-v104"></script>
+  <script src="js/modules/storageGateway.js?v=20261014-v104"></script>
+  <script src="js/modules/userSessionCoordinator.js?v=20261014-v104"></script>
+  <script src="js/modules/pendingPointsEngine.js?v=20261014-v104"></script>
+  <script src="js/api/apiClient.js?v=20261014-v104"></script>
+  <script src="js/store/practiceStore.js?v=20261014-v104"></script>
+  <script src="js/store/chatStore.js?v=20261014-v104"></script>
+  <script src="js/ui/authView.js?v=20261014-v104"></script>
+  <script src="js/ui/dashboardView.js?v=20261014-v104"></script>
+  <script src="js/ui/chestView.js?v=20261014-v104"></script>
+  <script src="js/ui/footprintsView.js?v=20261014-v104"></script>
+  <script src="js/ui/profileView.js?v=20261014-v104"></script>
+  <script src="js/ui/groupFellowshipView.js?v=20261014-v104"></script>
+  <script src="js/app.js?v=20261014-v104"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
