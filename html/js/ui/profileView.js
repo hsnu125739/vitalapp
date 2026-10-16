@@ -32,6 +32,9 @@
       this.infoModalTitle = document.getElementById('infoModalTitle');
       this.infoModalContent = document.getElementById('infoModalContent');
 
+      this.instructionModal = document.getElementById('instructionModal');
+      this.instructionFrame = document.getElementById('instructionFrame');
+
       this.selectedAvatarUrl = '';
       this.currentUserProfile = null;
       this.currentJourneyData = null;
@@ -783,7 +786,39 @@
         });
       }
 
-      // 登出
+      // 使用說明全螢幕視圖 (零跳轉內嵌)
+      const openInstructionBtn = document.getElementById('openInstructionBtn');
+      const instructionModal = this.instructionModal;
+      if (openInstructionBtn && instructionModal) {
+        openInstructionBtn.addEventListener('click', () => {
+          instructionModal.classList.remove('hidden');
+          if (this.instructionFrame && this.instructionFrame.contentWindow) {
+            try {
+              this.instructionFrame.contentWindow.scrollTo({ top: 0, behavior: 'instant' });
+            } catch (e) {}
+          }
+        });
+      }
+
+      // 監聽來自說明頁 iframe 的關閉通知與鍵盤事件
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('message', (event) => {
+          if (event && event.data === 'close-instruction') {
+            if (instructionModal) {
+              instructionModal.classList.add('hidden');
+            }
+          }
+        });
+
+        // 支援 ESC 鍵關閉使用說明
+        window.addEventListener('keydown', (e) => {
+          if (e && e.key === 'Escape' && instructionModal && !instructionModal.classList.contains('hidden')) {
+            instructionModal.classList.add('hidden');
+          }
+        });
+      }
+
+      // 登出 (保留相容性)
       const logoutConfirmBtn = document.getElementById('openLogoutConfirmBtn');
       if (logoutConfirmBtn) {
         logoutConfirmBtn.addEventListener('click', () => {
@@ -797,6 +832,7 @@
     showHome() {
       if (this.homeViewEl) this.homeViewEl.classList.remove('hidden');
       if (this.myViewEl) this.myViewEl.classList.add('hidden');
+      if (this.instructionModal) this.instructionModal.classList.add('hidden');
       const navHome = document.getElementById('navHomeBtn');
       const navMy = document.getElementById('navMyBtn');
       if (navHome) navHome.classList.add('active');

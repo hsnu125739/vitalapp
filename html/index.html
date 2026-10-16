@@ -447,8 +447,8 @@
               <span>帳號<br>設定</span>
             </button>
 
-            <button id="openLogoutConfirmBtn" class="my-grid-btn" type="button">
-              <span>登出</span>
+            <button id="openInstructionBtn" class="my-grid-btn" type="button">
+              <span>使用<br>說明</span>
             </button>
           </div>
         </section>
@@ -877,24 +877,40 @@
     </div>
   </div>
 
+  <!-- 使用說明與常見問題全螢幕視圖 (零跳轉內嵌) -->
+  <div
+    id="instructionModal"
+    class="instruction-modal-layer hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-label="使用說明與常見問題"
+  >
+    <iframe
+      id="instructionFrame"
+      src="./instruction.html"
+      title="使用說明與常見問題"
+      class="instruction-iframe"
+      loading="eager"
+    ></iframe>
+  </div>
 
-  <script src="runtime-settings.js?v=20261015-v105"></script>
-  <script src="js/utils/vitalUtils.js?v=20261015-v105"></script>
-  <script src="js/utils/avatarManager.js?v=20261015-v105"></script>
-  <script src="js/modules/journeyEngine.js?v=20261015-v105"></script>
-  <script src="js/modules/storageGateway.js?v=20261015-v105"></script>
-  <script src="js/modules/userSessionCoordinator.js?v=20261015-v105"></script>
-  <script src="js/modules/pendingPointsEngine.js?v=20261015-v105"></script>
-  <script src="js/api/apiClient.js?v=20261015-v105"></script>
-  <script src="js/store/practiceStore.js?v=20261015-v105"></script>
-  <script src="js/store/chatStore.js?v=20261015-v105"></script>
-  <script src="js/ui/authView.js?v=20261015-v105"></script>
-  <script src="js/ui/dashboardView.js?v=20261015-v105"></script>
-  <script src="js/ui/chestView.js?v=20261015-v105"></script>
-  <script src="js/ui/footprintsView.js?v=20261015-v105"></script>
-  <script src="js/ui/profileView.js?v=20261015-v105"></script>
-  <script src="js/ui/groupFellowshipView.js?v=20261015-v105"></script>
-  <script src="js/app.js?v=20261015-v105"></script>
+  <script src="runtime-settings.js?v=20261016-v106"></script>
+  <script src="js/utils/vitalUtils.js?v=20261016-v106"></script>
+  <script src="js/utils/avatarManager.js?v=20261016-v106"></script>
+  <script src="js/modules/journeyEngine.js?v=20261016-v106"></script>
+  <script src="js/modules/storageGateway.js?v=20261016-v106"></script>
+  <script src="js/modules/userSessionCoordinator.js?v=20261016-v106"></script>
+  <script src="js/modules/pendingPointsEngine.js?v=20261016-v106"></script>
+  <script src="js/api/apiClient.js?v=20261016-v106"></script>
+  <script src="js/store/practiceStore.js?v=20261016-v106"></script>
+  <script src="js/store/chatStore.js?v=20261016-v106"></script>
+  <script src="js/ui/authView.js?v=20261016-v106"></script>
+  <script src="js/ui/dashboardView.js?v=20261016-v106"></script>
+  <script src="js/ui/chestView.js?v=20261016-v106"></script>
+  <script src="js/ui/footprintsView.js?v=20261016-v106"></script>
+  <script src="js/ui/profileView.js?v=20261016-v106"></script>
+  <script src="js/ui/groupFellowshipView.js?v=20261016-v106"></script>
+  <script src="js/app.js?v=20261016-v106"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

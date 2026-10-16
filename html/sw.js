@@ -1,7 +1,8 @@
-const CACHE_NAME = 'vital-cache-v105';
+const CACHE_NAME = 'vital-cache-v106';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './instruction.html',
   './style.css',
   './login-webp-perf.css',
   './runtime-settings.js',
