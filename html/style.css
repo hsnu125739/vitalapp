@@ -3159,6 +3159,7 @@ body[data-theme="night"] .auth-hero{
     overscroll-behavior:contain;
 }
 
+html.modal-open,
 body.modal-open{
   overflow:hidden !important;
   touch-action:none;
@@ -3171,7 +3172,10 @@ body.modal-open{
   display:block;
   background:#ece8df;
   animation:view-in .2s ease both;
-  overflow:hidden;
+  overflow:hidden !important;
+  margin:0;
+  padding:0;
+  border:0;
   -webkit-overflow-scrolling:touch;
 }
 
@@ -3181,6 +3185,8 @@ body.modal-open{
   border:0;
   display:block;
   background:#fff8e8;
+  margin:0;
+  padding:0;
 }
 
 .bottom-nav{

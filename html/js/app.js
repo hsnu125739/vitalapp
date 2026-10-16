@@ -198,13 +198,15 @@
     if (typeof document !== 'undefined' && document.body) {
       const syncModalScrollLock = () => {
         try {
-          const hasOpenModal = typeof document.querySelector === 'function' ? document.querySelector('.modal-layer:not(.hidden)') : null;
-          if (document.body.classList) {
-            if (hasOpenModal) {
-              document.body.classList.add('modal-open');
-            } else {
-              document.body.classList.remove('modal-open');
-            }
+          const hasOpenModal = typeof document.querySelector === 'function'
+            ? document.querySelector('.modal-layer:not(.hidden), .instruction-modal-layer:not(.hidden)')
+            : null;
+          if (hasOpenModal) {
+            if (document.documentElement && document.documentElement.classList) document.documentElement.classList.add('modal-open');
+            if (document.body && document.body.classList) document.body.classList.add('modal-open');
+          } else {
+            if (document.documentElement && document.documentElement.classList) document.documentElement.classList.remove('modal-open');
+            if (document.body && document.body.classList) document.body.classList.remove('modal-open');
           }
         } catch (e) {}
       };
@@ -212,7 +214,7 @@
       if (typeof MutationObserver !== 'undefined' && typeof document.querySelectorAll === 'function') {
         try {
           const modalObserver = new MutationObserver(syncModalScrollLock);
-          document.querySelectorAll('.modal-layer').forEach(modal => {
+          document.querySelectorAll('.modal-layer, .instruction-modal-layer').forEach(modal => {
             modalObserver.observe(modal, { attributes: true, attributeFilter: ['class', 'style'] });
           });
         } catch (e) {}

@@ -792,6 +792,10 @@
       if (openInstructionBtn && instructionModal) {
         openInstructionBtn.addEventListener('click', () => {
           instructionModal.classList.remove('hidden');
+          if (typeof document !== 'undefined') {
+            if (document.documentElement && document.documentElement.classList) document.documentElement.classList.add('modal-open');
+            if (document.body && document.body.classList) document.body.classList.add('modal-open');
+          }
           if (this.instructionFrame && this.instructionFrame.contentWindow) {
             try {
               this.instructionFrame.contentWindow.scrollTo({ top: 0, behavior: 'instant' });
@@ -802,18 +806,29 @@
 
       // 監聽來自說明頁 iframe 的關閉通知與鍵盤事件
       if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        const closeInstructionHandler = () => {
+          if (instructionModal) {
+            instructionModal.classList.add('hidden');
+            if (typeof document !== 'undefined') {
+              const otherModal = typeof document.querySelector === 'function' ? document.querySelector('.modal-layer:not(.hidden):not(#instructionModal)') : null;
+              if (!otherModal) {
+                if (document.documentElement && document.documentElement.classList) document.documentElement.classList.remove('modal-open');
+                if (document.body && document.body.classList) document.body.classList.remove('modal-open');
+              }
+            }
+          }
+        };
+
         window.addEventListener('message', (event) => {
           if (event && event.data === 'close-instruction') {
-            if (instructionModal) {
-              instructionModal.classList.add('hidden');
-            }
+            closeInstructionHandler();
           }
         });
 
         // 支援 ESC 鍵關閉使用說明
         window.addEventListener('keydown', (e) => {
           if (e && e.key === 'Escape' && instructionModal && !instructionModal.classList.contains('hidden')) {
-            instructionModal.classList.add('hidden');
+            closeInstructionHandler();
           }
         });
       }
@@ -832,7 +847,13 @@
     showHome() {
       if (this.homeViewEl) this.homeViewEl.classList.remove('hidden');
       if (this.myViewEl) this.myViewEl.classList.add('hidden');
-      if (this.instructionModal) this.instructionModal.classList.add('hidden');
+      if (this.instructionModal) {
+        this.instructionModal.classList.add('hidden');
+        if (typeof document !== 'undefined') {
+          if (document.documentElement && document.documentElement.classList) document.documentElement.classList.remove('modal-open');
+          if (document.body && document.body.classList) document.body.classList.remove('modal-open');
+        }
+      }
       const navHome = document.getElementById('navHomeBtn');
       const navMy = document.getElementById('navMyBtn');
       if (navHome) navHome.classList.add('active');
