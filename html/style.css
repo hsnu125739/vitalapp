@@ -3539,6 +3539,7 @@ body{
     padding:6px 4px 5px;
     border-width:3px;
     border-radius:15px;
+    scroll-snap-align:center;
 }
 
 #homeView .journey-node span{
@@ -3610,6 +3611,7 @@ body{
   margin:-4px -10px 0;
   padding:8px 10px calc(108px + env(safe-area-inset-bottom));
   overflow:hidden;
+  overflow:clip;
   min-height:auto;
 }
 

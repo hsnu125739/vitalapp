@@ -783,11 +783,16 @@
         // 啟用滑鼠左右拖移（Drag-to-Scroll）
         this.initTrackMouseDrag_(track);
 
-        // 智慧滾動：將當前活躍或目標節點置中
+        // 智慧滾動：僅捲動內層軌道將當前活躍節點置中，禁止 scrollIntoView 冒泡捲動外層 #homeView
         try {
           const activeNode = track.querySelector('.journey-node.active') || track.querySelector('.journey-node.passed:last-of-type') || track.firstElementChild;
-          if (activeNode && typeof activeNode.scrollIntoView === 'function') {
-            activeNode.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          if (activeNode && track.clientWidth > 0) {
+            const targetLeft = Math.max(0, activeNode.offsetLeft - (track.clientWidth - activeNode.offsetWidth) / 2);
+            if (typeof track.scrollTo === 'function') {
+              track.scrollTo({ left: targetLeft, behavior: 'smooth' });
+            } else {
+              track.scrollLeft = targetLeft;
+            }
           }
         } catch (e) {}
       }
@@ -1383,6 +1388,10 @@
       if (typeof document !== 'undefined') {
         const el = document.getElementById('homeStreakText');
         if (el) el.textContent = '0 天';
+        const hv = document.getElementById('homeView');
+        if (hv) hv.scrollLeft = 0;
+        const tr = document.getElementById('homeJourneyNodes');
+        if (tr) tr.scrollLeft = 0;
       }
     }
 
