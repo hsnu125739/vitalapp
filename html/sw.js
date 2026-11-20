@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vital-cache-v108';
+const CACHE_NAME = 'vital-cache-v109';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -50,7 +50,7 @@ self.addEventListener('install', (event) => {
       await Promise.allSettled(
         ASSETS_TO_CACHE.map(async (url) => {
           try {
-            const response = await fetch(url);
+            const response = await fetch(url, { cache: 'no-cache' });
             if (response.ok) {
               await cache.put(url, response);
             }
@@ -101,8 +101,14 @@ self.addEventListener('fetch', (event) => {
 
   if (isLogicAsset) {
     // 【Network-First 策略】有網路時永遠抓伺服器最新代碼；只有斷網或離線時才退回讀快取
+    // 對 HTML 導覽請求強制 cache: 'no-cache'，繞過瀏覽器底層磁碟快取與 GitHub Pages max-age
+    const isHtml = event.request.mode === 'navigate' ||
+                   url.endsWith('/') ||
+                   url.endsWith('/html') ||
+                   url.endsWith('.html') ||
+                   url.includes('.html?');
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, isHtml ? { cache: 'no-cache' } : undefined)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const resClone = networkResponse.clone();
